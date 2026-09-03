@@ -19,6 +19,8 @@ def _include(package: str, launch_file: str, condition, launch_arguments=None):
 
 def generate_launch_description():
     enable_rtk = LaunchConfiguration('enable_rtk')
+    enable_fastlio_adapter = LaunchConfiguration('enable_fastlio_adapter')
+    enable_localization_manager = LaunchConfiguration('enable_localization_manager')
     enable_nav2 = LaunchConfiguration('enable_nav2')
     enable_base_guard = LaunchConfiguration('enable_base_guard')
     enable_runtime = LaunchConfiguration('enable_runtime')
@@ -31,11 +33,21 @@ def generate_launch_description():
             description='Absolute path to derived Nav2 map YAML; required when enable_nav2=true.',
         ),
         DeclareLaunchArgument('enable_rtk', default_value='true'),
+        # Disabled by default until the selected FAST-LIO2 fork/topic/frame contract
+        # has been verified on the target machine.
+        DeclareLaunchArgument('enable_fastlio_adapter', default_value='false'),
+        DeclareLaunchArgument('enable_localization_manager', default_value='false'),
         DeclareLaunchArgument('enable_nav2', default_value='false'),
         DeclareLaunchArgument('enable_base_guard', default_value='true'),
         DeclareLaunchArgument('enable_runtime', default_value='false'),
 
         _include('agt_rtk_manager', 'rtk_manager.launch.py', IfCondition(enable_rtk)),
+        _include('agt_fastlio_adapter', 'adapter.launch.py', IfCondition(enable_fastlio_adapter)),
+        _include(
+            'agt_localization_manager',
+            'localization_manager.launch.py',
+            IfCondition(enable_localization_manager),
+        ),
         _include('agt_base_control', 'cmd_vel_guard.launch.py', IfCondition(enable_base_guard)),
         _include(
             'agt_nav2_bringup',
