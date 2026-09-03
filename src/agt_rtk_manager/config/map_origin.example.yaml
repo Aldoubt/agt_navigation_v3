@@ -2,11 +2,18 @@ schema_version: 1
 map_id: demo_map
 map_version: v1
 frame_id: map
+
 geographic_reference:
   latitude: 0.0
   longitude: 0.0
   altitude: 0.0
-  heading_deg: 0.0
+
+  # 2D rotation applied to an ENU vector before expressing it in map.
+  # Positive is counter-clockwise. Survey/calibrate this together with the map.
+  map_yaw_from_enu_deg: 0.0
+
 notes: >-
-  Replace with a surveyed anchor. This file is metadata only in runtime-v1;
-  it does not yet publish earth->map TF or inject RTK corrections into FAST-LIO2.
+  This geographic anchor belongs to the Map Package and must be versioned with
+  the localization/navigation maps. agt_rtk_manager publishes a map-frame
+  position observation from this anchor, but never publishes map->odom and never
+  directly injects a correction into FAST-LIO2.
