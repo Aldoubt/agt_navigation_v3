@@ -2,12 +2,13 @@
 <package format="3">
   <name>agt_rtk_manager</name>
   <version>0.1.0</version>
-  <description>Quality-gated RTK/INS integration manager for AGT navigation.</description>
-  <maintainer email="dev@agt.local">AGT Robotics</maintainer>
+  <description>Quality-gated RTK/INS manager and WGS84-to-map observation adapter for AGT navigation.</description>
+  <maintainer email="contact@aldoubt.com">AGT</maintainer>
   <license>Apache-2.0</license>
   <buildtool_depend>ament_python</buildtool_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>agt_asensing_driver</exec_depend>
   <exec_depend>agt_robot_interfaces</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
