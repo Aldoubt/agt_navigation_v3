@@ -15,5 +15,8 @@ setup(
     maintainer_email='contact@aldoubt.com',
     description='Convert PCD maps into Nav2 occupancy and terrain layers.',
     license='Apache-2.0',
-    entry_points={'console_scripts': ['pcd_to_nav_map = agt_map_converter.pcd_to_nav_map:main']},
+    entry_points={'console_scripts': [
+        'pcd_to_nav_map = agt_map_converter.pcd_to_nav_map:main',
+        'validate_nav_map = agt_map_converter.validate_nav_map:main',
+    ]},
 )
