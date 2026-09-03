@@ -1,0 +1,17 @@
+uint8 IDLE=0
+uint8 LOCALIZING=1
+uint8 NAVIGATING=2
+uint8 STABILIZING=3
+uint8 CAPTURING=4
+uint8 PAUSED=5
+uint8 COMPLETED=6
+uint8 CANCELED=7
+uint8 ERROR=8
+builtin_interfaces/Time stamp
+uint8 state
+string mission_id
+string point_id
+uint32 point_index
+uint32 point_count
+string detail
+uint16 error_code
