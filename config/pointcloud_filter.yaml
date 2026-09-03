@@ -1,0 +1,40 @@
+pointcloud_preprocessor:
+  ros__parameters:
+    input_topic: /livox/lidar
+    output_topic: /agt/navigation/points_filtered
+    target_frame: lidar_link
+
+    # Basic validity filtering
+    range:
+      enabled: true
+      min_m: 0.5
+      max_m: 120.0
+    remove_nan: true
+
+    # Vehicle self-filter. Geometry is expressed in base_link and transformed
+    # to lidar_link through TF. Start with the chassis collision proxy from
+    # agt_chassis_description, then add rods/track primitives as required.
+    self_filter:
+      enabled: true
+      frame: base_link
+      primitives:
+        - type: box
+          name: chassis
+          xyz: [0.0, 0.0, 0.20]
+          rpy: [0.0, 0.0, 0.0]
+          size: [1.023, 0.778, 0.400]
+
+    # Optional narrow mask for persistent rear rods that cannot be captured
+    # by the physical self-filter geometry. Disabled by default.
+    rear_sector_filter:
+      enabled: false
+      center_deg: 180.0
+      width_deg: 10.0
+      min_range_m: 0.5
+      max_range_m: 4.0
+
+    # Keep mapping and localization preprocessing compatible. Tune after
+    # rosbag benchmarking rather than baking aggressive filtering into V1.
+    voxel:
+      enabled: true
+      leaf_size_m: 0.20
