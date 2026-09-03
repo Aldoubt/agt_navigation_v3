@@ -21,6 +21,7 @@ def generate_launch_description():
     enable_rtk = LaunchConfiguration('enable_rtk')
     enable_fastlio_adapter = LaunchConfiguration('enable_fastlio_adapter')
     enable_localization_manager = LaunchConfiguration('enable_localization_manager')
+    enable_obstacle_cloud = LaunchConfiguration('enable_obstacle_cloud')
     enable_nav2 = LaunchConfiguration('enable_nav2')
     enable_base_guard = LaunchConfiguration('enable_base_guard')
     enable_runtime = LaunchConfiguration('enable_runtime')
@@ -33,10 +34,11 @@ def generate_launch_description():
             description='Absolute path to derived Nav2 map YAML; required when enable_nav2=true.',
         ),
         DeclareLaunchArgument('enable_rtk', default_value='true'),
-        # Disabled by default until the selected FAST-LIO2 fork/topic/frame contract
-        # has been verified on the target machine.
+        # Localization/pointcloud components remain disabled until the selected
+        # sensor topics and frame contract have been verified on the target robot.
         DeclareLaunchArgument('enable_fastlio_adapter', default_value='false'),
         DeclareLaunchArgument('enable_localization_manager', default_value='false'),
+        DeclareLaunchArgument('enable_obstacle_cloud', default_value='false'),
         DeclareLaunchArgument('enable_nav2', default_value='false'),
         DeclareLaunchArgument('enable_base_guard', default_value='true'),
         DeclareLaunchArgument('enable_runtime', default_value='false'),
@@ -47,6 +49,11 @@ def generate_launch_description():
             'agt_localization_manager',
             'localization_manager.launch.py',
             IfCondition(enable_localization_manager),
+        ),
+        _include(
+            'agt_pointcloud_preprocessor',
+            'obstacle_cloud.launch.py',
+            IfCondition(enable_obstacle_cloud),
         ),
         _include('agt_base_control', 'cmd_vel_guard.launch.py', IfCondition(enable_base_guard)),
         _include(
