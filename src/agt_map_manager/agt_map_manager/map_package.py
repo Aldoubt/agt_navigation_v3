@@ -94,7 +94,11 @@ def validate_package(metadata_path: Path, verify_hashes: bool = True) -> Package
     if not isinstance(data, dict):
         return _invalid(metadata_path, package_path, 'metadata_must_be_mapping')
 
-    if int(data.get('schema_version', -1)) != 1:
+    try:
+        schema_version = int(data.get('schema_version', -1))
+    except (TypeError, ValueError):
+        return _invalid(metadata_path, package_path, 'invalid_schema_version')
+    if schema_version != 1:
         return _invalid(metadata_path, package_path, 'unsupported_schema_version')
 
     map_id = str(data.get('map_id', '')).strip()
@@ -191,7 +195,12 @@ def discover_packages(root: Path, verify_hashes: bool = True) -> Iterable[Packag
     if not root.exists():
         return []
 
-    packages = [validate_package(path, verify_hashes) for path in sorted(root.rglob('metadata.yaml'))]
+    try:
+        metadata_files = sorted(root.rglob('metadata.yaml'))
+    except OSError:
+        return []
+
+    packages = [validate_package(path, verify_hashes) for path in metadata_files]
     counts: Dict[Tuple[str, str], int] = {}
     for package in packages:
         if package.map_id and package.map_version:
