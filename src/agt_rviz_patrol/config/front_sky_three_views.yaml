@@ -1,0 +1,38 @@
+# Demo V1: three front-hemisphere views intended to maximize sky/overhead coverage.
+# IMPORTANT: verify C1 pitch sign on the real gimbal before field use. If positive pitch points down,
+# change all pitch values below to negative without changing code.
+base_settle_time: 1.5
+views:
+  - tag: front_left_sky
+    heading: -45.0
+    roll: 0.0
+    pitch: 35.0
+    tolerance: 1.5
+    timeout: 8.0
+    stable_samples: 3
+    settle_time: 0.5
+    image_timeout: 2.0
+    save_image: true
+    required: true
+  - tag: front_center_sky
+    heading: 0.0
+    roll: 0.0
+    pitch: 45.0
+    tolerance: 1.5
+    timeout: 8.0
+    stable_samples: 3
+    settle_time: 0.5
+    image_timeout: 2.0
+    save_image: true
+    required: true
+  - tag: front_right_sky
+    heading: 45.0
+    roll: 0.0
+    pitch: 35.0
+    tolerance: 1.5
+    timeout: 8.0
+    stable_samples: 3
+    settle_time: 0.5
+    image_timeout: 2.0
+    save_image: true
+    required: true
