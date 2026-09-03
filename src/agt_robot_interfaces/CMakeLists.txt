@@ -10,6 +10,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/MissionStatus.msg"
   "msg/InspectionRecord.msg"
   "msg/RTKStatus.msg"
+  "msg/LocalizationStatus.msg"
   "action/ExecuteInspectionMission.action"
   DEPENDENCIES builtin_interfaces geometry_msgs
 )
