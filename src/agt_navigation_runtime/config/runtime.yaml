@@ -1,0 +1,15 @@
+mission_runtime:
+  ros__parameters:
+    global_frame: map
+    base_frame: base_link
+    nav_action: /navigate_to_pose
+    acquire_view_action: /camera_gimbal/acquire_view
+    navsat_topic: /ins/navsatfix
+    hmi_task_request_topic: /agt/task/request
+    hmi_task_status_topic: /agt/task/status
+    record_root: ~/.ros/agt_inspection_records
+    nav_server_timeout_sec: 10.0
+    camera_server_timeout_sec: 10.0
+    tf_lookup_timeout_sec: 0.25
+    rtk_max_age_sec: 1.0
+    default_point_settle_sec: 1.0
