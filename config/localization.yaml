@@ -1,0 +1,36 @@
+localization_manager:
+  ros__parameters:
+    global_map: ""
+    map_database: ""
+    global_frame: map
+    odom_frame: odom
+    base_frame: base_link
+    lidar_frame: lidar_link
+
+    # No initial pose is required in global mode.
+    startup_mode: global
+    allow_initialpose_seed: true
+    last_pose_file: "~/.ros/agt_navigation_v3/last_pose.yaml"
+    last_pose_max_age_sec: 86400.0
+
+    # Global search policy
+    candidate_count: 5
+    global_search_timeout_sec: 10.0
+    retry_period_sec: 1.0
+
+    # Registration thresholds are deliberately conservative placeholders.
+    # Benchmark against the real MID360 rosbag before freezing them.
+    registration:
+      max_fitness: 1.0
+      min_overlap: 0.20
+      max_position_jump_m: 1000.0
+      max_yaw_jump_deg: 180.0
+
+    # V1 backends are adapters; implementation can select concrete libraries
+    # without changing ROS topics or the state machine.
+    descriptor_backend: scan_context
+    coarse_registration_backend: auto
+    fine_registration_backend: gicp
+
+    publish_debug_cloud: true
+    publish_debug_markers: true
