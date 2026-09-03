@@ -1,0 +1,19 @@
+uint8 STATE_BOOT=0
+uint8 STATE_WAIT_LOCAL_ODOM=1
+uint8 STATE_WAIT_GLOBAL=2
+uint8 STATE_LOCALIZED=3
+uint8 STATE_DEGRADED=4
+uint8 STATE_LOST=5
+uint8 STATE_RELOCALIZING=6
+
+builtin_interfaces/Time stamp
+uint8 state
+bool local_odom_fresh
+bool global_correction_valid
+float32 local_odom_age_sec
+float32 global_correction_age_sec
+float32 global_position_std_m
+float32 global_yaw_std_deg
+string map_id
+string map_version
+string reason
