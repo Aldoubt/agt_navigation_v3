@@ -1,0 +1,8 @@
+agt_fastlio_adapter:
+  ros__parameters:
+    input_topic: /Odometry
+    output_topic: /agt/odometry/local
+    expected_odom_frame: odom
+    expected_base_frame: base_link
+    max_input_age_sec: 0.20
+    reject_zero_stamp: true
