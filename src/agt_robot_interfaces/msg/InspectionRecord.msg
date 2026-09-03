@@ -1,0 +1,16 @@
+builtin_interfaces/Time stamp
+string mission_id
+string map_id
+string point_id
+string view_tag
+string image_path
+geometry_msgs/PoseStamped robot_pose
+float64 latitude
+float64 longitude
+float64 altitude
+int8 navsat_status
+float64 gimbal_heading
+float64 gimbal_roll
+float64 gimbal_pitch
+bool pose_valid
+bool rtk_valid
