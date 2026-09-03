@@ -3,6 +3,7 @@ agt_rtk_manager:
     fix_topic: /ins/navsatfix
     status_topic: /ins/status
     output_topic: /agt/rtk/status
+    map_pose_topic: /agt/rtk/map_pose
     publish_rate_hz: 5.0
     max_fix_age_sec: 1.0
     max_status_age_sec: 1.0
@@ -11,4 +12,5 @@ agt_rtk_manager:
     float_max_position_std_m: 0.60
     max_heading_std_deg: 8.0
     allow_float_for_auxiliary: true
+    publish_unfixed_map_pose: true
     map_origin_file: ""
