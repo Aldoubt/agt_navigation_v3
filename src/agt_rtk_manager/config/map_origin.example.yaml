@@ -1,0 +1,12 @@
+schema_version: 1
+map_id: demo_map
+map_version: v1
+frame_id: map
+geographic_reference:
+  latitude: 0.0
+  longitude: 0.0
+  altitude: 0.0
+  heading_deg: 0.0
+notes: >-
+  Replace with a surveyed anchor. This file is metadata only in runtime-v1;
+  it does not yet publish earth->map TF or inject RTK corrections into FAST-LIO2.
