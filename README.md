@@ -92,13 +92,7 @@ source install/setup.bash
 
 ## 1. 一次建图
 
-使用选定的 FAST-LIO2 + MID360 完成一次人工建图，最终导出：
-
-```text
-global_map.pcd
-```
-
-建图时保持 MID360 实际倾角 TF，不做软件 level。具体 FAST-LIO2 launch 命令等最终 fork 确认后冻结。
+使用选定的 FAST-LIO2 + MID360 完成一次人工建图，最终导出 `global_map.pcd`。建图时保持 MID360 实际倾角 TF，不做软件 level。具体 FAST-LIO2 launch 命令等最终 fork 确认后冻结。
 
 ## 2. PCD 转 Nav2 地图
 
@@ -150,19 +144,9 @@ ros2 launch agt_fastlio_adapter adapter.launch.py
 ros2 launch agt_localization_manager localization_manager.launch.py
 ```
 
-Nav2 前确认已有正确：
+Nav2 前确认已有正确 `map -> odom` 和 `odom -> base_link`。
 
-```text
-map -> odom
-odom -> base_link
-```
-
-C1 按 `Autolabor-C1-ROS2` 自己的 Phase-1 bringup 启动，并确认：
-
-```text
-/camera_gimbal/acquire_view
-/camera_gimbal/health
-```
+C1 按 `Autolabor-C1-ROS2` 自己的 Phase-1 bringup 启动，并确认 `/camera_gimbal/acquire_view` 和 `/camera_gimbal/health` 可用。
 
 Nav2：
 
@@ -180,13 +164,7 @@ ros2 launch agt_navigation_runtime runtime.launch.py
 ros2 launch agt_rviz_patrol rviz_patrol.launch.py map_id:=site_A_v1
 ```
 
-默认三视角模板：
-
-```text
-src/agt_rviz_patrol/config/front_sky_three_views.yaml
-```
-
-默认：
+默认三视角模板：`src/agt_rviz_patrol/config/front_sky_three_views.yaml`。
 
 ```text
 front_left_sky    heading -45°  pitch +35°
@@ -218,17 +196,11 @@ ros2 service call /agt/rviz_patrol/start std_srvs/srv/Trigger "{}"
 执行：
 
 ```text
-P001
- -> NavigateToPose
- -> base settle
- -> left sky capture
- -> center sky capture
- -> right sky capture
- -> P002
- -> ...
- -> PN
- -> RETURN_HOME
- -> mission complete / standby
+P001 -> NavigateToPose -> base settle
+     -> left sky capture -> center sky capture -> right sky capture
+P002 -> ...
+PN   -> ...
+RETURN_HOME -> mission complete / standby
 ```
 
 清空未执行队列：
@@ -245,33 +217,11 @@ ros2 service call /agt/rviz_patrol/cancel std_srvs/srv/Trigger "{}"
 
 ## 6. 数据记录
 
-默认：
+默认记录目录：`~/.ros/agt_inspection_records/`。
 
-```text
-~/.ros/agt_inspection_records/
-```
+每张成功照片记录：mission/map/point/view ID、image path、image_stamp、拍照时刻 map pose、RTK 经纬高/状态/时间差、云台 actual heading/roll/pitch 和 camera result code。
 
-每张成功照片记录：
-
-```text
-mission_id
-map_id
-point_id
-view_tag
-image_path
-image_stamp
-map pose at image_stamp
-RTK latitude / longitude / altitude / status
-RTK time difference
-gimbal actual heading / roll / pitch
-camera error code
-```
-
-RViz 自动生成的临时 mission 保存在：
-
-```text
-~/.ros/agt_rviz_patrol/
-```
+RViz 自动生成的临时 mission 保存在 `~/.ros/agt_rviz_patrol/`。
 
 ## 7. 当前 ROS 接口
 
