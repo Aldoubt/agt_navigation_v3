@@ -12,6 +12,7 @@
   <exec_depend>agt_rtk_manager</exec_depend>
   <exec_depend>agt_fastlio_adapter</exec_depend>
   <exec_depend>agt_localization_manager</exec_depend>
+  <exec_depend>agt_pointcloud_preprocessor</exec_depend>
   <exec_depend>agt_nav2_bringup</exec_depend>
   <exec_depend>agt_base_control</exec_depend>
   <exec_depend>agt_navigation_runtime</exec_depend>
