@@ -12,5 +12,8 @@
   <exec_depend>agt_asensing_driver</exec_depend>
   <exec_depend>agt_robot_interfaces</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
   <export><build_type>ament_python</build_type></export>
 </package>
