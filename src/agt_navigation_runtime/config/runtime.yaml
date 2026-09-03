@@ -5,6 +5,7 @@ mission_runtime:
     nav_action: /navigate_to_pose
     acquire_view_action: /camera_gimbal/acquire_view
     navsat_topic: /ins/navsatfix
+    local_odom_topic: /agt/odometry/local
     hmi_task_request_topic: /agt/task/request
     hmi_task_status_topic: /agt/task/status
     record_root: ~/.ros/agt_inspection_records
@@ -13,3 +14,11 @@ mission_runtime:
     tf_lookup_timeout_sec: 0.25
     rtk_max_age_sec: 1.0
     default_point_settle_sec: 1.0
+
+    # Capture begins only after measured local odometry remains below these
+    # thresholds continuously for stationary_hold_sec.
+    stationary_linear_threshold_mps: 0.03
+    stationary_angular_threshold_rps: 0.05
+    stationary_hold_sec: 0.8
+    stationary_timeout_sec: 8.0
+    odom_freshness_sec: 0.5
