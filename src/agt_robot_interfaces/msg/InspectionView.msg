@@ -1,0 +1,11 @@
+string tag
+float64 heading
+float64 roll
+float64 pitch
+float64 tolerance
+float64 timeout
+uint32 stable_samples
+float64 settle_time
+float64 image_timeout
+bool save_image
+bool required
