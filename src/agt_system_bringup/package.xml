@@ -2,10 +2,13 @@
 <package format="3">
   <name>agt_system_bringup</name>
   <version>0.1.0</version>
-  <description>Top-level launch composition for the AGT navigation runtime.</description>
-  <maintainer email="dev@agt.local">AGT Robotics</maintainer>
+  <description>Top-level staged launch composition for the AGT navigation runtime.</description>
+  <maintainer email="contact@aldoubt.com">AGT</maintainer>
   <license>Apache-2.0</license>
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
   <exec_depend>agt_rtk_manager</exec_depend>
   <exec_depend>agt_nav2_bringup</exec_depend>
   <exec_depend>agt_base_control</exec_depend>
