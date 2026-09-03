@@ -12,6 +12,7 @@ from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.time import Time
 from geometry_msgs.msg import PoseStamped
+from nav_msgs.msg import Odometry
 from nav2_msgs.action import NavigateToPose
 from sensor_msgs.msg import NavSatFix
 from std_msgs.msg import String
@@ -39,12 +40,18 @@ class MissionRuntime(Node):
             'nav_action': '/navigate_to_pose',
             'acquire_view_action': '/camera_gimbal/acquire_view',
             'navsat_topic': '/ins/navsatfix',
+            'local_odom_topic': '/agt/odometry/local',
             'hmi_task_request_topic': '/agt/task/request',
             'hmi_task_status_topic': '/agt/task/status',
             'record_root': '~/.ros/agt_inspection_records',
             'nav_server_timeout_sec': 10.0, 'camera_server_timeout_sec': 10.0,
             'tf_lookup_timeout_sec': 0.25, 'rtk_max_age_sec': 1.0,
             'default_point_settle_sec': 1.0,
+            'stationary_linear_threshold_mps': 0.03,
+            'stationary_angular_threshold_rps': 0.05,
+            'stationary_hold_sec': 0.8,
+            'stationary_timeout_sec': 8.0,
+            'odom_freshness_sec': 0.5,
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -55,6 +62,8 @@ class MissionRuntime(Node):
         self.tf_buffer = Buffer(cache_time=Duration(seconds=30.0))
         self.tf_listener = TransformListener(self.tf_buffer, self)
         self.rtk_samples = deque(maxlen=300)
+        self.latest_local_odom = None
+        self.latest_local_odom_rx_ns = 0
         self.pending_hmi_mission = ''
         self.paused = False
         self.cancel_requested = False
@@ -75,6 +84,7 @@ class MissionRuntime(Node):
         self.hmi_status_pub = self.create_publisher(String, self.get_parameter('hmi_task_status_topic').value, 10)
         self.create_subscription(String, self.get_parameter('hmi_task_request_topic').value, self.on_hmi_task_request, 10)
         self.create_subscription(NavSatFix, self.get_parameter('navsat_topic').value, self.on_navsat, 20)
+        self.create_subscription(Odometry, self.get_parameter('local_odom_topic').value, self.on_local_odom, 50)
         self.create_service(Trigger, '/agt/task/start', self.on_hmi_start)
         self.create_service(Trigger, '/agt/task/pause', self.on_hmi_pause)
         self.create_service(Trigger, '/agt/task/cancel', self.on_hmi_cancel)
@@ -131,6 +141,10 @@ class MissionRuntime(Node):
     def on_navsat(self, msg):
         self.rtk_samples.append((Time.from_msg(msg.header.stamp).nanoseconds, msg))
 
+    def on_local_odom(self, msg):
+        self.latest_local_odom = msg
+        self.latest_local_odom_rx_ns = self.get_clock().now().nanoseconds
+
     def publish_status(self, state, mission_id='', point_id='', index=0, count=0,
                        detail='', error_code=0, goal_handle=None):
         msg = MissionStatus()
@@ -161,6 +175,40 @@ class MissionRuntime(Node):
                                 len(mission.points), 'paused by operator', goal_handle=goal_handle)
             await asyncio.sleep(0.2)
 
+    async def wait_until_stationary(self):
+        linear_limit = float(self.get_parameter('stationary_linear_threshold_mps').value)
+        angular_limit = float(self.get_parameter('stationary_angular_threshold_rps').value)
+        hold_sec = float(self.get_parameter('stationary_hold_sec').value)
+        timeout_sec = float(self.get_parameter('stationary_timeout_sec').value)
+        freshness_sec = float(self.get_parameter('odom_freshness_sec').value)
+        start_ns = self.get_clock().now().nanoseconds
+        stable_since_ns = None
+
+        while rclpy.ok() and not self.cancel_requested:
+            now_ns = self.get_clock().now().nanoseconds
+            if (now_ns - start_ns) / 1e9 > timeout_sec:
+                return False, 'base did not become stationary before timeout'
+
+            odom = self.latest_local_odom
+            rx_age = (now_ns - self.latest_local_odom_rx_ns) / 1e9 if self.latest_local_odom_rx_ns else float('inf')
+            if odom is None or rx_age > freshness_sec:
+                stable_since_ns = None
+                await asyncio.sleep(0.05)
+                continue
+
+            t = odom.twist.twist
+            linear = math.sqrt(t.linear.x * t.linear.x + t.linear.y * t.linear.y + t.linear.z * t.linear.z)
+            angular = math.sqrt(t.angular.x * t.angular.x + t.angular.y * t.angular.y + t.angular.z * t.angular.z)
+            if linear <= linear_limit and angular <= angular_limit:
+                if stable_since_ns is None:
+                    stable_since_ns = now_ns
+                elif (now_ns - stable_since_ns) / 1e9 >= hold_sec:
+                    return True, f'stationary linear={linear:.3f}m/s angular={angular:.3f}rad/s'
+            else:
+                stable_since_ns = None
+            await asyncio.sleep(0.05)
+        return False, 'stationary check canceled'
+
     async def execute_mission(self, goal_handle):
         self.active_goal_handle = goal_handle
         self.cancel_requested = False
@@ -186,10 +234,19 @@ class MissionRuntime(Node):
                     result.completed_points, result.error_code, result.message = completed, 1000, nav_error
                     return result
 
+                self.publish_status(MissionStatus.STABILIZING, mission.mission_id, point.id, index,
+                                    len(mission.points), 'waiting for measured base stop', goal_handle=goal_handle)
+                stopped, stop_detail = await self.wait_until_stationary()
+                if not stopped:
+                    goal_handle.abort()
+                    result.success, result.mission_id = False, mission.mission_id
+                    result.completed_points, result.error_code, result.message = completed, 1100, stop_detail
+                    return result
+
                 settle = point.settle_time if point.settle_time >= 0 else float(self.get_parameter('default_point_settle_sec').value)
                 if settle > 0:
                     self.publish_status(MissionStatus.STABILIZING, mission.mission_id, point.id, index,
-                                        len(mission.points), f'settling {settle:.2f}s', goal_handle=goal_handle)
+                                        len(mission.points), f'{stop_detail}; extra settle {settle:.2f}s', goal_handle=goal_handle)
                     await asyncio.sleep(settle)
 
                 for view in point.views:
