@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>agt_system_bringup</name>
+  <version>0.1.0</version>
+  <description>Top-level launch composition for the AGT navigation runtime.</description>
+  <maintainer email="dev@agt.local">AGT Robotics</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <exec_depend>agt_rtk_manager</exec_depend>
+  <exec_depend>agt_nav2_bringup</exec_depend>
+  <exec_depend>agt_base_control</exec_depend>
+  <exec_depend>agt_navigation_runtime</exec_depend>
+  <export><build_type>ament_cmake</build_type></export>
+</package>
