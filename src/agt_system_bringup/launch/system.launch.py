@@ -18,6 +18,7 @@ def _include(package: str, launch_file: str, condition, launch_arguments=None):
 
 
 def generate_launch_description():
+    enable_map_manager = LaunchConfiguration('enable_map_manager')
     enable_rtk = LaunchConfiguration('enable_rtk')
     enable_fastlio_adapter = LaunchConfiguration('enable_fastlio_adapter')
     enable_localization_manager = LaunchConfiguration('enable_localization_manager')
@@ -33,6 +34,7 @@ def generate_launch_description():
             default_value='',
             description='Absolute path to derived Nav2 map YAML; required when enable_nav2=true.',
         ),
+        DeclareLaunchArgument('enable_map_manager', default_value='true'),
         DeclareLaunchArgument('enable_rtk', default_value='true'),
         # Localization/pointcloud components remain disabled until the selected
         # sensor topics and frame contract have been verified on the target robot.
@@ -43,6 +45,7 @@ def generate_launch_description():
         DeclareLaunchArgument('enable_base_guard', default_value='true'),
         DeclareLaunchArgument('enable_runtime', default_value='false'),
 
+        _include('agt_map_manager', 'map_manager.launch.py', IfCondition(enable_map_manager)),
         _include('agt_rtk_manager', 'rtk_manager.launch.py', IfCondition(enable_rtk)),
         _include('agt_fastlio_adapter', 'adapter.launch.py', IfCondition(enable_fastlio_adapter)),
         _include(
