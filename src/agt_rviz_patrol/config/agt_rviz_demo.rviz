@@ -3,6 +3,10 @@ Panels:
     Name: Displays
   - Class: rviz_common/Tool Properties
     Name: Tool Properties
+  - Class: rviz_common/Views
+    Name: Views
+  - Class: rviz_common/Time
+    Name: Time
 Visualization Manager:
   Class: ""
   Displays:
@@ -11,11 +15,23 @@ Visualization Manager:
       Enabled: true
       Cell Size: 1
     - Class: rviz_default_plugins/Map
-      Name: Global Map
+      Name: Static Nav2 Map
       Enabled: true
       Topic:
         Value: /map
-      Alpha: 0.7
+      Alpha: 0.65
+    - Class: rviz_default_plugins/Map
+      Name: Global Costmap
+      Enabled: true
+      Topic:
+        Value: /global_costmap/costmap
+      Alpha: 0.35
+    - Class: rviz_default_plugins/Map
+      Name: Local Costmap
+      Enabled: true
+      Topic:
+        Value: /local_costmap/costmap
+      Alpha: 0.45
     - Class: rviz_default_plugins/TF
       Name: TF
       Enabled: true
@@ -26,6 +42,14 @@ Visualization Manager:
       Enabled: true
       Description Topic:
         Value: /robot_description
+    - Class: rviz_default_plugins/Odometry
+      Name: Batch-LIO Local Odometry
+      Enabled: true
+      Topic:
+        Value: /agt/odometry/local
+      Keep: 100
+      Shape:
+        Value: Arrow
     - Class: rviz_default_plugins/PointCloud2
       Name: Local Obstacles
       Enabled: true
@@ -47,7 +71,14 @@ Visualization Manager:
       Topic:
         Value: /plan
       Line Style: Lines
-      Line Width: 0.03
+      Line Width: 0.04
+    - Class: rviz_default_plugins/Path
+      Name: Local Plan
+      Enabled: true
+      Topic:
+        Value: /local_plan
+      Line Style: Lines
+      Line Width: 0.05
   Global Options:
     Fixed Frame: map
     Frame Rate: 30
@@ -58,15 +89,12 @@ Visualization Manager:
     - Class: rviz_default_plugins/Select
     - Class: rviz_default_plugins/FocusCamera
     - Class: rviz_default_plugins/Measure
-    - Class: rviz_default_plugins/SetInitialPose
-      Topic:
-        Value: /initialpose
     - Class: rviz_default_plugins/SetGoal
       Topic:
         Value: /goal_pose
   Views:
     Current:
-      Class: rviz_default_plugins/Orbit
+      Class: rviz_default_plugins/XYOrbit
       Distance: 20
       Pitch: 0.785
       Yaw: 0.785
