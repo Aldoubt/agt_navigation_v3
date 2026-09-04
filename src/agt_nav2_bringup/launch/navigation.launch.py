@@ -2,10 +2,22 @@ from pathlib import Path
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+
+
+def _validate_files(context):
+    checks = {
+        'map': LaunchConfiguration('map').perform(context),
+        'params_file': LaunchConfiguration('params_file').perform(context),
+    }
+    for label, value in checks.items():
+        path = Path(value).expanduser()
+        if not value or not path.is_file():
+            raise RuntimeError(f'agt_nav2_bringup: {label} file does not exist: {value!r}')
+    return []
 
 
 def generate_launch_description():
@@ -26,9 +38,11 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument('use_sim_time', default_value='false'),
         DeclareLaunchArgument('autostart', default_value='true'),
+        OpaqueFunction(function=_validate_files),
 
-        # External FAST-LIO2 + global relocalization own map->odom and odom->base_link.
-        # Therefore AMCL/localization_launch.py is intentionally not started here.
+        # Localization is external. AMCL/localization_launch.py is intentionally
+        # not started; Localization Manager owns map->odom and Batch-LIO owns the
+        # continuous local odometry input.
         Node(
             package='nav2_map_server',
             executable='map_server',
@@ -48,9 +62,7 @@ def generate_launch_description():
             }],
         ),
         IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                str(nav2_share / 'launch' / 'navigation_launch.py')
-            ),
+            PythonLaunchDescriptionSource(str(nav2_share / 'launch' / 'navigation_launch.py')),
             launch_arguments={
                 'use_sim_time': use_sim_time,
                 'autostart': autostart,
