@@ -7,6 +7,8 @@ on:
       - 'scripts/**'
       - 'systemd/**'
       - 'config/field_hardware.env'
+      - 'src/agt_mapping_bringup/config/*.rviz'
+      - 'src/agt_rviz_patrol/config/*.rviz'
       - 'AGENTS.md'
       - 'agent.md'
       - '.github/workflows/field-ops-smoke.yml'
@@ -15,12 +17,16 @@ on:
       - 'scripts/**'
       - 'systemd/**'
       - 'config/field_hardware.env'
+      - 'src/agt_mapping_bringup/config/*.rviz'
+      - 'src/agt_rviz_patrol/config/*.rviz'
 
 jobs:
   syntax:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+      - name: Install parser
+        run: python3 -m pip install --user pyyaml
       - name: Shell syntax
         run: |
           bash -n scripts/bootstrap_humble.sh
@@ -38,6 +44,19 @@ jobs:
             --host-ip 192.168.1.5 \
             --output /tmp/MID360_config.json
           python3 -m json.tool /tmp/MID360_config.json >/dev/null
+      - name: Parse RViz layouts
+        run: |
+          python3 - <<'PY'
+          import pathlib, yaml
+          paths = [
+              pathlib.Path('src/agt_mapping_bringup/config/agt_mapping.rviz'),
+              pathlib.Path('src/agt_rviz_patrol/config/agt_rviz_demo.rviz'),
+          ]
+          for path in paths:
+              data = yaml.safe_load(path.read_text(encoding='utf-8'))
+              assert isinstance(data, dict) and 'Visualization Manager' in data
+              print('RVIZ PASS:', path)
+          PY
       - name: Validate systemd unit syntax when available
         run: |
           if command -v systemd-analyze >/dev/null 2>&1; then
