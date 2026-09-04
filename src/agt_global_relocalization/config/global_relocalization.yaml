@@ -20,9 +20,22 @@ agt_global_relocalization:
 
     # V1 default backend: true no-initial-pose CPU 3D-BBS coarse search followed
     # by small_gicp GICP refinement. RTK/INS is deliberately NOT an input here.
-    # Supported placeholders: {scan_pcd} {global_map} {timeout_sec}
-    sdk_command: "ros2 run agt_global_relocalization_native bbs_gicp_localizer --map {global_map} --scan {scan_pcd} --timeout {timeout_sec}"
+    # Generate relocalization_assets once for each final optimized PCD. If assets are
+    # left empty, the backend still works but rebuilds the BBS hierarchy at runtime.
+    # Supported placeholders: {scan_pcd} {global_map} {timeout_sec} {assets_arg}
+    # {local_map_radius_xy} {local_map_half_height} {min_local_map_points}
+    sdk_command: >-
+      ros2 run agt_global_relocalization_native bbs_gicp_localizer
+      --map {global_map} --scan {scan_pcd} {assets_arg}
+      --timeout {timeout_sec}
+      --local-map-radius-xy {local_map_radius_xy}
+      --local-map-half-height {local_map_half_height}
+      --min-local-map-points {min_local_map_points}
     global_map: ""
+    relocalization_assets: ""
+    backend_local_map_radius_xy: 35.0
+    backend_local_map_half_height: 8.0
+    backend_min_local_map_points: 800
     work_dir: ~/.ros/agt_global_relocalization
     sdk_timeout_sec: 10.0
 
