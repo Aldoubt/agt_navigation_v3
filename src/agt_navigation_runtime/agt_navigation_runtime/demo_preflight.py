@@ -3,15 +3,16 @@ from __future__ import annotations
 import time
 
 import rclpy
+from nav_msgs.msg import Odometry
+from nav2_msgs.action import NavigateToPose
 from rclpy.action import ActionClient
 from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.time import Time
-from nav_msgs.msg import Odometry
-from nav2_msgs.action import NavigateToPose
 from sensor_msgs.msg import NavSatFix, PointCloud2
 from tf2_ros import Buffer, TransformException, TransformListener
 
+from agt_robot_interfaces.msg import LocalizationStatus
 from camera_gimbal_interfaces.action import AcquireView
 
 
@@ -23,8 +24,10 @@ class DemoPreflight(Node):
             'global_frame': 'map',
             'base_frame': 'base_link',
             'local_odom_topic': '/agt/odometry/local',
+            'localization_status_topic': '/agt/localization/status',
             'obstacle_cloud_topic': '/agt/navigation/points_obstacles',
             'navsat_topic': '/ins/navsatfix',
+            'require_localized': True,
             'require_rtk': False,
         }
         for name, value in params.items():
@@ -33,16 +36,28 @@ class DemoPreflight(Node):
         self.odom = None
         self.cloud = None
         self.rtk = None
+        self.localization = None
         self.nav_client = ActionClient(self, NavigateToPose, '/navigate_to_pose')
         self.camera_client = ActionClient(self, AcquireView, '/camera_gimbal/acquire_view')
         self.tf_buffer = Buffer(cache_time=Duration(seconds=5.0))
         self.tf_listener = TransformListener(self.tf_buffer, self)
-        self.create_subscription(Odometry, self.get_parameter('local_odom_topic').value, self._odom_cb, 10)
-        self.create_subscription(PointCloud2, self.get_parameter('obstacle_cloud_topic').value, self._cloud_cb, 10)
-        self.create_subscription(NavSatFix, self.get_parameter('navsat_topic').value, self._rtk_cb, 10)
+        self.create_subscription(
+            Odometry, self.get_parameter('local_odom_topic').value, self._odom_cb, 10)
+        self.create_subscription(
+            LocalizationStatus,
+            self.get_parameter('localization_status_topic').value,
+            self._localization_cb,
+            10)
+        self.create_subscription(
+            PointCloud2, self.get_parameter('obstacle_cloud_topic').value, self._cloud_cb, 10)
+        self.create_subscription(
+            NavSatFix, self.get_parameter('navsat_topic').value, self._rtk_cb, 10)
 
     def _odom_cb(self, msg):
         self.odom = msg
+
+    def _localization_cb(self, msg):
+        self.localization = msg
 
     def _cloud_cb(self, msg):
         self.cloud = msg
@@ -55,7 +70,7 @@ class DemoPreflight(Node):
         deadline = time.monotonic() + timeout
         while rclpy.ok() and time.monotonic() < deadline:
             rclpy.spin_once(self, timeout_sec=0.05)
-            if self.odom is not None and self.cloud is not None:
+            if self.odom is not None and self.cloud is not None and self.localization is not None:
                 break
 
         checks: list[tuple[str, bool, str]] = []
@@ -65,6 +80,24 @@ class DemoPreflight(Node):
         checks.append(('C1 /camera_gimbal/acquire_view', camera_ok, 'action server'))
         checks.append(('local odometry', self.odom is not None, self.get_parameter('local_odom_topic').value))
         checks.append(('obstacle cloud', self.cloud is not None, self.get_parameter('obstacle_cloud_topic').value))
+
+        if bool(self.get_parameter('require_localized').value):
+            loc_ok = (
+                self.localization is not None
+                and int(self.localization.state) == int(LocalizationStatus.STATE_LOCALIZED)
+                and bool(self.localization.local_odom_fresh)
+                and bool(self.localization.global_correction_valid)
+            )
+            if self.localization is None:
+                loc_detail = 'no localization status received'
+            else:
+                loc_detail = (
+                    f'state={int(self.localization.state)} '
+                    f'local_fresh={bool(self.localization.local_odom_fresh)} '
+                    f'global_valid={bool(self.localization.global_correction_valid)} '
+                    f'reason={self.localization.reason}'
+                )
+            checks.append(('LiDAR global localization', loc_ok, loc_detail))
 
         tf_ok = False
         tf_detail = f"{self.get_parameter('global_frame').value}->{self.get_parameter('base_frame').value}"
