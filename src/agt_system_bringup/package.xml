@@ -9,6 +9,7 @@
   <exec_depend>ament_index_python</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
+  <exec_depend>rviz2</exec_depend>
   <exec_depend>agt_map_manager</exec_depend>
   <exec_depend>agt_rtk_manager</exec_depend>
   <exec_depend>agt_fastlio_adapter</exec_depend>
@@ -17,5 +18,6 @@
   <exec_depend>agt_nav2_bringup</exec_depend>
   <exec_depend>agt_base_control</exec_depend>
   <exec_depend>agt_navigation_runtime</exec_depend>
+  <exec_depend>agt_rviz_patrol</exec_depend>
   <export><build_type>ament_cmake</build_type></export>
 </package>
