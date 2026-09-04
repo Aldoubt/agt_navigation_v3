@@ -9,7 +9,7 @@ from pathlib import Path
 
 import yaml
 
-from .map_package import sha256_file, validate_package
+from .map_package import sha256_file, sha256_tree, validate_package
 
 
 NAV_REQUIRED = ('map.yaml', 'map.pgm')
@@ -36,6 +36,19 @@ def _copy_file(src: Path, dst: Path) -> None:
     shutil.copy2(src, dst)
 
 
+def _validate_relocalization_source(path: Path) -> None:
+    required = (
+        path / 'relocalization_assets.yaml',
+        path / 'global_map_downsampled.pcd',
+        path / 'voxelmaps_coords' / 'voxel_params.txt',
+    )
+    for required_path in required:
+        if not required_path.is_file():
+            raise ValueError(f'relocalization assets missing {required_path.relative_to(path)}')
+    if not list((path / 'voxelmaps_coords').glob('*.pcd')):
+        raise ValueError('relocalization assets missing voxelmaps_coords/*.pcd')
+
+
 def build_package(
     map_root: Path,
     map_id: str,
@@ -44,6 +57,7 @@ def build_package(
     navigation_dir: Path,
     rtk_origin: Path | None = None,
     preview: Path | None = None,
+    relocalization_assets_dir: Path | None = None,
 ) -> Path:
     map_id = _safe_component(map_id, 'map_id')
     map_version = _safe_component(map_version, 'map_version')
@@ -57,6 +71,12 @@ def build_package(
     for filename in NAV_REQUIRED:
         if not (navigation_dir / filename).is_file():
             raise ValueError(f'navigation_dir is missing required {filename}')
+
+    if relocalization_assets_dir is not None:
+        relocalization_assets_dir = relocalization_assets_dir.expanduser().resolve()
+        if not relocalization_assets_dir.is_dir():
+            raise ValueError(f'relocalization_assets_dir must exist: {relocalization_assets_dir}')
+        _validate_relocalization_source(relocalization_assets_dir)
 
     map_root.mkdir(parents=True, exist_ok=True)
     destination_parent = map_root / map_id
@@ -89,6 +109,14 @@ def build_package(
                 'sha256': sha256_file(nav_dst / 'map.yaml'),
             },
         }
+
+        if relocalization_assets_dir is not None:
+            relocalization_dst = staging / 'localization' / 'relocalization'
+            shutil.copytree(relocalization_assets_dir, relocalization_dst)
+            assets['relocalization_assets'] = {
+                'path': 'localization/relocalization',
+                'sha256': sha256_tree(relocalization_dst),
+            }
 
         layer_names = {
             'elevation': 'elevation.pgm',
@@ -156,6 +184,7 @@ def main(argv=None) -> None:
     parser.add_argument('--map-version', required=True)
     parser.add_argument('--source-pcd', required=True)
     parser.add_argument('--navigation-dir', required=True)
+    parser.add_argument('--relocalization-assets-dir')
     parser.add_argument('--rtk-origin')
     parser.add_argument('--preview')
     args = parser.parse_args(argv)
@@ -166,6 +195,8 @@ def main(argv=None) -> None:
         map_version=args.map_version,
         source_pcd=Path(args.source_pcd),
         navigation_dir=Path(args.navigation_dir),
+        relocalization_assets_dir=(
+            Path(args.relocalization_assets_dir) if args.relocalization_assets_dir else None),
         rtk_origin=Path(args.rtk_origin) if args.rtk_origin else None,
         preview=Path(args.preview) if args.preview else None,
     )
