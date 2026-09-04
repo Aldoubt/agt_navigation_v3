@@ -1,0 +1,14 @@
+[Unit]
+Description=AGT Bunker SocketCAN bring-up
+After=systemd-udev-settle.service
+Wants=systemd-udev-settle.service
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/default/agt-bunker-can
+ExecStart=/usr/local/sbin/agt-bunker-can supervise
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
