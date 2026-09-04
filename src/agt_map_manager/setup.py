@@ -20,5 +20,8 @@ setup(
     maintainer_email='contact@aldoubt.com',
     description='Versioned AGT Map Package manager.',
     license='Apache-2.0',
-    entry_points={'console_scripts': ['map_manager = agt_map_manager.map_manager:main']},
+    entry_points={'console_scripts': [
+        'map_manager = agt_map_manager.map_manager:main',
+        'create_map_package = agt_map_manager.create_map_package:main',
+    ]},
 )
