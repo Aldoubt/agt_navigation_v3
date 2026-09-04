@@ -6,6 +6,18 @@ agt_global_relocalization:
     status_topic: /agt/global_relocalization/status
     map_frame: map
 
+    # Convert raw MID360 PointCloud2 into base_link using the measured/static URDF TF
+    # before BBS. This removes the intentional LiDAR mounting tilt. V1 requires the
+    # robot to be stationary while the cached scans are collected; multi-frame odom
+    # deskew can be added later if moving relocalization is required.
+    query_frame: base_link
+    tf_timeout_sec: 0.10
+    require_stationary: true
+    local_odom_topic: /agt/odometry/local
+    odom_freshness_sec: 0.50
+    stationary_linear_threshold_mps: 0.05
+    stationary_angular_threshold_rps: 0.08
+
     # V1 default backend: true no-initial-pose CPU 3D-BBS coarse search followed
     # by small_gicp GICP refinement. RTK/INS is deliberately NOT an input here.
     # Supported placeholders: {scan_pcd} {global_map} {timeout_sec}
