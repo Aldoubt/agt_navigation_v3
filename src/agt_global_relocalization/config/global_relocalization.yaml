@@ -1,0 +1,30 @@
+agt_global_relocalization:
+  ros__parameters:
+    scan_topic: /agt/livox/points
+    request_topic: /agt/relocalization/request
+    output_pose_topic: /agt/relocalization/pose
+    status_topic: /agt/global_relocalization/status
+    map_frame: map
+
+    # Current SDK integration mode. Replace the command with the user's real SDK wrapper.
+    # Supported placeholders: {scan_pcd} {global_map} {timeout_sec}
+    sdk_command: ""
+    global_map: ""
+    work_dir: ~/.ros/agt_global_relocalization
+    sdk_timeout_sec: 10.0
+
+    accumulate_clouds: 5
+    min_points: 2000
+    max_points: 250000
+
+    # SDK JSON result gates. Expected stdout JSON fields:
+    # success, x,y,z,qx,qy,qz,qw, score, fitness, overlap, optional message
+    min_score: 0.50
+    max_fitness: 1.00
+    min_overlap: 0.20
+
+    # Score -> covariance mapping used until SDK exposes a calibrated covariance.
+    best_position_std_m: 0.15
+    worst_position_std_m: 0.80
+    best_yaw_std_deg: 3.0
+    worst_yaw_std_deg: 15.0
