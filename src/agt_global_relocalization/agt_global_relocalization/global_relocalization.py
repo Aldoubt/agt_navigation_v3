@@ -67,9 +67,27 @@ class GlobalRelocalization(Node):
     def on_cloud(self, msg):
         self.clouds.append(msg)
 
+    @staticmethod
+    def motion_metrics(msg):
+        t = msg.twist.twist
+        linear = math.sqrt(t.linear.x*t.linear.x + t.linear.y*t.linear.y + t.linear.z*t.linear.z)
+        angular = math.sqrt(t.angular.x*t.angular.x + t.angular.y*t.angular.y + t.angular.z*t.angular.z)
+        return linear, angular
+
     def on_odom(self, msg):
+        first_odom = self.latest_odom is None
         self.latest_odom = msg
         self.latest_odom_rx_ns = self.get_clock().now().nanoseconds
+        if bool(self.get_parameter('require_stationary').value):
+            linear, angular = self.motion_metrics(msg)
+            moving = (
+                linear > float(self.get_parameter('stationary_linear_threshold_mps').value)
+                or angular > float(self.get_parameter('stationary_angular_threshold_rps').value)
+            )
+            # Never let a just-stopped robot reuse scans captured while it was moving.
+            # After motion, the deque must fill again with fresh stationary frames.
+            if first_odom or moving:
+                self.clouds.clear()
 
     def status(self, state, detail='', **extra):
         m = String()
@@ -87,9 +105,7 @@ class GlobalRelocalization(Node):
         age = (self.get_clock().now().nanoseconds - self.latest_odom_rx_ns) / 1e9
         if age > float(self.get_parameter('odom_freshness_sec').value):
             return False, f'local odometry stale: {age:.3f}s'
-        t = self.latest_odom.twist.twist
-        linear = math.sqrt(t.linear.x*t.linear.x + t.linear.y*t.linear.y + t.linear.z*t.linear.z)
-        angular = math.sqrt(t.angular.x*t.angular.x + t.angular.y*t.angular.y + t.angular.z*t.angular.z)
+        linear, angular = self.motion_metrics(self.latest_odom)
         if linear > float(self.get_parameter('stationary_linear_threshold_mps').value):
             return False, f'robot moving: linear={linear:.3f}m/s'
         if angular > float(self.get_parameter('stationary_angular_threshold_rps').value):
@@ -101,7 +117,7 @@ class GlobalRelocalization(Node):
             self.status('BUSY', 'relocalization already running')
             return
         if not self.clouds:
-            self.status('FAILED', 'no PointCloud2 scan available')
+            self.status('FAILED', 'no stationary PointCloud2 scan available yet')
             return
         stationary, detail = self.stationary_gate()
         if not stationary:
@@ -124,7 +140,6 @@ class GlobalRelocalization(Node):
         if qn < 1e-12:
             raise RuntimeError('invalid zero TF quaternion')
         qx, qy, qz, qw = qx/qn, qy/qn, qz/qn, qw/qn
-        # Quaternion rotation expanded to avoid another point-cloud conversion dependency.
         tx = 2.0 * (qy*z - qz*y)
         ty = 2.0 * (qz*x - qx*z)
         tz = 2.0 * (qx*y - qy*x)
