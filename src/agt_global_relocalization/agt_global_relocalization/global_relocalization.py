@@ -34,6 +34,10 @@ class GlobalRelocalization(Node):
         p('tf_timeout_sec', 0.10)
         p('sdk_command', '')
         p('global_map', '')
+        p('relocalization_assets', '')
+        p('backend_local_map_radius_xy', 35.0)
+        p('backend_local_map_half_height', 8.0)
+        p('backend_min_local_map_points', 800)
         p('work_dir', '~/.ros/agt_global_relocalization')
         p('sdk_timeout_sec', 10.0)
         p('accumulate_clouds', 5)
@@ -198,10 +202,13 @@ class GlobalRelocalization(Node):
 
         command_template = str(self.get_parameter('sdk_command').value).strip()
         global_map = os.path.expanduser(str(self.get_parameter('global_map').value))
+        assets_dir = os.path.expanduser(str(self.get_parameter('relocalization_assets').value)).strip()
         if not command_template:
             raise RuntimeError('relocalization backend command is empty')
         if not global_map or not Path(global_map).is_file():
             raise RuntimeError(f'global_map not found: {global_map!r}')
+        if assets_dir and not Path(assets_dir).is_dir():
+            raise RuntimeError(f'relocalization_assets directory not found: {assets_dir!r}')
 
         work = Path(os.path.expanduser(str(self.get_parameter('work_dir').value)))
         work.mkdir(parents=True, exist_ok=True)
@@ -209,8 +216,23 @@ class GlobalRelocalization(Node):
             scan_pcd = Path(td) / 'query_scan.pcd'
             self.write_ascii_pcd(scan_pcd, rows)
             timeout = float(self.get_parameter('sdk_timeout_sec').value)
-            cmd = command_template.format(scan_pcd=str(scan_pcd), global_map=global_map, timeout_sec=timeout)
-            self.status('RUNNING', 'calling 3D relocalization backend', points=len(rows), query_frame=self.get_parameter('query_frame').value)
+            assets_arg = f'--assets-dir {shlex.quote(assets_dir)}' if assets_dir else ''
+            cmd = command_template.format(
+                scan_pcd=str(scan_pcd),
+                global_map=global_map,
+                timeout_sec=timeout,
+                assets_arg=assets_arg,
+                local_map_radius_xy=float(self.get_parameter('backend_local_map_radius_xy').value),
+                local_map_half_height=float(self.get_parameter('backend_local_map_half_height').value),
+                min_local_map_points=int(self.get_parameter('backend_min_local_map_points').value),
+            )
+            self.status(
+                'RUNNING',
+                'calling 3D relocalization backend',
+                points=len(rows),
+                query_frame=self.get_parameter('query_frame').value,
+                assets=bool(assets_dir),
+            )
             proc = subprocess.run(shlex.split(cmd), capture_output=True, text=True, timeout=timeout, check=False)
             if proc.returncode != 0:
                 raise RuntimeError(f'backend returned {proc.returncode}: {proc.stderr.strip()}')
@@ -254,8 +276,19 @@ class GlobalRelocalization(Node):
         cov[35] = yaw_std * yaw_std
         msg.pose.covariance = cov
         self.pose_pub.publish(msg)
-        self.status('SUCCEEDED', 'global base pose published', score=score, fitness=fitness, overlap=overlap,
-                    position_std_m=pos_std, yaw_std_deg=math.degrees(yaw_std))
+        self.status(
+            'SUCCEEDED',
+            'global base pose published',
+            score=score,
+            fitness=fitness,
+            overlap=overlap,
+            position_std_m=pos_std,
+            yaw_std_deg=math.degrees(yaw_std),
+            bbs_elapsed_ms=result.get('bbs_elapsed_ms'),
+            bbs_assets_loaded=result.get('bbs_assets_loaded'),
+            gicp_target_points=result.get('gicp_target_points'),
+            gicp_full_map_fallback=result.get('gicp_full_map_fallback'),
+        )
 
     def _lerp(self, low_name, high_name, t):
         low = float(self.get_parameter(low_name).value)
