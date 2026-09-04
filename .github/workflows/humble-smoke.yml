@@ -67,7 +67,51 @@ jobs:
             --packages-select agt_map_converter agt_map_manager
           colcon test-result --verbose
 
+  inspection-runtime-build:
+    runs-on: ubuntu-22.04
+    container: osrf/ros:humble-desktop
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        shell: bash
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            git \
+            python3-colcon-common-extensions \
+            ros-humble-navigation2 \
+            ros-humble-nav2-bringup
+      - name: Fetch pinned C1 public interfaces
+        shell: bash
+        run: |
+          git clone https://github.com/Aldoubt/Autolabor-C1-ROS2.git src/external_c1
+          git -C src/external_c1 checkout 10d82179dc34ae035b382e9b465e4b8f5d55c0a8
+      - name: Build inspection runtime and RViz mission layer
+        shell: bash
+        run: |
+          source /opt/ros/humble/setup.bash
+          colcon build --symlink-install --event-handlers console_direct+ \
+            --packages-select \
+              camera_gimbal_interfaces \
+              agt_robot_interfaces \
+              agt_navigation_runtime \
+              agt_rviz_patrol
+      - name: Import runtime against generated action interfaces
+        shell: bash
+        run: |
+          source /opt/ros/humble/setup.bash
+          source install/setup.bash
+          python3 - <<'PY'
+          from action_msgs.msg import GoalStatus
+          from camera_gimbal_interfaces.action import AcquireView
+          from agt_navigation_runtime.mission_runtime import MissionRuntime
+          assert GoalStatus.STATUS_SUCCEEDED == 4
+          assert AcquireView is not None
+          assert MissionRuntime is not None
+          print('inspection runtime import PASS')
+          PY
+
 # This workflow intentionally does not claim a full field-demo build. The full
-# chain additionally needs pinned Livox/Batch-LIO/Fast-LIO2, C1/INS interfaces,
+# chain additionally needs pinned Livox/Batch-LIO/Fast-LIO2, INS interfaces,
 # 3D-BBS and small_gicp. Use scripts/field_build_smoke.sh on the target Humble
 # workspace after those dependencies are installed.
