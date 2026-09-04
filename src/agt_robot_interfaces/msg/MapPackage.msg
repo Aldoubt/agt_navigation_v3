@@ -5,4 +5,5 @@ bool valid
 string reason
 string navigation_map_yaml
 string localization_map_pcd
+string relocalization_assets_path
 string rtk_origin_yaml
