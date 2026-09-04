@@ -1,0 +1,1 @@
+"""AGT global relocalization adapter."""
