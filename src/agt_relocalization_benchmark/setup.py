@@ -20,6 +20,7 @@ setup(
     entry_points={
         'console_scripts': [
             'capture_cases = agt_relocalization_benchmark.capture_cases:main',
+            'import_pgo_cases = agt_relocalization_benchmark.import_pgo_cases:main',
             'sweep = agt_relocalization_benchmark.sweep:main',
         ],
     },
