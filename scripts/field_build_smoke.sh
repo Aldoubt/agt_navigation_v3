@@ -11,6 +11,16 @@ if [[ -f install/setup.bash ]]; then
   source install/setup.bash
 fi
 
+# Livox's upstream build.sh creates package.xml/launch and then clears the whole
+# workspace build/install directories. bootstrap_humble.sh prepares these links
+# without invoking that destructive wrapper; repeat the harmless preparation
+# here so the smoke check is robust when called directly.
+if [[ -f src/external/livox_ros_driver2/package_ROS2.xml ]]; then
+  ln -sfn package_ROS2.xml src/external/livox_ros_driver2/package.xml
+  rm -rf src/external/livox_ros_driver2/launch
+  ln -s launch_ROS2 src/external/livox_ros_driver2/launch
+fi
+
 have_ros_or_source_pkg() {
   local pkg="$1"
   if command -v colcon >/dev/null 2>&1 && colcon list --names-only 2>/dev/null | grep -qx "$pkg"; then
@@ -39,6 +49,19 @@ for pkg in "${required_ros_pkgs[@]}"; do
   fi
 done
 
+if [[ ! -f /usr/local/include/livox_lidar_api.h && ! -f /usr/include/livox_lidar_api.h ]]; then
+  echo "MISSING native dependency: Livox-SDK2 headers" >&2
+  missing=1
+else
+  echo "PASS native dependency: Livox-SDK2 headers"
+fi
+if ! ldconfig -p 2>/dev/null | grep -q 'liblivox_lidar_sdk'; then
+  echo "MISSING native dependency: Livox-SDK2 library" >&2
+  missing=1
+else
+  echo "PASS native dependency: Livox-SDK2 library"
+fi
+
 if [[ ! -f /usr/local/include/cpu_bbs3d/bbs3d.hpp && ! -f /usr/include/cpu_bbs3d/bbs3d.hpp ]]; then
   echo "MISSING native dependency: 3D-BBS headers" >&2
   missing=1
@@ -61,7 +84,7 @@ else
 fi
 
 if [[ "$missing" -ne 0 ]]; then
-  echo "FIELD BUILD PREFLIGHT FAILED: install/clone the missing dependencies first." >&2
+  echo "FIELD BUILD PREFLIGHT FAILED: run scripts/bootstrap_humble.sh first." >&2
   exit 3
 fi
 
@@ -71,9 +94,11 @@ if ! command -v colcon >/dev/null 2>&1; then
 fi
 
 # agt_system_bringup declares the complete current software chain, so building
-# packages-up-to it is the field acceptance compile boundary.
+# packages-up-to it is the field acceptance compile boundary. The explicit
+# CMake variables are required by the upstream Livox ROS Driver 2 CMakeLists.
 colcon build --symlink-install --event-handlers console_direct+ \
-  --packages-up-to agt_system_bringup
+  --packages-up-to agt_system_bringup \
+  --cmake-args -DROS_EDITION=ROS2 -DDISTRO_ROS=humble
 
 source install/setup.bash
 
