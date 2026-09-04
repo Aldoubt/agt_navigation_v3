@@ -20,7 +20,6 @@ jobs:
           import pathlib
           import xml.etree.ElementTree as ET
           import yaml
-
           for path in pathlib.Path('src').rglob('package.xml'):
               ET.parse(path)
           for path in pathlib.Path('src').rglob('*.yaml'):
@@ -111,7 +110,54 @@ jobs:
           print('inspection runtime import PASS')
           PY
 
+  native-relocalization-build:
+    runs-on: ubuntu-22.04
+    container: osrf/ros:humble-desktop
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install native build dependencies
+        shell: bash
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            cmake \
+            git \
+            libboost-filesystem-dev \
+            libboost-system-dev \
+            libeigen3-dev \
+            libpcl-dev \
+            python3-colcon-common-extensions
+      - name: Build and install pinned 3D-BBS CPU library
+        shell: bash
+        run: |
+          git clone https://github.com/KOKIAOKI/3d_bbs.git /tmp/3d_bbs
+          git -C /tmp/3d_bbs checkout 41529a34a2fb9618b5ff560fb3c2363f1615666d
+          cmake -S /tmp/3d_bbs -B /tmp/3d_bbs/build \
+            -DCMAKE_BUILD_TYPE=Release -DBUILD_CUDA=OFF
+          cmake --build /tmp/3d_bbs/build -j2
+          cmake --install /tmp/3d_bbs/build
+          ldconfig
+      - name: Build and install pinned small_gicp
+        shell: bash
+        run: |
+          git clone https://github.com/koide3/small_gicp.git /tmp/small_gicp
+          git -C /tmp/small_gicp checkout 2c6c7831bc1f5ada2ee5300027fe7d7aee66827d
+          cmake -S /tmp/small_gicp -B /tmp/small_gicp/build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_HELPER=ON \
+            -DBUILD_TESTS=OFF \
+            -DBUILD_EXAMPLES=OFF \
+            -DBUILD_BENCHMARKS=OFF
+          cmake --build /tmp/small_gicp/build -j2
+          cmake --install /tmp/small_gicp/build
+          ldconfig
+      - name: Build AGT native relocalization backend
+        shell: bash
+        run: |
+          source /opt/ros/humble/setup.bash
+          colcon build --event-handlers console_direct+ \
+            --packages-select agt_global_relocalization_native
+
 # This workflow intentionally does not claim a full field-demo build. The full
-# chain additionally needs pinned Livox/Batch-LIO/Fast-LIO2, INS interfaces,
-# 3D-BBS and small_gicp. Use scripts/field_build_smoke.sh on the target Humble
-# workspace after those dependencies are installed.
+# chain additionally needs Livox/Batch-LIO/Fast-LIO2 and INS hardware-interface
+# dependencies. Use scripts/field_build_smoke.sh on the target Humble workspace.
