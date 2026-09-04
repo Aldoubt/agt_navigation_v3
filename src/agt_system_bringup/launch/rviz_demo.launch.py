@@ -10,13 +10,12 @@ from launch_ros.actions import Node
 
 
 def include(package, launch_file, condition=None, arguments=None):
-    action = IncludeLaunchDescription(
+    return IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(get_package_share_directory(package), 'launch', launch_file)),
         launch_arguments=(arguments or {}).items(),
         condition=condition,
     )
-    return action
 
 
 def generate_launch_description():
@@ -25,6 +24,10 @@ def generate_launch_description():
     use_sim_time = LaunchConfiguration('use_sim_time')
     launch_rviz = LaunchConfiguration('launch_rviz')
     enable_rtk = LaunchConfiguration('enable_rtk')
+    rviz_config = LaunchConfiguration('rviz_config')
+
+    default_rviz = os.path.join(
+        get_package_share_directory('agt_rviz_patrol'), 'config', 'agt_rviz_demo.rviz')
 
     return LaunchDescription([
         DeclareLaunchArgument('map', description='Absolute path to converted Nav2 map.yaml'),
@@ -32,6 +35,7 @@ def generate_launch_description():
         DeclareLaunchArgument('use_sim_time', default_value='false'),
         DeclareLaunchArgument('launch_rviz', default_value='true'),
         DeclareLaunchArgument('enable_rtk', default_value='true'),
+        DeclareLaunchArgument('rviz_config', default_value=default_rviz),
 
         include('agt_rtk_manager', 'rtk_manager.launch.py', condition=IfCondition(enable_rtk)),
         include('agt_nav2_bringup', 'navigation.launch.py', arguments={
@@ -49,6 +53,7 @@ def generate_launch_description():
             executable='rviz2',
             name='agt_demo_rviz',
             output='screen',
+            arguments=['-d', rviz_config],
             condition=IfCondition(launch_rviz),
         ),
     ])
