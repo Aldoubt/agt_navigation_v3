@@ -4,3 +4,8 @@ livox_format_bridge:
     input_topic: /agt/livox/points
     output_topic: /agt/livox/custom
     lidar_id: 0
+
+    # Mapping/odometry safety gate. PointCloud2 must contain either the Livox
+    # uint32 offset_time field or a per-point float64 timestamp field so deskew
+    # timing can be reconstructed. Set false only for geometry-only/debug use.
+    require_per_point_time: true
