@@ -11,6 +11,14 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # shellcheck disable=SC1091
 source "${REPO_ROOT}/config/field_hardware.env"
 
+missing_pkgs=()
+command -v ip >/dev/null 2>&1 || missing_pkgs+=(iproute2)
+command -v candump >/dev/null 2>&1 || missing_pkgs+=(can-utils)
+if [[ "${#missing_pkgs[@]}" -gt 0 ]]; then
+  apt-get update
+  DEBIAN_FRONTEND=noninteractive apt-get install -y "${missing_pkgs[@]}"
+fi
+
 install -m 0755 "${REPO_ROOT}/scripts/agt_bunker_can" /usr/local/sbin/agt-bunker-can
 install -m 0644 "${REPO_ROOT}/systemd/agt-bunker-can.service" /etc/systemd/system/agt-bunker-can.service
 
