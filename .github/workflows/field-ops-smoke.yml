@@ -1,0 +1,45 @@
+name: field-ops-smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/**'
+      - 'systemd/**'
+      - 'config/field_hardware.env'
+      - 'AGENTS.md'
+      - 'agent.md'
+      - '.github/workflows/field-ops-smoke.yml'
+  pull_request:
+    paths:
+      - 'scripts/**'
+      - 'systemd/**'
+      - 'config/field_hardware.env'
+
+jobs:
+  syntax:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shell syntax
+        run: |
+          bash -n scripts/bootstrap_humble.sh
+          bash -n scripts/field_build_smoke.sh
+          bash -n scripts/field_diagnostics.sh
+          bash -n scripts/agt_bunker_can
+          bash -n scripts/install_bunker_can_service.sh
+          bash -n scripts/start_mid360.sh
+      - name: Python syntax
+        run: python3 -m py_compile scripts/generate_mid360_config.py
+      - name: Generate MID360 config with explicit host IP
+        run: |
+          python3 scripts/generate_mid360_config.py \
+            --lidar-ip 192.168.1.117 \
+            --host-ip 192.168.1.5 \
+            --output /tmp/MID360_config.json
+          python3 -m json.tool /tmp/MID360_config.json >/dev/null
+      - name: Validate systemd unit syntax when available
+        run: |
+          if command -v systemd-analyze >/dev/null 2>&1; then
+            systemd-analyze verify systemd/agt-bunker-can.service
+          fi
