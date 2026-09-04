@@ -6,14 +6,15 @@ import math
 from collections import deque
 
 import rclpy
+from action_msgs.msg import GoalStatus
+from geometry_msgs.msg import PoseStamped
+from nav_msgs.msg import Odometry
+from nav2_msgs.action import NavigateToPose
 from rclpy.action import ActionClient, ActionServer, CancelResponse, GoalResponse
 from rclpy.duration import Duration
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.time import Time
-from geometry_msgs.msg import PoseStamped
-from nav_msgs.msg import Odometry
-from nav2_msgs.action import NavigateToPose
 from sensor_msgs.msg import NavSatFix
 from std_msgs.msg import String
 from std_srvs.srv import Trigger
@@ -308,7 +309,8 @@ class MissionRuntime(Node):
             return False, 'Nav2 goal rejected'
         wrapped = await self.active_nav_goal.get_result_async()
         self.active_nav_goal = None
-        return wrapped.status == 4, f'Nav2 finished with status={wrapped.status}'
+        ok = wrapped.status == GoalStatus.STATUS_SUCCEEDED
+        return ok, f'Nav2 finished with status={wrapped.status}'
 
     async def capture(self, view):
         timeout = float(self.get_parameter('camera_server_timeout_sec').value)
@@ -327,6 +329,12 @@ class MissionRuntime(Node):
             return {'success': False, 'error_code': 201, 'message': 'AcquireView rejected'}
         wrapped = await self.active_camera_goal.get_result_async()
         self.active_camera_goal = None
+        if wrapped.status != GoalStatus.STATUS_SUCCEEDED or wrapped.result is None:
+            return {
+                'success': False,
+                'error_code': 202,
+                'message': f'AcquireView action finished with status={wrapped.status}',
+            }
         r = wrapped.result
         return {
             'success': bool(r.success), 'error_code': int(r.error_code), 'message': r.message,
