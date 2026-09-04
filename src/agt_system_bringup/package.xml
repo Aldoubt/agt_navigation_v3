@@ -13,6 +13,7 @@
   <exec_depend>agt_map_manager</exec_depend>
   <exec_depend>agt_rtk_manager</exec_depend>
   <exec_depend>agt_fastlio_adapter</exec_depend>
+  <exec_depend>agt_batch_lio_adapter</exec_depend>
   <exec_depend>agt_global_relocalization</exec_depend>
   <exec_depend>agt_localization_manager</exec_depend>
   <exec_depend>agt_pointcloud_preprocessor</exec_depend>
