@@ -10,7 +10,6 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
     agt_share = Path(get_package_share_directory('agt_mapping_bringup'))
-    pgo_share = Path(get_package_share_directory('pgo'))
 
     enable_pgo = LaunchConfiguration('enable_pgo')
     use_sim_time = LaunchConfiguration('use_sim_time')
@@ -35,7 +34,8 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'rviz_config',
-            default_value=str(pgo_share / 'rviz' / 'pgo.rviz'),
+            default_value=str(agt_share / 'config' / 'agt_mapping.rviz'),
+            description='AGT mapping RViz layout with LIO clouds/path and PGO loop markers.',
         ),
 
         # Do NOT include upstream lio_launch.py and pgo_launch.py together: both
