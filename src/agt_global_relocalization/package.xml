@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>agt_global_relocalization</name>
+  <version>0.1.0</version>
+  <description>Global 3D relocalization adapter between AGT ROS contracts and an external map-localization SDK.</description>
+  <maintainer email="contact@aldoubt.com">AGT</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>ament_python</buildtool_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <test_depend>ament_pytest</test_depend>
+  <export><build_type>ament_python</build_type></export>
+</package>
