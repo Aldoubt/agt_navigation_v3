@@ -67,5 +67,6 @@ jobs:
       - name: Validate systemd unit syntax when available
         run: |
           if command -v systemd-analyze >/dev/null 2>&1; then
+            sudo install -m 0755 scripts/agt_bunker_can /usr/local/sbin/agt-bunker-can
             systemd-analyze verify systemd/agt-bunker-can.service
           fi
