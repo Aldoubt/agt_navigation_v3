@@ -9,6 +9,9 @@ on:
       - 'config/field_hardware.env'
       - 'src/agt_mapping_bringup/config/*.rviz'
       - 'src/agt_rviz_patrol/config/*.rviz'
+      - 'src/agt_livox_tools/scripts/**'
+      - 'src/agt_livox_tools/config/**'
+      - 'src/agt_livox_tools/src/**'
       - 'AGENTS.md'
       - 'agent.md'
       - '.github/workflows/field-ops-smoke.yml'
@@ -19,6 +22,9 @@ on:
       - 'config/field_hardware.env'
       - 'src/agt_mapping_bringup/config/*.rviz'
       - 'src/agt_rviz_patrol/config/*.rviz'
+      - 'src/agt_livox_tools/scripts/**'
+      - 'src/agt_livox_tools/config/**'
+      - 'src/agt_livox_tools/src/**'
 
 jobs:
   syntax:
@@ -35,6 +41,7 @@ jobs:
           bash -n scripts/agt_bunker_can
           bash -n scripts/install_bunker_can_service.sh
           bash -n scripts/start_mid360.sh
+          bash -n src/agt_livox_tools/scripts/convert_livox_bag_format.sh
       - name: Python syntax
         run: python3 -m py_compile scripts/generate_mid360_config.py
       - name: Generate MID360 config with explicit host IP
