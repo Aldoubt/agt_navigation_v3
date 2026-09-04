@@ -23,35 +23,24 @@ agt_global_relocalization:
     stationary_linear_threshold_mps: 0.05
     stationary_angular_threshold_rps: 0.08
 
-    # V1 backend: no-initial-pose CPU 3D-BBS coarse search followed by small_gicp.
-    # The backend parameters are deliberately exposed here so rosbag replay sweeps
-    # can tune them without patching C++ defaults.
+    # V1 default backend: true no-initial-pose CPU 3D-BBS coarse search followed
+    # by small_gicp GICP refinement. RTK/INS is deliberately NOT an input here.
+    # Generate relocalization_assets once for each final optimized PCD. If assets are
+    # left empty, the backend still works but rebuilds the BBS hierarchy at runtime.
+    # Parameter sweeps call the native backend directly; keep this production command
+    # stable until replay testing selects a field baseline.
     sdk_command: >-
       ros2 run agt_global_relocalization_native bbs_gicp_localizer
       --map {global_map} --scan {scan_pcd} {assets_arg}
       --timeout {timeout_sec}
-      --scan-leaf {scan_leaf}
-      --bbs-min-level-res {bbs_min_level_res}
-      --bbs-max-level {bbs_max_level}
-      --bbs-score-threshold {bbs_score_threshold}
-      --roll-pitch-range-deg {roll_pitch_range_deg}
-      --gicp-max-corr {gicp_max_corr}
       --local-map-radius-xy {local_map_radius_xy}
       --local-map-half-height {local_map_half_height}
       --min-local-map-points {min_local_map_points}
-      --threads {backend_threads}
     global_map: ""
     relocalization_assets: ""
-    backend_scan_leaf: 0.25
-    backend_bbs_min_level_res: 0.25
-    backend_bbs_max_level: 6
-    backend_bbs_score_threshold: 0.30
-    backend_roll_pitch_range_deg: 12.0
-    backend_gicp_max_corr: 1.5
     backend_local_map_radius_xy: 35.0
     backend_local_map_half_height: 8.0
     backend_min_local_map_points: 800
-    backend_threads: 4
     work_dir: ~/.ros/agt_global_relocalization
     sdk_timeout_sec: 10.0
 
@@ -61,9 +50,10 @@ agt_global_relocalization:
     min_points: 2000
     max_points: 250000
 
-    # Backend JSON result gates. Tune these from replay distributions; never lower
-    # them merely to make every query return a pose because false positives are worse
-    # than a clean FAILED result for Nav2.
+    # Backend JSON result gates. Expected stdout JSON fields:
+    # success, x,y,z,qx,qy,qz,qw, score, fitness, overlap, optional message.
+    # Tune these from replay distributions; false positives are more dangerous
+    # than a clean FAILED relocalization result.
     min_score: 0.50
     max_fitness: 1.00
     min_overlap: 0.20
