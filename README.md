@@ -4,7 +4,7 @@ AGT 户外履带式巡检机器人 ROS 2 Humble 导航与巡检集成仓库。
 
 目标平台：**Bunker v1 + 倾斜 MID360 + Fast-LIO2 建图 + Batch-LIO 导航里程计 + 3D-BBS/small_gicp 无初值全局重定位 + Nav2 + RTK/INS 记录 + Autolabor C1 云台相机**。
 
-> **开发策略**：本轮 `runtime-v1` 合并后，`main` 作为唯一日常开发主线。当前仍处于初步设计/实车验证阶段，优先保持思路清晰、问题可定位、代码可快速修改，不长期维护多套功能分支。只有高风险或破坏性实验才临时开分支。
+> **开发策略**：本轮 `runtime-v1` 合并后，`main` 作为唯一日常开发主线。当前仍处于初步设计/实车验证阶段，优先保持思路清晰、问题可定位、代码可快速修改，不长期维护多套功能分支。只有高风险或破坏性实验才临时开分支。详见 `docs/MAINLINE_POLICY.md`。
 >
 > **状态说明**：代码已经形成可测试主链，但尚未在目标 Ubuntu 22.04 / ROS 2 Humble + 实际 MID360/Bunker/C1 上完成整仓 build、rosbag 和硬件验收，因此“已落地”不等于 hardware PASS。
 
@@ -144,6 +144,7 @@ docs/FIELD_SENSOR_BASELINE.md
 docs/MAPPING_AND_LIO_POLICY.md
 docs/VIBRATION_AND_LI_INIT.md
 docs/CURRENT_NAVIGATION_CAPABILITIES.md
+docs/MAINLINE_POLICY.md
 ```
 
 ---
