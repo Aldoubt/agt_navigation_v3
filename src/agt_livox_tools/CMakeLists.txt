@@ -10,6 +10,11 @@ add_executable(livox_format_bridge src/livox_format_bridge.cpp)
 ament_target_dependencies(livox_format_bridge rclcpp sensor_msgs livox_ros_driver2)
 
 install(TARGETS livox_format_bridge DESTINATION lib/${PROJECT_NAME})
+install(PROGRAMS
+  scripts/convert_livox_bag_format.sh
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME convert_livox_bag_format
+)
 install(DIRECTORY launch config DESTINATION share/${PROJECT_NAME})
 
 ament_package()
