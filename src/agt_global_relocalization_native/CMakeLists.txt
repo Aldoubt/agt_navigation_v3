@@ -8,6 +8,7 @@ find_package(ament_cmake REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(PCL REQUIRED COMPONENTS common io filters)
 find_package(OpenMP)
+find_package(Boost REQUIRED COMPONENTS filesystem system)
 
 # 3D-BBS and small_gicp are pinned external dependencies in dependencies/field_demo.repos.
 # Both are intentionally kept outside this repository so their upstream licenses/notices remain clear.
@@ -33,10 +34,31 @@ target_link_libraries(bbs_gicp_localizer PRIVATE
   ${BBS3D_CPU_LIBRARY}
   ${SMALL_GICP_LIBRARY}
   ${PCL_LIBRARIES}
+  Boost::filesystem
+  Boost::system
   Eigen3::Eigen
   $<$<BOOL:${OpenMP_CXX_FOUND}>:OpenMP::OpenMP_CXX>
 )
 target_compile_definitions(bbs_gicp_localizer PRIVATE ${PCL_DEFINITIONS})
 
-install(TARGETS bbs_gicp_localizer DESTINATION lib/${PROJECT_NAME})
+add_executable(build_relocalization_assets src/build_relocalization_assets.cpp)
+target_include_directories(build_relocalization_assets PRIVATE
+  ${BBS3D_INCLUDE_DIR}
+  ${PCL_INCLUDE_DIRS}
+)
+target_link_libraries(build_relocalization_assets PRIVATE
+  ${BBS3D_CPU_LIBRARY}
+  ${PCL_LIBRARIES}
+  Boost::filesystem
+  Boost::system
+  Eigen3::Eigen
+  $<$<BOOL:${OpenMP_CXX_FOUND}>:OpenMP::OpenMP_CXX>
+)
+target_compile_definitions(build_relocalization_assets PRIVATE ${PCL_DEFINITIONS})
+
+install(TARGETS
+  bbs_gicp_localizer
+  build_relocalization_assets
+  DESTINATION lib/${PROJECT_NAME}
+)
 ament_package()
