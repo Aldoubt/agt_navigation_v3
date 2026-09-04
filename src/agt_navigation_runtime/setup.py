@@ -20,6 +20,7 @@ setup(
     entry_points={'console_scripts': [
         'mission_runtime = agt_navigation_runtime.mission_runtime:main',
         'validate_records = agt_navigation_runtime.validate_records:main',
+        'generate_demo_report = agt_navigation_runtime.generate_demo_report:main',
         'demo_preflight = agt_navigation_runtime.demo_preflight:main',
     ]},
 )
