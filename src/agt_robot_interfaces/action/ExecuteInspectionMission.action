@@ -1,0 +1,10 @@
+string mission_file
+bool resume
+---
+bool success
+string mission_id
+uint32 completed_points
+uint16 error_code
+string message
+---
+agt_robot_interfaces/MissionStatus status

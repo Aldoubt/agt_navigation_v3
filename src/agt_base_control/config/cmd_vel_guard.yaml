@@ -1,0 +1,15 @@
+agt_cmd_vel_guard:
+  ros__parameters:
+    # Humble nav2_bringup remaps velocity_smoother output cmd_vel_smoothed -> /cmd_vel.
+    input_topic: /cmd_vel
+    output_topic: /mux/cmd_vel
+    publish_rate_hz: 50.0
+    command_timeout_sec: 0.25
+
+    # Conservative Bunker v1 demo limits. Freeze only after field benchmarks.
+    max_linear_x: 0.55
+    max_reverse_x: 0.20
+    max_angular_z: 0.65
+    max_linear_accel: 0.45
+    max_linear_decel: 0.80
+    max_angular_accel: 0.80

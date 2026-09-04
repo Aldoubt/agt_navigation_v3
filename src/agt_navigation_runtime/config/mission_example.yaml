@@ -1,0 +1,10 @@
+version: 1
+mission_id: demo_patrol
+map_id: demo_map_v1
+points:
+  - id: P001
+    pose: {x: 1.0, y: 2.0, yaw: 0.0, frame_id: map}
+    settle_time: 1.0
+    views:
+      - {tag: P001_front, heading: 0.0, roll: 0.0, pitch: 0.0, required: true, save_image: true}
+      - {tag: P001_left, heading: -30.0, roll: 0.0, pitch: 0.0, required: false, save_image: true}

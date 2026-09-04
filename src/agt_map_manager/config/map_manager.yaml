@@ -1,0 +1,13 @@
+agt_map_manager:
+  ros__parameters:
+    map_root: ~/.ros/agt_maps
+    active_state_file: ~/.ros/agt_navigation_v3/active_map.yaml
+
+    # Discovery should stay responsive even for very large PCD files.
+    # Full declared hashes are checked at the load boundary.
+    verify_hashes_on_discovery: false
+    verify_hashes_on_load: true
+
+    status_topic: /agt/map/status
+    list_service: /agt/map/list
+    load_service: /agt/map/load

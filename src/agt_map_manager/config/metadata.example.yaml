@@ -1,0 +1,47 @@
+schema_version: 1
+map_id: site_a
+map_version: v1
+frame_id: map
+
+# Recommended filesystem layout is maps/<map_id>/<map_version>/metadata.yaml,
+# but agt_map_manager discovers metadata.yaml recursively and does not rely on
+# the directory name for identity.
+assets:
+  localization_map:
+    path: localization/global_map.pcd
+    sha256: ""  # fill after map freeze; checked at /agt/map/load
+
+  # Optional but recommended for field use. This is a directory asset created by
+  # agt_global_relocalization_native/build_relocalization_assets and hashed as a
+  # deterministic tree by Map Manager.
+  relocalization_assets:
+    path: localization/relocalization
+    sha256: ""
+
+  navigation_map:
+    path: navigation/map.yaml
+    sha256: ""
+
+  rtk_origin:
+    path: rtk/origin.yaml
+    sha256: ""
+
+  elevation:
+    path: navigation/elevation.pgm
+    sha256: ""
+
+  slope:
+    path: navigation/slope.pgm
+    sha256: ""
+
+  roughness:
+    path: navigation/roughness.pgm
+    sha256: ""
+
+  obstacle:
+    path: navigation/obstacle.pgm
+    sha256: ""
+
+  preview:
+    path: preview.png
+    sha256: ""

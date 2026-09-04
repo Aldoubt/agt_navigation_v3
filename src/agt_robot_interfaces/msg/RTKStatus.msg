@@ -1,0 +1,21 @@
+uint8 QUALITY_UNKNOWN=0
+uint8 QUALITY_INVALID=1
+uint8 QUALITY_SINGLE=2
+uint8 QUALITY_FLOAT=3
+uint8 QUALITY_FIXED=4
+
+builtin_interfaces/Time stamp
+uint8 quality
+bool usable
+bool rtk_fixed
+uint8 ins_status
+uint8 position_type
+uint8 heading_type
+uint8 num_satellite
+float32 position_std
+float32 heading_std
+int8 navsat_status
+float64 latitude
+float64 longitude
+float64 altitude
+string reason

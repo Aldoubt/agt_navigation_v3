@@ -1,0 +1,11 @@
+builtin_interfaces/Time stamp
+bool active
+string map_id
+string map_version
+string package_path
+string navigation_map_yaml
+string localization_map_pcd
+string relocalization_assets_path
+string rtk_origin_yaml
+uint64 generation
+string reason

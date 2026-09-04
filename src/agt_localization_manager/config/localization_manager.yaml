@@ -1,0 +1,25 @@
+agt_localization_manager:
+  ros__parameters:
+    local_odom_topic: /agt/odometry/local
+    global_pose_topic: /agt/relocalization/pose
+    status_topic: /agt/localization/status
+    relocalization_request_topic: /agt/relocalization/request
+    relocalization_service: /agt/localization/relocalize
+
+    map_frame: map
+    odom_frame: odom
+    base_frame: base_link
+
+    local_odom_timeout_sec: 0.30
+    local_odom_lost_sec: 1.00
+    global_match_max_skew_sec: 0.10
+    odom_buffer_sec: 5.0
+
+    # Initial acceptance gates. Tune using the real global-localization benchmark.
+    max_global_position_std_m: 1.00
+    max_global_yaw_std_deg: 20.0
+    accept_zero_covariance: false
+
+    tf_publish_rate_hz: 30.0
+    map_id: ""
+    map_version: ""

@@ -1,0 +1,20 @@
+mapping_mode:
+  source_repository: robotics-laboratory/fast-lio2
+  ros_distro: humble
+  lidar_topic: /livox/lidar
+  imu_topic: /livox/imu
+  loop_closure: pgo
+  large_map_refinement: hba
+  save_maps_service: /pgo/save_maps
+  save_patches_for_hba: true
+
+map_conversion:
+  resolution_m: 0.10
+  max_step_m: 0.22
+  max_slope_deg: 20.0
+  validator: validate_nav_map
+
+policy:
+  mapping_owns_global_map_optimization: true
+  navigation_odom_uses_batch_lio: true
+  loop_closure_output_must_not_drive_navigation_odom_tf: true
