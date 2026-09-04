@@ -5,6 +5,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 
 
 def generate_launch_description():
@@ -36,10 +37,14 @@ def generate_launch_description():
                 {
                     'global_map': LaunchConfiguration('global_map'),
                     'relocalization_assets': LaunchConfiguration('relocalization_assets'),
-                    'follow_map_manager': LaunchConfiguration('follow_map_manager'),
-                    'sdk_timeout_sec': LaunchConfiguration('sdk_timeout_sec'),
-                    'backend_local_map_radius_xy': LaunchConfiguration('local_map_radius_xy'),
-                    'backend_local_map_half_height': LaunchConfiguration('local_map_half_height'),
+                    'follow_map_manager': ParameterValue(
+                        LaunchConfiguration('follow_map_manager'), value_type=bool),
+                    'sdk_timeout_sec': ParameterValue(
+                        LaunchConfiguration('sdk_timeout_sec'), value_type=float),
+                    'backend_local_map_radius_xy': ParameterValue(
+                        LaunchConfiguration('local_map_radius_xy'), value_type=float),
+                    'backend_local_map_half_height': ParameterValue(
+                        LaunchConfiguration('local_map_half_height'), value_type=float),
                 },
             ],
         ),
