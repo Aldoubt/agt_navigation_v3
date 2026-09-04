@@ -1,4 +1,29 @@
 repositories:
+  drivers/agt_ins_driver:
+    type: git
+    url: https://github.com/Aldoubt/agt_ins_driver.git
+    version: master
+  drivers/agt_bunker_base:
+    type: git
+    url: https://github.com/Aldoubt/agt_bunker_base.git
+    version: main
+  drivers/agt_chassis_description:
+    type: git
+    url: https://github.com/Aldoubt/agt_chassis_description.git
+    version: main
+  drivers/Autolabor-C1-ROS2:
+    type: git
+    url: https://github.com/Aldoubt/Autolabor-C1-ROS2.git
+    version: main
+
+  external/Livox-SDK2:
+    type: git
+    url: https://github.com/Livox-SDK/Livox-SDK2.git
+    version: 08f523c930b2f0ba1e98a6afaa8d7476bf479908
+  external/livox_ros_driver2:
+    type: git
+    url: https://github.com/Livox-SDK/livox_ros_driver2.git
+    version: 4a1def929e5b59c7a8122d19fce6efba581ce9f7
   external/fast_lio2_mapping:
     type: git
     url: https://github.com/robotics-laboratory/fast-lio2.git
