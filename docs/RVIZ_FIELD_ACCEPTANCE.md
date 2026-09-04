@@ -45,10 +45,20 @@ For Batch-LIO:
 - raw acceleration norm near `9.81` -> use `mapping.acc_norm=9.81`;
 - neither -> stop and inspect driver units/data.
 
-For the currently pinned `robotics-laboratory/fast-lio2` mapping front-end there is an
-additional constraint: that upstream source currently multiplies incoming Livox
-linear acceleration by `10.0`. Therefore the unmodified mapping baseline is only
-accepted when the raw stationary `/livox/imu` acceleration norm is approximately
+The tool now reports both `batch_lio_unit_ready` and
+`pinned_fastlio2_mapping_unit_ready` so the two consumers are not confused.
+
+Before using the pinned mapping front-end, run the stricter check:
+
+```bash
+ros2 run agt_mapping_bringup mid360_imu_preflight.py --ros-args \
+  -p duration_sec:=10.0 \
+  -p require_fastlio2_mapping_compatible:=true
+```
+
+The currently pinned `robotics-laboratory/fast-lio2` source multiplies incoming
+Livox linear acceleration by `10.0`. Therefore the unmodified mapping baseline is
+only accepted when raw stationary `/livox/imu` acceleration norm is approximately
 `1.0`. If the driver reports approximately `9.81 m/s^2`, fix/replace that upstream
 scaling before mapping; do not compensate by guessing noise parameters.
 
@@ -138,6 +148,10 @@ Verify in RViz that `map -> odom -> base_link` is plausible and stable before se
 a navigation point. Do not continue if the BBS/GICP solution is visually wrong.
 
 ## Manual preflight
+
+Run preflight after global relocalization. By default it now requires
+`LocalizationStatus.STATE_LOCALIZED`, fresh local odometry and a valid global
+correction in addition to Nav2/C1/obstacle cloud/TF checks:
 
 ```bash
 ros2 run agt_navigation_runtime demo_preflight
