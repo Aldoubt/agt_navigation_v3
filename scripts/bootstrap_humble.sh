@@ -65,8 +65,6 @@ WS_ROOT="$(realpath -m "${WS_ROOT}")"
 SRC_DIR="${WS_ROOT}/src"
 mkdir -p "${SRC_DIR}"
 
-# If the repository was cloned outside <workspace>/src, make it visible to colcon
-# without creating a second clone.
 EXPECTED_REPO="${SRC_DIR}/agt_navigation_v3"
 if [[ "$(realpath -m "${REPO_ROOT}")" != "$(realpath -m "${EXPECTED_REPO}")" ]]; then
   if [[ -e "${EXPECTED_REPO}" || -L "${EXPECTED_REPO}" ]]; then
@@ -99,18 +97,28 @@ if [[ "${DO_APT}" -eq 1 ]]; then
   echo "==> Installing Ubuntu / ROS build dependencies"
   sudo apt-get update
   sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    git ca-certificates curl \
+    software-properties-common git ca-certificates curl \
     build-essential cmake ninja-build pkg-config \
-    python3-pip python3-yaml python3-vcstool python3-rosdep \
+    python3-pip python3-yaml python3-rosdep \
     python3-colcon-common-extensions \
     libeigen3-dev libpcl-dev libyaml-cpp-dev libboost-all-dev libtbb-dev \
     ros-humble-gtsam \
     ros-humble-navigation2 ros-humble-nav2-bringup \
     ros-humble-pcl-conversions ros-humble-tf2-eigen
+
+  # python3-vcstool lives in Ubuntu Universe on Jammy. ROS installation normally
+  # enables Universe already, but make first-boot behavior explicit and provide
+  # a pip fallback for minimal images.
+  sudo add-apt-repository -y universe >/dev/null
+  sudo apt-get update
+  if ! sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y python3-vcstool; then
+    python3 -m pip install --user vcstool
+    export PATH="${HOME}/.local/bin:${PATH}"
+  fi
 fi
 
 if ! command -v vcs >/dev/null 2>&1; then
-  echo "ERROR: vcs is missing. Install python3-vcstool or rerun without --no-apt." >&2
+  echo "ERROR: vcs is missing. Install vcstool or rerun without --no-apt." >&2
   exit 5
 fi
 if ! command -v rosdep >/dev/null 2>&1; then
@@ -127,9 +135,8 @@ echo "==> Validating source dependency manifest"
 vcs validate < "${REPOS_FILE}"
 
 echo "==> Importing missing field-demo repositories into ${SRC_DIR}"
-# --skip-existing makes the command repeatable and, importantly, never destroys
-# local changes in an already-present hardware or algorithm repository.
-vcs import "${SRC_DIR}" --skip-existing < "${REPOS_FILE}"
+# Repeatable and non-destructive: existing repositories and local changes are not overwritten.
+vcs import --skip-existing "${SRC_DIR}" < "${REPOS_FILE}"
 
 prepare_livox_ros2_source() {
   local driver="${SRC_DIR}/external/livox_ros_driver2"
@@ -137,9 +144,8 @@ prepare_livox_ros2_source() {
     echo "ERROR: Livox ROS Driver 2 source is incomplete: ${driver}" >&2
     exit 6
   fi
-  # Official build.sh creates these files and also deletes the workspace build/
-  # and install/ directories. Do only the harmless source preparation here so
-  # the whole workspace remains under normal colcon control.
+  # Official build.sh also deletes workspace-level build/install. Only create
+  # the ROS2 source links here and keep normal colcon ownership of the workspace.
   ln -sfn package_ROS2.xml "${driver}/package.xml"
   rm -rf "${driver}/launch"
   ln -s launch_ROS2 "${driver}/launch"
@@ -154,8 +160,8 @@ echo "==> Updating rosdep"
 rosdep update --rosdistro humble
 
 echo "==> Installing package.xml dependencies"
-# PGO uses an uppercase GTSAM rosdep key while the binary dependency is provided
-# explicitly by ros-humble-gtsam above.
+# PGO uses uppercase GTSAM as a rosdep key; the actual library is installed above
+# from the ROS Humble binary package.
 rosdep install --from-paths "${SRC_DIR}" --ignore-src -r -y \
   --rosdistro humble --skip-keys "GTSAM"
 
