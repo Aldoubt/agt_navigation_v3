@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+      - name: Install syntax-check dependencies
+        run: python3 -m pip install --user pyyaml
       - name: Python syntax
         run: python3 -m compileall -q src
       - name: Parse package manifests and YAML
