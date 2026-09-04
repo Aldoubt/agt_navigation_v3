@@ -238,6 +238,25 @@ class GlobalRelocalization(Node):
 
         return global_map, assets_dir, map_id, map_version, generation
 
+    def verify_map_snapshot(self, map_id, map_version, generation):
+        if not bool(self.get_parameter('follow_map_manager').value):
+            return
+        if generation <= 0:
+            return
+        current = self.active_map_status
+        if current is None or not current.active:
+            raise RuntimeError('active map disappeared during relocalization; result discarded')
+        if (
+            int(current.generation) != generation
+            or current.map_id != map_id
+            or current.map_version != map_version
+        ):
+            raise RuntimeError(
+                'active map changed during relocalization; old-map result discarded '
+                f'(started={map_id}/{map_version}@{generation}, '
+                f'current={current.map_id}/{current.map_version}@{int(current.generation)})'
+            )
+
     def run_once(self):
         rows = self.merged_points()
         min_points = int(self.get_parameter('min_points').value)
@@ -287,6 +306,10 @@ class GlobalRelocalization(Node):
             except Exception as exc:
                 raise RuntimeError(f'backend stdout must end with JSON result: {exc}') from exc
 
+        # A map switch invalidates the semantic frame of the pose even when the
+        # backend computation itself succeeded. Never publish an old-map pose.
+        self.verify_map_snapshot(map_id, map_version, generation)
+
         if not bool(result.get('success', False)):
             raise RuntimeError(str(result.get('message', 'backend reported failure')))
         score = float(result.get('score', 0.0))
@@ -308,6 +331,10 @@ class GlobalRelocalization(Node):
         score01 = min(1.0, max(0.0, score))
         pos_std = self._lerp('worst_position_std_m', 'best_position_std_m', score01)
         yaw_std = math.radians(self._lerp('worst_yaw_std_deg', 'best_yaw_std_deg', score01))
+
+        # Re-check immediately before publication in case a MapStatus callback
+        # arrived while the result was passing quality gates.
+        self.verify_map_snapshot(map_id, map_version, generation)
 
         msg = PoseWithCovarianceStamped()
         msg.header.stamp = self.clouds[-1].header.stamp
