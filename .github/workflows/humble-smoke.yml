@@ -11,16 +11,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install syntax-check dependencies
-        run: |
-          python3 -m pip install --user pyyaml vcstool
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        run: python3 -m pip install --user pyyaml
       - name: Python syntax
         run: python3 -m compileall -q src
       - name: Shell syntax and repository manifest
         run: |
           bash -n scripts/bootstrap_humble.sh
           bash -n scripts/field_build_smoke.sh
-          vcs validate < dependencies/field_demo.repos
+          python3 - <<'PY'
+          import pathlib
+          import yaml
+          path = pathlib.Path('dependencies/field_demo.repos')
+          data = yaml.safe_load(path.read_text(encoding='utf-8'))
+          repos = data.get('repositories') if isinstance(data, dict) else None
+          assert isinstance(repos, dict) and repos
+          for relpath, spec in repos.items():
+              parts = pathlib.PurePosixPath(relpath).parts
+              assert relpath and not relpath.startswith('/') and '..' not in parts
+              assert isinstance(spec, dict)
+              assert spec.get('type') == 'git'
+              assert isinstance(spec.get('url'), str) and spec['url']
+              assert isinstance(spec.get('version'), str) and spec['version']
+          print(f'repos manifest PASS: {len(repos)} repositories')
+          PY
       - name: Parse package manifests and YAML
         run: |
           python3 - <<'PY'
