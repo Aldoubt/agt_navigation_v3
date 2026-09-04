@@ -42,6 +42,7 @@ public:
     input_topic_ = declare_parameter<std::string>("input_topic", "/livox/lidar");
     output_topic_ = declare_parameter<std::string>("output_topic", "/agt/livox/points");
     lidar_id_ = static_cast<std::uint8_t>(declare_parameter<int>("lidar_id", 0));
+    require_per_point_time_ = declare_parameter<bool>("require_per_point_time", true);
 
     if (mode_ == "custom_to_pointcloud2") {
       pc2_pub_ = create_publisher<sensor_msgs::msg::PointCloud2>(output_topic_, rclcpp::SensorDataQoS());
@@ -112,18 +113,33 @@ private:
       }
     }
 
+    const bool have_intensity = has_field(*msg, "intensity");
+    const bool have_tag = has_field(*msg, "tag");
+    const bool have_line = has_field(*msg, "line");
+    const bool have_offset = has_field(*msg, "offset_time");
+    const bool have_timestamp = has_field(*msg, "timestamp");
+
+    if (!have_offset && !have_timestamp) {
+      if (require_per_point_time_) {
+        RCLCPP_ERROR_THROTTLE(
+          get_logger(), *get_clock(), 2000,
+          "Refusing PointCloud2 -> CustomMsg: neither 'offset_time' nor per-point 'timestamp' exists. "
+          "Fast-LIO2/Batch-LIO deskew would be invalid. Set require_per_point_time:=false only for "
+          "geometry-only/debug conversion, never as an equivalent raw-Livox mapping source.");
+        return;
+      }
+      RCLCPP_WARN_THROTTLE(
+        get_logger(), *get_clock(), 5000,
+        "PointCloud2 has no per-point timing; generated CustomMsg uses offset_time=0 for every point. "
+        "This conversion is geometry-only and is not recommended for LIO mapping/odometry.");
+    }
+
     livox_ros_driver2::msg::CustomMsg out;
     out.header = msg->header;
     out.timebase = stamp_to_ns(msg->header.stamp);
     out.lidar_id = lidar_id_;
     out.point_num = msg->width * msg->height;
     out.points.resize(out.point_num);
-
-    const bool have_intensity = has_field(*msg, "intensity");
-    const bool have_tag = has_field(*msg, "tag");
-    const bool have_line = has_field(*msg, "line");
-    const bool have_offset = has_field(*msg, "offset_time");
-    const bool have_timestamp = has_field(*msg, "timestamp");
 
     try {
       sensor_msgs::PointCloud2ConstIterator<float> x(*msg, "x"), y(*msg, "y"), z(*msg, "z");
@@ -174,6 +190,7 @@ private:
   std::string input_topic_;
   std::string output_topic_;
   std::uint8_t lidar_id_{0};
+  bool require_per_point_time_{true};
   rclcpp::Subscription<livox_ros_driver2::msg::CustomMsg>::SharedPtr custom_sub_;
   rclcpp::Publisher<livox_ros_driver2::msg::CustomMsg>::SharedPtr custom_pub_;
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr pc2_sub_;
