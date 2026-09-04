@@ -1,0 +1,59 @@
+/**:
+  ros__parameters:
+    common:
+      lid_topic: /livox/lidar
+      imu_topic: /livox/imu
+      con_frame: false
+      con_frame_num: 1
+      cut_frame: false
+      cut_frame_time_interval: 0.1
+      # Keep zero until LI-Init or another repeatable calibration demonstrates a correction.
+      time_diff_lidar_to_imu: 0.0
+
+    preprocess:
+      # Verify against the Batch-LIO MID360 port before hardware freeze.
+      lidar_type: 1
+      blind: 0.5
+
+    mapping:
+      imu_en: true
+      # Do not estimate extrinsics online on the high-vibration tracked base.
+      extrinsic_est_en: false
+
+      # V1 uses the vendor/factory-consistent MID360 translation published in the
+      # upstream Batch-LIO config. Re-run LI-Init only if field evidence indicates mismatch.
+      extrinsic_T: [0.011, 0.02329, -0.04412]
+      extrinsic_R: [1.0, 0.0, 0.0,
+                    0.0, 1.0, 0.0,
+                    0.0, 0.0, 1.0]
+
+      # REQUIRED FIELD CHECK: do not freeze this value until mid360_imu_preflight
+      # measures the static acceleration norm on the actual robot.
+      # Use 1.0 when acceleration is expressed in g; use 9.81 for m/s^2.
+      acc_norm: 1.0
+
+      # Initial upstream baselines only. Freeze from a Bunker vibration rosbag,
+      # not from this file.
+      satu_acc: 3.0
+      satu_gyro: 35.0
+      imu_meas_acc_cov: 0.1
+      imu_meas_omg_cov: 0.1
+      gyr_cov_input: 0.01
+      acc_cov_input: 0.1
+      plane_thr: 0.1
+      match_s: 81
+      ivox_grid_resolution: 2.0
+      gravity: [0.0, 0.0, -9.810]
+      gravity_init: [0.0, 0.0, -9.810]
+
+    odometry:
+      publish_odometry_without_downsample: false
+
+    publish:
+      path_en: true
+      scan_publish_en: true
+      scan_bodyframe_pub_en: false
+
+    pcd_save:
+      pcd_save_en: false
+      interval: -1
