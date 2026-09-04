@@ -10,10 +10,13 @@ from collections import deque
 from pathlib import Path
 
 import rclpy
+from agt_robot_interfaces.msg import MapStatus
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from nav_msgs.msg import Odometry
+from rclpy.durability import DurabilityPolicy
 from rclpy.duration import Duration
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy
 from rclpy.time import Time
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs_py import point_cloud2
@@ -32,6 +35,8 @@ class GlobalRelocalization(Node):
         p('map_frame', 'map')
         p('query_frame', 'base_link')
         p('tf_timeout_sec', 0.10)
+        p('follow_map_manager', True)
+        p('map_status_topic', '/agt/map/status')
         p('sdk_command', '')
         p('global_map', '')
         p('relocalization_assets', '')
@@ -60,6 +65,7 @@ class GlobalRelocalization(Node):
         self.busy = False
         self.latest_odom = None
         self.latest_odom_rx_ns = 0
+        self.active_map_status = None
         self.tf_buffer = Buffer(cache_time=Duration(seconds=10.0))
         self.tf_listener = TransformListener(self.tf_buffer, self)
         self.pose_pub = self.create_publisher(PoseWithCovarianceStamped, self.get_parameter('output_pose_topic').value, 10)
@@ -68,8 +74,26 @@ class GlobalRelocalization(Node):
         self.create_subscription(Odometry, self.get_parameter('local_odom_topic').value, self.on_odom, 50)
         self.create_subscription(Empty, self.get_parameter('request_topic').value, self.on_request, 10)
 
+        map_qos = QoSProfile(depth=1)
+        map_qos.reliability = ReliabilityPolicy.RELIABLE
+        map_qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
+        self.create_subscription(
+            MapStatus,
+            self.get_parameter('map_status_topic').value,
+            self.on_map_status,
+            map_qos,
+        )
+
     def on_cloud(self, msg):
         self.clouds.append(msg)
+
+    def on_map_status(self, msg):
+        previous_generation = int(self.active_map_status.generation) if self.active_map_status else -1
+        self.active_map_status = msg
+        if msg.active and int(msg.generation) != previous_generation:
+            self.clouds.clear()
+            self.get_logger().info(
+                f'Following active map {msg.map_id}/{msg.map_version} generation={msg.generation}')
 
     @staticmethod
     def motion_metrics(msg):
@@ -194,6 +218,26 @@ class GlobalRelocalization(Node):
             for x, y, z, intensity in rows:
                 f.write(f'{x:.6f} {y:.6f} {z:.6f} {intensity:.3f}\n')
 
+    def resolve_map_inputs(self):
+        global_map = os.path.expanduser(str(self.get_parameter('global_map').value)).strip()
+        assets_dir = os.path.expanduser(str(self.get_parameter('relocalization_assets').value)).strip()
+        map_id = ''
+        map_version = ''
+        generation = 0
+
+        if bool(self.get_parameter('follow_map_manager').value):
+            msg = self.active_map_status
+            if msg is not None and msg.active:
+                if msg.localization_map_pcd:
+                    global_map = msg.localization_map_pcd
+                if msg.relocalization_assets_path:
+                    assets_dir = msg.relocalization_assets_path
+                map_id = msg.map_id
+                map_version = msg.map_version
+                generation = int(msg.generation)
+
+        return global_map, assets_dir, map_id, map_version, generation
+
     def run_once(self):
         rows = self.merged_points()
         min_points = int(self.get_parameter('min_points').value)
@@ -201,8 +245,7 @@ class GlobalRelocalization(Node):
             raise RuntimeError(f'not enough scan points: {len(rows)} < {min_points}')
 
         command_template = str(self.get_parameter('sdk_command').value).strip()
-        global_map = os.path.expanduser(str(self.get_parameter('global_map').value))
-        assets_dir = os.path.expanduser(str(self.get_parameter('relocalization_assets').value)).strip()
+        global_map, assets_dir, map_id, map_version, generation = self.resolve_map_inputs()
         if not command_template:
             raise RuntimeError('relocalization backend command is empty')
         if not global_map or not Path(global_map).is_file():
@@ -232,6 +275,9 @@ class GlobalRelocalization(Node):
                 points=len(rows),
                 query_frame=self.get_parameter('query_frame').value,
                 assets=bool(assets_dir),
+                map_id=map_id,
+                map_version=map_version,
+                map_generation=generation,
             )
             proc = subprocess.run(shlex.split(cmd), capture_output=True, text=True, timeout=timeout, check=False)
             if proc.returncode != 0:
@@ -284,6 +330,9 @@ class GlobalRelocalization(Node):
             overlap=overlap,
             position_std_m=pos_std,
             yaw_std_deg=math.degrees(yaw_std),
+            map_id=map_id,
+            map_version=map_version,
+            map_generation=generation,
             bbs_elapsed_ms=result.get('bbs_elapsed_ms'),
             bbs_assets_loaded=result.get('bbs_assets_loaded'),
             gicp_target_points=result.get('gicp_target_points'),
