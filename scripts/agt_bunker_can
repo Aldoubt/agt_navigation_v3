@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CAN_IFACE="${AGT_CAN_IFACE:-can0}"
+CAN_BITRATE="${AGT_CAN_BITRATE:-50000}"
+CAN_RESTART_MS="${AGT_CAN_RESTART_MS:-100}"
+
+show_status() {
+  ip -details link show "${CAN_IFACE}"
+}
+
+configure_once() {
+  if ! ip link show "${CAN_IFACE}" >/dev/null 2>&1; then
+    return 10
+  fi
+  ip link set "${CAN_IFACE}" down 2>/dev/null || true
+  ip link set "${CAN_IFACE}" type can bitrate "${CAN_BITRATE}" restart-ms "${CAN_RESTART_MS}"
+  ip link set "${CAN_IFACE}" up
+  echo "Configured ${CAN_IFACE}: bitrate=${CAN_BITRATE}, restart-ms=${CAN_RESTART_MS}"
+}
+
+case "${1:-status}" in
+  up)
+    configure_once
+    ;;
+  down)
+    ip link set "${CAN_IFACE}" down
+    ;;
+  status)
+    show_status
+    ;;
+  supervise)
+    echo "Watching for ${CAN_IFACE}; remote/manual chassis priority is not modified by this service."
+    configured=0
+    while true; do
+      if ip link show "${CAN_IFACE}" >/dev/null 2>&1; then
+        if [[ "${configured}" -eq 0 ]]; then
+          if configure_once; then
+            configured=1
+          fi
+        fi
+      else
+        configured=0
+      fi
+      sleep 2
+    done
+    ;;
+  *)
+    echo "Usage: $0 {up|down|status|supervise}" >&2
+    exit 2
+    ;;
+esac
