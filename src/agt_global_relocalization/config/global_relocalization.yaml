@@ -6,6 +6,11 @@ agt_global_relocalization:
     status_topic: /agt/global_relocalization/status
     map_frame: map
 
+    # Follow the validated active Map Package by default. global_map and
+    # relocalization_assets below remain manual fallback paths for bench tests.
+    follow_map_manager: true
+    map_status_topic: /agt/map/status
+
     # Convert raw MID360 PointCloud2 into base_link using the measured/static URDF TF
     # before BBS. This removes the intentional LiDAR mounting tilt. V1 requires the
     # robot to be stationary while the cached scans are collected; multi-frame odom
