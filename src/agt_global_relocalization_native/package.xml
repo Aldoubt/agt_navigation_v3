@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>agt_global_relocalization_native</name>
+  <version>0.1.0</version>
+  <description>One-shot no-initial-pose 3D-BBS coarse localization plus small_gicp refinement backend.</description>
+  <maintainer email="contact@aldoubt.com">AGT</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <build_depend>eigen3_cmake_module</build_depend>
+  <depend>pcl_conversions</depend>
+  <export><build_type>ament_cmake</build_type></export>
+</package>
