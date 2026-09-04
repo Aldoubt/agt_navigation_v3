@@ -21,6 +21,7 @@ def generate_launch_description():
     enable_map_manager = LaunchConfiguration('enable_map_manager')
     enable_rtk = LaunchConfiguration('enable_rtk')
     enable_fastlio_adapter = LaunchConfiguration('enable_fastlio_adapter')
+    enable_global_relocalization = LaunchConfiguration('enable_global_relocalization')
     enable_localization_manager = LaunchConfiguration('enable_localization_manager')
     enable_obstacle_cloud = LaunchConfiguration('enable_obstacle_cloud')
     enable_nav2 = LaunchConfiguration('enable_nav2')
@@ -29,16 +30,11 @@ def generate_launch_description():
     map_yaml = LaunchConfiguration('map')
 
     return LaunchDescription([
-        DeclareLaunchArgument(
-            'map',
-            default_value='',
-            description='Absolute path to derived Nav2 map YAML; required when enable_nav2=true.',
-        ),
+        DeclareLaunchArgument('map', default_value='', description='Absolute path to derived Nav2 map YAML; required when enable_nav2=true.'),
         DeclareLaunchArgument('enable_map_manager', default_value='true'),
         DeclareLaunchArgument('enable_rtk', default_value='true'),
-        # Localization/pointcloud components remain disabled until the selected
-        # sensor topics and frame contract have been verified on the target robot.
         DeclareLaunchArgument('enable_fastlio_adapter', default_value='false'),
+        DeclareLaunchArgument('enable_global_relocalization', default_value='false'),
         DeclareLaunchArgument('enable_localization_manager', default_value='false'),
         DeclareLaunchArgument('enable_obstacle_cloud', default_value='false'),
         DeclareLaunchArgument('enable_nav2', default_value='false'),
@@ -48,26 +44,10 @@ def generate_launch_description():
         _include('agt_map_manager', 'map_manager.launch.py', IfCondition(enable_map_manager)),
         _include('agt_rtk_manager', 'rtk_manager.launch.py', IfCondition(enable_rtk)),
         _include('agt_fastlio_adapter', 'adapter.launch.py', IfCondition(enable_fastlio_adapter)),
-        _include(
-            'agt_localization_manager',
-            'localization_manager.launch.py',
-            IfCondition(enable_localization_manager),
-        ),
-        _include(
-            'agt_pointcloud_preprocessor',
-            'obstacle_cloud.launch.py',
-            IfCondition(enable_obstacle_cloud),
-        ),
+        _include('agt_global_relocalization', 'global_relocalization.launch.py', IfCondition(enable_global_relocalization)),
+        _include('agt_localization_manager', 'localization_manager.launch.py', IfCondition(enable_localization_manager)),
+        _include('agt_pointcloud_preprocessor', 'obstacle_cloud.launch.py', IfCondition(enable_obstacle_cloud)),
         _include('agt_base_control', 'cmd_vel_guard.launch.py', IfCondition(enable_base_guard)),
-        _include(
-            'agt_nav2_bringup',
-            'navigation.launch.py',
-            IfCondition(enable_nav2),
-            {'map': map_yaml},
-        ),
-        _include(
-            'agt_navigation_runtime',
-            'runtime.launch.py',
-            IfCondition(enable_runtime),
-        ),
+        _include('agt_nav2_bringup', 'navigation.launch.py', IfCondition(enable_nav2), {'map': map_yaml}),
+        _include('agt_navigation_runtime', 'runtime.launch.py', IfCondition(enable_runtime)),
     ])
