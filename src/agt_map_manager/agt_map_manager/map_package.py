@@ -11,6 +11,7 @@ import yaml
 REQUIRED_ASSETS = ('localization_map', 'navigation_map')
 KNOWN_ASSETS = (
     'localization_map',
+    'relocalization_assets',
     'navigation_map',
     'rtk_origin',
     'elevation',
@@ -19,6 +20,7 @@ KNOWN_ASSETS = (
     'obstacle',
     'preview',
 )
+DIRECTORY_ASSETS = {'relocalization_assets'}
 
 
 @dataclass(frozen=True)
@@ -59,6 +61,19 @@ def sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str:
     return digest.hexdigest()
 
 
+def sha256_tree(path: Path) -> str:
+    """Hash a directory deterministically from relative paths and file bytes."""
+    path = path.resolve()
+    digest = hashlib.sha256()
+    for file_path in sorted(p for p in path.rglob('*') if p.is_file()):
+        rel = file_path.relative_to(path).as_posix().encode('utf-8')
+        digest.update(len(rel).to_bytes(4, 'big'))
+        digest.update(rel)
+        file_hash = sha256_file(file_path).encode('ascii')
+        digest.update(file_hash)
+    return digest.hexdigest()
+
+
 def _inside(root: Path, path: Path) -> bool:
     try:
         path.relative_to(root)
@@ -80,6 +95,21 @@ def _invalid(metadata_path: Path, package_path: Path, reason: str,
         reason=reason,
         assets=assets or {},
     )
+
+
+def _validate_relocalization_assets(path: Path) -> str:
+    required_files = (
+        path / 'relocalization_assets.yaml',
+        path / 'global_map_downsampled.pcd',
+        path / 'voxelmaps_coords' / 'voxel_params.txt',
+    )
+    for required in required_files:
+        if not required.is_file():
+            return f'relocalization_assets_missing:{required.relative_to(path).as_posix()}'
+    voxel_pcds = sorted((path / 'voxelmaps_coords').glob('*.pcd'))
+    if not voxel_pcds:
+        return 'relocalization_assets_missing:voxelmaps_coords/*.pcd'
+    return ''
 
 
 def validate_package(metadata_path: Path, verify_hashes: bool = True) -> PackageInfo:
@@ -144,17 +174,29 @@ def validate_package(metadata_path: Path, verify_hashes: bool = True) -> Package
             return _invalid(
                 metadata_path, package_path, f'asset_{name}_escapes_package_root',
                 map_id, map_version, frame_id, assets)
-        if not candidate.is_file():
+
+        if name in DIRECTORY_ASSETS:
+            if not candidate.is_dir():
+                return _invalid(
+                    metadata_path, package_path, f'asset_{name}_missing_directory:{rel_path}',
+                    map_id, map_version, frame_id, assets)
+            internal_error = _validate_relocalization_assets(candidate)
+            if internal_error:
+                return _invalid(
+                    metadata_path, package_path, internal_error,
+                    map_id, map_version, frame_id, assets)
+        elif not candidate.is_file():
             return _invalid(
                 metadata_path, package_path, f'asset_{name}_missing:{rel_path}',
                 map_id, map_version, frame_id, assets)
+
         if expected_hash:
             if len(expected_hash) != 64 or any(ch not in '0123456789abcdef' for ch in expected_hash):
                 return _invalid(
                     metadata_path, package_path, f'asset_{name}_invalid_sha256',
                     map_id, map_version, frame_id, assets)
             if verify_hashes:
-                actual = sha256_file(candidate)
+                actual = sha256_tree(candidate) if name in DIRECTORY_ASSETS else sha256_file(candidate)
                 if actual != expected_hash:
                     return _invalid(
                         metadata_path, package_path,
