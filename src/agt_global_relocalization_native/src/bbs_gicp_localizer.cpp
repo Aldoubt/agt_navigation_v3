@@ -97,8 +97,9 @@ int main(int argc, char** argv) {
     const auto scan_points = to_eigen(*scan_cloud);
     if (scan_points.size() < 300) throw std::runtime_error("query scan too sparse after downsample");
 
-    // Stage 1: true no-initial-pose global coarse search. MID360/Batch-LIO IMU is expected
-    // to keep the query approximately gravity-aligned; roll/pitch are searched only in a bounded window.
+    // Stage 1: true no-initial-pose global coarse search. The orchestrator first
+    // removes the MID360 mounting tilt using the URDF/static TF; roll/pitch here
+    // therefore cover residual chassis/terrain attitude while yaw searches 360 deg.
     cpu::BBS3D bbs;
     bbs.set_num_threads(std::max(1, o.threads));
     bbs.set_tar_points(map_points, o.bbs_min_level_res, o.bbs_max_level);
@@ -148,7 +149,7 @@ int main(int argc, char** argv) {
               << ",\"fitness\":" << fitness
               << ",\"overlap\":" << overlap
               << ",\"bbs_score\":" << coarse_score
-              << ",\"bbs_elapsed_sec\":" << bbs.get_elapsed_time()
+              << ",\"bbs_elapsed_ms\":" << bbs.get_elapsed_time()
               << "}" << std::endl;
     return 0;
   } catch (const std::exception& e) {
