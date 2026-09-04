@@ -22,8 +22,8 @@ class MapManager(Node):
 
     V1 deliberately stops at an atomic *selection* boundary. It does not pretend
     that writing active_map.yaml is the same thing as atomically reloading Nav2
-    and the 3D localization backend. Runtime two-phase apply/rollback is the next
-    layer and will consume the typed MapStatus produced here.
+    and the 3D localization backend. Runtime consumers use the typed MapStatus
+    generation and paths so all derived assets come from one validated package.
     """
 
     def __init__(self) -> None:
@@ -85,6 +85,7 @@ class MapManager(Node):
         out.reason = info.reason
         out.navigation_map_yaml = info.asset_path('navigation_map')
         out.localization_map_pcd = info.asset_path('localization_map')
+        out.relocalization_assets_path = info.asset_path('relocalization_assets')
         out.rtk_origin_yaml = info.asset_path('rtk_origin')
         return out
 
@@ -100,6 +101,7 @@ class MapManager(Node):
             out.package_path = str(self._active.package_path)
             out.navigation_map_yaml = self._active.asset_path('navigation_map')
             out.localization_map_pcd = self._active.asset_path('localization_map')
+            out.relocalization_assets_path = self._active.asset_path('relocalization_assets')
             out.rtk_origin_yaml = self._active.asset_path('rtk_origin')
         return out
 
@@ -165,6 +167,7 @@ class MapManager(Node):
             'metadata_path': str(candidate.metadata_path),
             'navigation_map_yaml': candidate.asset_path('navigation_map'),
             'localization_map_pcd': candidate.asset_path('localization_map'),
+            'relocalization_assets_path': candidate.asset_path('relocalization_assets'),
             'rtk_origin_yaml': candidate.asset_path('rtk_origin'),
         }
         try:
