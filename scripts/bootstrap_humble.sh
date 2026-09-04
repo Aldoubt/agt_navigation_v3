@@ -106,9 +106,6 @@ if [[ "${DO_APT}" -eq 1 ]]; then
     ros-humble-navigation2 ros-humble-nav2-bringup \
     ros-humble-pcl-conversions ros-humble-tf2-eigen
 
-  # python3-vcstool lives in Ubuntu Universe on Jammy. ROS installation normally
-  # enables Universe already, but make first-boot behavior explicit and provide
-  # a pip fallback for minimal images.
   sudo add-apt-repository -y universe >/dev/null
   sudo apt-get update
   if ! sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y python3-vcstool; then
@@ -131,8 +128,31 @@ if ! command -v colcon >/dev/null 2>&1; then
 fi
 
 REPOS_FILE="${REPO_ROOT}/dependencies/field_demo.repos"
-echo "==> Validating source dependency manifest"
-vcs validate < "${REPOS_FILE}"
+echo "==> Validating source dependency manifest structure"
+# vcstool 0.3.0 has a validate-only bug for exact SHA versions. Validate the
+# .repos schema ourselves, then let `vcs import` perform the real checkout.
+python3 - "${REPOS_FILE}" <<'PY'
+import pathlib
+import sys
+import yaml
+
+path = pathlib.Path(sys.argv[1])
+data = yaml.safe_load(path.read_text(encoding='utf-8'))
+repos = data.get('repositories') if isinstance(data, dict) else None
+if not isinstance(repos, dict) or not repos:
+    raise SystemExit(f'ERROR: invalid repositories mapping in {path}')
+for relpath, spec in repos.items():
+    if not isinstance(relpath, str) or not relpath or relpath.startswith('/') or '..' in pathlib.PurePosixPath(relpath).parts:
+        raise SystemExit(f'ERROR: unsafe repository path: {relpath!r}')
+    if not isinstance(spec, dict):
+        raise SystemExit(f'ERROR: repository spec for {relpath} is not a mapping')
+    if spec.get('type') != 'git':
+        raise SystemExit(f'ERROR: unsupported repository type for {relpath}: {spec.get("type")!r}')
+    for key in ('url', 'version'):
+        if not isinstance(spec.get(key), str) or not spec[key].strip():
+            raise SystemExit(f'ERROR: missing {key} for {relpath}')
+print(f'REPOS MANIFEST PASS: {len(repos)} repositories')
+PY
 
 echo "==> Importing missing field-demo repositories into ${SRC_DIR}"
 # Repeatable and non-destructive: existing repositories and local changes are not overwritten.
