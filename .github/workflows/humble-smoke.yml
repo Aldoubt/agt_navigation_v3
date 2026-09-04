@@ -1,0 +1,71 @@
+name: humble-smoke
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  python-and-manifest-smoke:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python syntax
+        run: python3 -m compileall -q src
+      - name: Parse package manifests and YAML
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          import xml.etree.ElementTree as ET
+          import yaml
+
+          for path in pathlib.Path('src').rglob('package.xml'):
+              ET.parse(path)
+          for path in pathlib.Path('src').rglob('*.yaml'):
+              with path.open('r', encoding='utf-8') as f:
+                  yaml.safe_load(f)
+          print('manifest/yaml smoke PASS')
+          PY
+
+  ros2-humble-core-build:
+    runs-on: ubuntu-22.04
+    container: osrf/ros:humble-desktop
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        shell: bash
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            python3-colcon-common-extensions \
+            python3-pip \
+            ros-humble-navigation2 \
+            ros-humble-nav2-bringup \
+            ros-humble-pcl-conversions
+      - name: Build hardware-independent AGT core
+        shell: bash
+        run: |
+          source /opt/ros/humble/setup.bash
+          colcon build --symlink-install --event-handlers console_direct+ \
+            --packages-select \
+              agt_robot_interfaces \
+              agt_pointcloud_preprocessor \
+              agt_map_converter \
+              agt_map_manager \
+              agt_localization_manager \
+              agt_batch_lio_adapter \
+              agt_base_control \
+              agt_nav2_bringup
+      - name: Run core tests
+        shell: bash
+        run: |
+          source /opt/ros/humble/setup.bash
+          source install/setup.bash
+          colcon test --event-handlers console_direct+ \
+            --packages-select agt_map_converter agt_map_manager
+          colcon test-result --verbose
+
+# This workflow intentionally does not claim a full field-demo build. The full
+# chain additionally needs pinned Livox/Batch-LIO/Fast-LIO2, C1/INS interfaces,
+# 3D-BBS and small_gicp. Use scripts/field_build_smoke.sh on the target Humble
+# workspace after those dependencies are installed.
