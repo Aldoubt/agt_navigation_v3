@@ -17,5 +17,8 @@ setup(
     maintainer_email='dev@agt.local',
     description='AGT inspection mission runtime',
     license='Apache-2.0',
-    entry_points={'console_scripts': ['mission_runtime = agt_navigation_runtime.mission_runtime:main']},
+    entry_points={'console_scripts': [
+        'mission_runtime = agt_navigation_runtime.mission_runtime:main',
+        'validate_records = agt_navigation_runtime.validate_records:main',
+    ]},
 )
