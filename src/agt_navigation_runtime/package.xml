@@ -2,11 +2,12 @@
 <package format="3">
   <name>agt_navigation_runtime</name>
   <version>0.1.0</version>
-  <description>Inspection mission orchestration for Nav2, camera-gimbal capability, RTK metadata and HMI.</description>
+  <description>RViz-first inspection mission orchestration for Nav2, camera-gimbal capture and synchronized records.</description>
   <maintainer email="contact@aldoubt.com">AGT</maintainer>
   <license>Apache-2.0</license>
   <buildtool_depend>ament_python</buildtool_depend>
   <exec_depend>rclpy</exec_depend>
+  <exec_depend>action_msgs</exec_depend>
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>std_srvs</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
