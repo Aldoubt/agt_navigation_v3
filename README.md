@@ -138,21 +138,18 @@ Demo V1 使用每个 XY cell 的最低/最高 Z、点数和 elevation gradient �
 
 ## 3. 转换结果自检
 
-每次转换后先执行：
-
 ```bash
 ros2 run agt_map_converter validate_nav_map \
   /absolute/path/to/maps/site_A/navigation
 ```
 
-检查内容：
+检查：
 
-- `map.yaml` 是否可解析；
-- resolution / origin / threshold 是否合理；
-- `map.pgm/elevation.pgm/slope.pgm/obstacle.pgm` 是否完整；
-- 所有 PGM 尺寸是否一致；
-- PGM payload 是否损坏；
-- Nav2 map 是否同时存在 free 和 occupied cell；
+- `map.yaml` 可解析；
+- resolution/origin/threshold 合法；
+- 所有 PGM 存在且尺寸一致；
+- PGM payload 完整；
+- map 中同时有 free / occupied cell；
 - 打印 free / occupied / unknown 比例。
 
 必须看到：
@@ -161,7 +158,7 @@ ros2 run agt_map_converter validate_nav_map \
 MAP VALIDATION PASS
 ```
 
-这一步只验证文件和基础栅格质量，不替代 RViz 人工检查。仍需在 RViz 观察道路、坡地、路沿、树木、摘边区域有没有明显错误。
+这不替代 RViz 人工检查。仍需观察道路、坡地、路沿、树木和摘边区域有没有明显错误。
 
 ## 4. 手动启动硬件和定位前置链
 
@@ -193,6 +190,7 @@ FAST-LIO2 / global localization 按当前实机配置启动，并确认：
 map -> odom
 odom -> base_link
 /agt/odometry/local
+/agt/navigation/points_obstacles
 ```
 
 都正常且时间连续。
@@ -208,7 +206,7 @@ C1 按 `Autolabor-C1-ROS2` 自己的 Phase-1 bringup 启动，并确认：
 
 ## 5. 一键启动 RViz Demo 上层
 
-当前前置硬件/定位确认完成后，上层可以一次启动：
+前置硬件/定位确认完成后：
 
 ```bash
 ros2 launch agt_system_bringup rviz_demo.launch.py \
@@ -227,21 +225,51 @@ agt_rviz_patrol
 rviz2
 ```
 
-如果不希望它启动 RTK manager：
+可选：
 
 ```text
 enable_rtk:=false
-```
-
-如果已有自己的 RViz：
-
-```text
 launch_rviz:=false
 ```
 
-这个 launch **不会替你自动判断 FAST-LIO2 / localization / C1 / Bunker hardware 是否 ready**。当前阶段故意保留人工确认。
+这个 launch 不会自动判断 FAST-LIO2 / localization / C1 / Bunker hardware 是否 ready。当前阶段故意保留人工确认。
 
-## 6. 三视角模板
+## 6. 人工 preflight
+
+在 RViz 点巡检任务前运行一次：
+
+```bash
+ros2 run agt_navigation_runtime demo_preflight
+```
+
+它只检查一次并退出，不是自动 readiness 状态机。
+
+默认检查：
+
+```text
+/navigate_to_pose action
+/camera_gimbal/acquire_view action
+/agt/odometry/local
+/agt/navigation/points_obstacles
+map -> base_link TF
+```
+
+要求 RTK 也必须有效时：
+
+```bash
+ros2 run agt_navigation_runtime demo_preflight --ros-args \
+  -p require_rtk:=true
+```
+
+全部通过时看到：
+
+```text
+DEMO PREFLIGHT PASS
+```
+
+若 FAIL，先修复对应链路再点任务。该工具不会自动启动、停止或放行任何模块。
+
+## 7. 三视角模板
 
 默认模板：
 
@@ -259,7 +287,7 @@ front_right_sky   heading +45°  pitch +35°
 
 第一次实机必须单独确认 C1 pitch 正负方向。如果正值实际朝下，只修改 YAML 里三个 `pitch` 的符号，不改任务代码。
 
-## 7. RViz 点选
+## 8. RViz 点选
 
 RViz：
 
@@ -268,26 +296,11 @@ RViz：
 3. 添加 `MarkerArray`，topic `/agt/rviz_patrol/markers`；
 4. 用工具栏 **2D Goal Pose** 依次点击巡检点并设置车头方向。
 
-每个 `/goal_pose` 只进入队列，不立即执行。
+每个 `/goal_pose` 只进入队列，不立即执行。点击顺序就是 P001、P002、P003……
 
-点击顺序就是任务顺序：
+开始任务时 `agt_rviz_patrol` 抓取当前 `map -> base_link` 作为 HOME，并在 mission 尾部自动追加 `RETURN_HOME`，该点只导航、不拍照。
 
-```text
-第 1 个 -> P001
-第 2 个 -> P002
-第 3 个 -> P003
-...
-```
-
-开始任务时 `agt_rviz_patrol` 抓取当前 `map -> base_link` 作为 HOME，并在 mission 尾部自动追加：
-
-```text
-RETURN_HOME
-```
-
-该点只导航，不拍照。
-
-## 8. 开始 / 清空 / 取消
+## 9. 开始 / 清空 / 取消
 
 开始：
 
@@ -307,17 +320,11 @@ ros2 service call /agt/rviz_patrol/clear std_srvs/srv/Trigger "{}"
 ros2 service call /agt/rviz_patrol/cancel std_srvs/srv/Trigger "{}"
 ```
 
-## 9. 到点停稳门禁
+## 10. 到点停稳门禁
 
-Nav2 `NavigateToPose` 返回 SUCCESS 后，runtime 不直接调用相机。
+Nav2 `NavigateToPose` 返回 SUCCESS 后，runtime 不直接调用相机，而是继续读取 `/agt/odometry/local`。
 
-它继续读取：
-
-```text
-/agt/odometry/local
-```
-
-默认条件：
+默认：
 
 ```text
 linear speed  <= 0.03 m/s
@@ -327,17 +334,17 @@ odom 数据新鲜 <= 0.5 s
 最大等待       8.0 s
 ```
 
-满足后再执行 point 自身的额外 settle time，最后才调用 C1。
+满足后再执行 point 自身额外 settle time，最后才调用 C1。
 
-参数位置：
+参数：
 
 ```text
 src/agt_navigation_runtime/config/runtime.yaml
 ```
 
-如果 Bunker 实机振动导致 FAST-LIO2 twist 在静止状态仍有较高噪声，优先根据静止 rosbag 调这两个阈值，不要直接取消停稳门禁。
+如果 Bunker 静止时 FAST-LIO2 twist 噪声高，优先根据静止 rosbag 调阈值，不要直接移除停稳门禁。
 
-## 10. 每个巡检点的执行顺序
+## 11. 每个巡检点执行顺序
 
 ```text
 NavigateToPose
@@ -365,24 +372,18 @@ next point
 最后：
 
 ```text
-RETURN_HOME
-    ↓
-测得底盘静止
-    ↓
-mission COMPLETED
-    ↓
-待机
+RETURN_HOME -> measured stop -> mission COMPLETED -> standby
 ```
 
-## 11. 数据记录
+## 12. 数据记录
 
-默认目录：
+默认：
 
 ```text
 ~/.ros/agt_inspection_records/
 ```
 
-每次任务目录包含：
+每次任务包含：
 
 ```text
 mission.yaml
@@ -392,19 +393,9 @@ captures.jsonl
 images/
 ```
 
-每张成功照片记录：
+每张成功照片记录 mission/map/point/view ID、image path、image_stamp、拍照时刻 map pose、RTK 经纬高/status/time delta、云台 actual heading/roll/pitch 和 camera error code。
 
-```text
-mission/map/point/view ID
-image path
-image_stamp
-拍照时刻 map pose
-RTK 经纬高 / status / time delta
-云台 actual heading/roll/pitch
-camera error code
-```
-
-RViz 自动生成的临时 mission：
+RViz 临时 mission：
 
 ```text
 ~/.ros/agt_rviz_patrol/
@@ -412,23 +403,21 @@ RViz 自动生成的临时 mission：
 
 # 验收
 
-## A. 单点验收
+## A. 单点
 
-先只点一个巡检点。
-
-预期：
+只点 1 个巡检点：
 
 ```text
 P001 -> 3 张图 -> RETURN_HOME
 ```
 
-完成后找到最新记录目录：
+找到最新目录：
 
 ```bash
 ls -dt ~/.ros/agt_inspection_records/* | head -1
 ```
 
-然后：
+检查：
 
 ```bash
 ros2 run agt_navigation_runtime validate_records \
@@ -436,25 +425,21 @@ ros2 run agt_navigation_runtime validate_records \
   --expected-points 1
 ```
 
-如果本次测试要求 RTK 必须有效：
+要求 RTK 每张都有效时加：
 
 ```text
 --require-rtk
 ```
 
-通过必须看到：
+通过：
 
 ```text
 DEMO RECORD VALIDATION PASS: points=1 views_per_point=3
 ```
 
-注意：`RETURN_HOME` 不产生 capture，所以不会计入 expected points。
+`RETURN_HOME` 不产生 capture，因此不计入 expected points。
 
-## B. 三点验收
-
-RViz 依次点 3 个巡检点。
-
-预期：
+## B. 三点
 
 ```text
 P001 -> 3 图
@@ -471,25 +456,19 @@ ros2 run agt_navigation_runtime validate_records \
   --expected-points 3
 ```
 
-预期总 capture 数：
+预期总 capture 数：9。
 
-```text
-9
-```
+## C. 验收器检查项
 
-## C. 验收器检查什么
-
-`validate_records` 会检查：
-
-- capture 行数；
+- capture 数量；
 - 每点是否正好 3 个视角；
-- 图片文件是否真实存在；
+- 图片文件真实存在；
 - `pose_valid=true`；
-- gimbal actual heading/roll/pitch 是否存在；
+- gimbal actual heading/roll/pitch 存在；
 - `camera_error_code=0`；
-- 使用 `--require-rtk` 时，每张图都必须 `rtk_valid=true`。
+- `--require-rtk` 时每张 `rtk_valid=true`。
 
-它不能替代人工检查照片内容。首轮仍需要人工确认三张照片实际覆盖方向正确、没有在底盘明显晃动时曝光。
+验收器不判断照片内容。首轮仍需人工确认覆盖方向和曝光时底盘是否视觉上稳定。
 
 # 当前 ROS 接口
 
@@ -513,8 +492,11 @@ RTK
   /ins/navsatfix                     sensor_msgs/NavSatFix
   /agt/rtk/status                    agt_robot_interfaces/RTKStatus
 
+Obstacle
+  /agt/navigation/points_obstacles   sensor_msgs/PointCloud2
+
 Control
-  /cmd_vel                           Nav2 final command into guard
+  /cmd_vel                           Nav2 final smoother output -> guard input
   /mux/cmd_vel                       guarded Bunker command
   /wheel/odom                        diagnostics/control reference only
 ```
@@ -529,8 +511,10 @@ Control
 | Bunker 50 Hz guard | 🟡 | `/cmd_vel -> /mux/cmd_vel` 已落地 |
 | Inspection runtime | 🟡 | NavigateToPose + measured-stop gate + C1 + image_stamp record 已落地 |
 | `agt_rviz_patrol` | 🟡 | RViz queue + 三视角 + RETURN_HOME 已落地 |
+| Manual demo preflight | 🟡 | 一次性 Action/topic/TF 检查已落地 |
 | Demo record validator | 🟡 | 单点/三点 capture 自动检查已落地 |
 | RViz Demo bringup | 🟡 | Nav2/RTK/guard/runtime/patrol/RViz 一键拉起已落地 |
+| Validator unit tests | 🟡 | map/record pure-software tests 已落地，待 Humble CI 实跑 |
 | RTK manager | 🟡 | quality/freshness + 记录链已落地 |
 | FAST-LIO2 adapter | 🟡 | 待选定 fork 实机验证 |
 | Localization Manager | 🟡 | global backend 仍需实测接通 |
@@ -546,13 +530,15 @@ Control
 1. PCD -> Nav2 map；
 2. `validate_nav_map` PASS；
 3. RViz 人工检查地图；
-4. 单独 Nav2：1 个普通目标，确认 Bunker 到点和停车；
-5. 单独 C1 三视角，确认 pitch 方向、稳定判定和新图像；
-6. 1 个巡检点 -> 3 图 -> 返回 HOME；
-7. `validate_records --expected-points 1` PASS；
-8. 3 个巡检点 -> 9 图 -> 返回 HOME；
-9. `validate_records --expected-points 3` PASS；
-10. 扩展完整路径；
-11. RViz 链稳定后再正式接 `agt_robot_hmi`。
+4. 手动启动硬件/定位前置链；
+5. `demo_preflight` PASS；
+6. 单独 Nav2：1 个普通目标，确认 Bunker 到点和停车；
+7. 单独 C1 三视角，确认 pitch 方向、稳定判定和新图像；
+8. 1 个巡检点 -> 3 图 -> 返回 HOME；
+9. `validate_records --expected-points 1` PASS；
+10. 3 个巡检点 -> 9 图 -> 返回 HOME；
+11. `validate_records --expected-points 3` PASS；
+12. 扩展完整路径；
+13. RViz 链稳定后再正式接 `agt_robot_hmi`。
 
-当前开发主线就是先把第 1~9 步做稳定。
+当前开发主线就是先把第 1~11 步做稳定。
