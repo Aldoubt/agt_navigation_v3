@@ -1,0 +1,53 @@
+# AGT V1 mapping baseline for robotics-laboratory/fast-lio2.
+# This file is intentionally owned by agt_navigation_v3 so mapping parameters
+# actually used on the robot are visible and versioned here instead of being
+# hidden behind the upstream lio_launch.py defaults.
+
+imu_topic: /livox/imu
+lidar_topic: /livox/lidar
+body_frame: body
+world_frame: lidar
+print_time_cost: false
+
+lidar_filter_num: 6
+lidar_min_range: 0.5
+lidar_max_range: 30.0
+scan_resolution: 0.15
+map_resolution: 0.30
+
+cube_len: 300
+det_range: 60
+move_thresh: 1.5
+
+# First field baseline only. Freeze after the Bunker vibration bag is reviewed.
+na: 0.01
+ng: 0.01
+nba: 0.0001
+nbg: 0.0001
+
+imu_init_num: 20
+near_search_num: 5
+ieskf_max_iter: 5
+
+gravity_align: true
+# Do not estimate LiDAR/IMU extrinsics online on the high-vibration tracked base.
+esti_il: false
+
+# IMPORTANT CONVENTION:
+# robotics-laboratory/fast-lio2 uses t_il in the opposite direction to the
+# Batch-LIO extrinsic_T convention used in this repository. The values below
+# are the upstream MID360 built-in-IMU baseline and therefore are the inverse
+# translation of Batch-LIO's [0.011, 0.02329, -0.04412].
+r_il: [1.0, 0.0, 0.0,
+       0.0, 1.0, 0.0,
+       0.0, 0.0, 1.0]
+t_il: [-0.011, -0.02329, 0.04412]
+
+lidar_cov_inv: 1000.0
+
+# P0 FIELD GATE:
+# this pinned upstream implementation multiplies /livox/imu linear acceleration
+# by 10.0 internally. Run mid360_imu_preflight before mapping. The unmodified
+# mapping baseline is only accepted when the stationary raw acceleration norm
+# is approximately 1.0 (g units). If the driver reports approximately 9.81
+# m/s^2, patch/replace that upstream scaling before using this mapping mode.
