@@ -3,7 +3,7 @@ from pathlib import Path
 
 import yaml
 
-from agt_map_manager.map_package import discover_packages, validate_package
+from agt_map_manager.map_package import discover_packages, sha256_tree, validate_package
 
 
 def _write_package(root: Path, map_id='site_a', version='v1', nav_path=None):
@@ -29,12 +29,60 @@ def _write_package(root: Path, map_id='site_a', version='v1', nav_path=None):
     return package, metadata, pcd, nav
 
 
+def _add_relocalization_assets(package: Path, metadata: Path):
+    rel = package / 'localization' / 'relocalization'
+    vox = rel / 'voxelmaps_coords'
+    vox.mkdir(parents=True)
+    (rel / 'relocalization_assets.yaml').write_text('schema_version: 1\n', encoding='utf-8')
+    (rel / 'global_map_downsampled.pcd').write_bytes(b'downsampled-pcd')
+    (vox / 'voxel_params.txt').write_text('min_level_res 0.25\nmax_level 1\nv_rate 2\n', encoding='utf-8')
+    (vox / '0.pcd').write_bytes(b'voxel-level-0')
+    (vox / '1.pcd').write_bytes(b'voxel-level-1')
+    data = yaml.safe_load(metadata.read_text(encoding='utf-8'))
+    data['assets']['relocalization_assets'] = {
+        'path': 'localization/relocalization',
+        'sha256': sha256_tree(rel),
+    }
+    metadata.write_text(yaml.safe_dump(data, sort_keys=False), encoding='utf-8')
+    return rel
+
+
 def test_valid_package(tmp_path):
     _, metadata, _, _ = _write_package(tmp_path)
     info = validate_package(metadata)
     assert info.valid
     assert info.map_id == 'site_a'
     assert info.map_version == 'v1'
+
+
+def test_valid_relocalization_assets_directory(tmp_path):
+    package, metadata, _, _ = _write_package(tmp_path)
+    rel = _add_relocalization_assets(package, metadata)
+    info = validate_package(metadata, verify_hashes=True)
+    assert info.valid
+    assert info.asset_path('relocalization_assets') == str(rel.resolve())
+
+
+def test_relocalization_asset_tamper_is_rejected(tmp_path):
+    package, metadata, _, _ = _write_package(tmp_path)
+    rel = _add_relocalization_assets(package, metadata)
+    (rel / 'voxelmaps_coords' / '0.pcd').write_bytes(b'tampered')
+    info = validate_package(metadata, verify_hashes=True)
+    assert not info.valid
+    assert 'relocalization_assets_sha256_mismatch' in info.reason
+
+
+def test_relocalization_assets_require_voxel_files(tmp_path):
+    package, metadata, _, _ = _write_package(tmp_path)
+    rel = _add_relocalization_assets(package, metadata)
+    for pcd in (rel / 'voxelmaps_coords').glob('*.pcd'):
+        pcd.unlink()
+    data = yaml.safe_load(metadata.read_text(encoding='utf-8'))
+    data['assets']['relocalization_assets'].pop('sha256', None)
+    metadata.write_text(yaml.safe_dump(data, sort_keys=False), encoding='utf-8')
+    info = validate_package(metadata, verify_hashes=False)
+    assert not info.valid
+    assert info.reason == 'relocalization_assets_missing:voxelmaps_coords/*.pcd'
 
 
 def test_invalid_schema_is_rejected_not_raised(tmp_path):
