@@ -1,0 +1,21 @@
+repositories:
+  external/fast_lio2_mapping:
+    type: git
+    url: https://github.com/robotics-laboratory/fast-lio2.git
+    version: f516daac08bc46e50e814a2e7d6c8352ed8141bb
+  external/batch_lio:
+    type: git
+    url: https://github.com/Functionhx/Batch-LIO.git
+    version: fe4a9cb3c07024caad70239d6015c49c01d72608
+  external/lidar_imu_init_ros2:
+    type: git
+    url: https://github.com/morte2025/LiDAR_IMU_Init_ROS2.git
+    version: f8bfd9d0b02621dd411820940a012a690f4de52e
+  external/3d_bbs:
+    type: git
+    url: https://github.com/KOKIAOKI/3d_bbs.git
+    version: 41529a34a2fb9618b5ff560fb3c2363f1615666d
+  external/small_gicp:
+    type: git
+    url: https://github.com/koide3/small_gicp.git
+    version: 2c6c7831bc1f5ada2ee5300027fe7d7aee66827d
