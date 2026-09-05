@@ -15,10 +15,14 @@ mission_runtime:
     rtk_max_age_sec: 1.0
     default_point_settle_sec: 1.0
 
-    # Capture begins only after measured local odometry remains below these
-    # thresholds continuously for stationary_hold_sec.
+    # Capture begins only after both reported twist and pose-derived planar
+    # motion remain below these thresholds continuously for stationary_hold_sec.
+    # Pose delta is mandatory because Batch-LIO may publish zero twist.
     stationary_linear_threshold_mps: 0.03
     stationary_angular_threshold_rps: 0.05
+    stationary_pose_linear_threshold_mps: 0.04
+    stationary_pose_angular_threshold_rps: 0.06
+    stationary_pose_max_dt_sec: 1.0
     stationary_hold_sec: 0.8
     stationary_timeout_sec: 8.0
     odom_freshness_sec: 0.5

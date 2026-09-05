@@ -1,0 +1,14 @@
+profiles:
+  A:
+    xy_range_m: 50.0
+    yaw_range_deg: 180.0
+  B:
+    xy_range_m: 20.0
+    yaw_range_deg: 90.0
+  C:
+    xy_range_m: 10.0
+    yaw_range_deg: 45.0
+
+query_voxel_sizes_m:
+  - 0.2
+  - 0.5

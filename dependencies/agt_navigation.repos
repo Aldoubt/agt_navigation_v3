@@ -1,0 +1,37 @@
+repositories:
+  drivers/agt_ins_driver:
+    type: git
+    url: https://github.com/Aldoubt/agt_ins_driver.git
+    version: cfa7b94a349e613d77cf3fd8ff249941369c681e
+  drivers/Autolabor-C1-ROS2:
+    type: git
+    url: https://github.com/Aldoubt/Autolabor-C1-ROS2.git
+    version: 10d82179dc34ae035b382e9b465e4b8f5d55c0a8
+  external/Livox-SDK2:
+    type: git
+    url: https://github.com/Livox-SDK/Livox-SDK2.git
+    version: 08f523c930b2f0ba1e98a6afaa8d7476bf479908
+  external/livox_ros_driver2:
+    type: git
+    url: https://github.com/Livox-SDK/livox_ros_driver2.git
+    version: 4a1def929e5b59c7a8122d19fce6efba581ce9f7
+  external/fast_lio2_mapping:
+    type: git
+    url: https://github.com/robotics-laboratory/fast-lio2.git
+    version: f516daac08bc46e50e814a2e7d6c8352ed8141bb
+  external/batch_lio:
+    type: git
+    url: https://github.com/Functionhx/Batch-LIO.git
+    version: fe4a9cb3c07024caad70239d6015c49c01d72608
+  external/3d_bbs:
+    type: git
+    url: https://github.com/KOKIAOKI/3d_bbs.git
+    version: 41529a34a2fb9618b5ff560fb3c2363f1615666d
+  external/small_gicp:
+    type: git
+    url: https://github.com/koide3/small_gicp.git
+    version: 2c6c7831bc1f5ada2ee5300027fe7d7aee66827d
+  external/Sophus:
+    type: git
+    url: https://github.com/strasdat/Sophus.git
+    version: de0f8d3d92bf776271e16de56d1803940ebccab9

@@ -13,7 +13,7 @@ agt_localization_manager:
     local_odom_timeout_sec: 0.30
     local_odom_lost_sec: 1.00
     global_match_max_skew_sec: 0.10
-    odom_buffer_sec: 5.0
+    odom_buffer_sec: 30.0
 
     # Initial acceptance gates. Tune using the real global-localization benchmark.
     max_global_position_std_m: 1.00
@@ -23,3 +23,6 @@ agt_localization_manager:
     tf_publish_rate_hz: 30.0
     map_id: ""
     map_version: ""
+    debug_identity_map_odom: false
+    debug_status_topic: /agt/relocalization/status
+    global_status_topic: /agt/global_relocalization/status

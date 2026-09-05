@@ -65,6 +65,13 @@ Visualization Manager:
       Enabled: true
       Topic:
         Value: /agt/rviz_patrol/markers
+    - Class: rviz_default_plugins/Pose
+      Name: Relocalization Pose
+      Enabled: true
+      Topic:
+        Value: /agt/relocalization/pose
+      Shape:
+        Value: Arrow
     - Class: rviz_default_plugins/Path
       Name: Global Plan
       Enabled: true

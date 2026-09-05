@@ -33,6 +33,33 @@ def yaw_to_quaternion(yaw: float):
     return 0.0, 0.0, math.sin(half), math.cos(half)
 
 
+def quaternion_to_yaw(q) -> float:
+    siny_cosp = 2.0 * (q.w * q.z + q.x * q.y)
+    cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
+    return math.atan2(siny_cosp, cosy_cosp)
+
+
+def wrap_angle(angle: float) -> float:
+    return math.atan2(math.sin(angle), math.cos(angle))
+
+
+def odom_planar_motion_rate(previous: Odometry, current: Odometry, max_dt_sec: float):
+    """Return pose-derived planar linear/yaw rates, or None for an invalid interval."""
+    prev_ns = Time.from_msg(previous.header.stamp).nanoseconds
+    curr_ns = Time.from_msg(current.header.stamp).nanoseconds
+    dt = (curr_ns - prev_ns) / 1e9
+    if dt <= 1e-4 or dt > max_dt_sec:
+        return None
+
+    p0 = previous.pose.pose.position
+    p1 = current.pose.pose.position
+    linear = math.hypot(p1.x - p0.x, p1.y - p0.y) / dt
+    yaw0 = quaternion_to_yaw(previous.pose.pose.orientation)
+    yaw1 = quaternion_to_yaw(current.pose.pose.orientation)
+    angular = abs(wrap_angle(yaw1 - yaw0)) / dt
+    return linear, angular
+
+
 class MissionRuntime(Node):
     def __init__(self):
         super().__init__('mission_runtime')
@@ -50,6 +77,9 @@ class MissionRuntime(Node):
             'default_point_settle_sec': 1.0,
             'stationary_linear_threshold_mps': 0.03,
             'stationary_angular_threshold_rps': 0.05,
+            'stationary_pose_linear_threshold_mps': 0.04,
+            'stationary_pose_angular_threshold_rps': 0.06,
+            'stationary_pose_max_dt_sec': 1.0,
             'stationary_hold_sec': 0.8,
             'stationary_timeout_sec': 8.0,
             'odom_freshness_sec': 0.5,
@@ -65,6 +95,10 @@ class MissionRuntime(Node):
         self.rtk_samples = deque(maxlen=300)
         self.latest_local_odom = None
         self.latest_local_odom_rx_ns = 0
+        self.previous_motion_odom = None
+        self.latest_pose_linear_mps = None
+        self.latest_pose_angular_rps = None
+        self.latest_pose_motion_rx_ns = 0
         self.pending_hmi_mission = ''
         self.paused = False
         self.cancel_requested = False
@@ -143,8 +177,23 @@ class MissionRuntime(Node):
         self.rtk_samples.append((Time.from_msg(msg.header.stamp).nanoseconds, msg))
 
     def on_local_odom(self, msg):
+        now_ns = self.get_clock().now().nanoseconds
+        if self.previous_motion_odom is not None:
+            rates = odom_planar_motion_rate(
+                self.previous_motion_odom,
+                msg,
+                float(self.get_parameter('stationary_pose_max_dt_sec').value),
+            )
+            if rates is None:
+                self.latest_pose_linear_mps = None
+                self.latest_pose_angular_rps = None
+                self.latest_pose_motion_rx_ns = 0
+            else:
+                self.latest_pose_linear_mps, self.latest_pose_angular_rps = rates
+                self.latest_pose_motion_rx_ns = now_ns
+        self.previous_motion_odom = msg
         self.latest_local_odom = msg
-        self.latest_local_odom_rx_ns = self.get_clock().now().nanoseconds
+        self.latest_local_odom_rx_ns = now_ns
 
     def publish_status(self, state, mission_id='', point_id='', index=0, count=0,
                        detail='', error_code=0, goal_handle=None):
@@ -179,6 +228,8 @@ class MissionRuntime(Node):
     async def wait_until_stationary(self):
         linear_limit = float(self.get_parameter('stationary_linear_threshold_mps').value)
         angular_limit = float(self.get_parameter('stationary_angular_threshold_rps').value)
+        pose_linear_limit = float(self.get_parameter('stationary_pose_linear_threshold_mps').value)
+        pose_angular_limit = float(self.get_parameter('stationary_pose_angular_threshold_rps').value)
         hold_sec = float(self.get_parameter('stationary_hold_sec').value)
         timeout_sec = float(self.get_parameter('stationary_timeout_sec').value)
         freshness_sec = float(self.get_parameter('odom_freshness_sec').value)
@@ -197,14 +248,40 @@ class MissionRuntime(Node):
                 await asyncio.sleep(0.05)
                 continue
 
+            pose_age = (
+                (now_ns - self.latest_pose_motion_rx_ns) / 1e9
+                if self.latest_pose_motion_rx_ns else float('inf')
+            )
+            if (
+                self.latest_pose_linear_mps is None
+                or self.latest_pose_angular_rps is None
+                or pose_age > freshness_sec
+            ):
+                # Do not fall back to twist-only stationary detection. Batch-LIO
+                # may publish zero twist even while its pose is changing.
+                stable_since_ns = None
+                await asyncio.sleep(0.05)
+                continue
+
             t = odom.twist.twist
             linear = math.sqrt(t.linear.x * t.linear.x + t.linear.y * t.linear.y + t.linear.z * t.linear.z)
             angular = math.sqrt(t.angular.x * t.angular.x + t.angular.y * t.angular.y + t.angular.z * t.angular.z)
-            if linear <= linear_limit and angular <= angular_limit:
+            pose_linear = float(self.latest_pose_linear_mps)
+            pose_angular = float(self.latest_pose_angular_rps)
+            stationary = (
+                linear <= linear_limit
+                and angular <= angular_limit
+                and pose_linear <= pose_linear_limit
+                and pose_angular <= pose_angular_limit
+            )
+            if stationary:
                 if stable_since_ns is None:
                     stable_since_ns = now_ns
                 elif (now_ns - stable_since_ns) / 1e9 >= hold_sec:
-                    return True, f'stationary linear={linear:.3f}m/s angular={angular:.3f}rad/s'
+                    return True, (
+                        f'stationary twist={linear:.3f}m/s,{angular:.3f}rad/s '
+                        f'pose_delta={pose_linear:.3f}m/s,{pose_angular:.3f}rad/s'
+                    )
             else:
                 stable_since_ns = None
             await asyncio.sleep(0.05)

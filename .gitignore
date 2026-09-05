@@ -1,0 +1,23 @@
+# Python / test caches
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Colcon / native build outputs
+build/
+install/
+log/
+.agt_native/
+
+# Runtime captures and generated field data belong outside source control.
+rosbag/
+bags/
+agt_data/
+*.db3
+*.mcap
+
+# Editor / OS noise
+.vscode/
+.idea/
+*~
+*.swp

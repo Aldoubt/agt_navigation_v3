@@ -14,6 +14,8 @@ def generate_launch_description():
         'config', 'global_relocalization.yaml')
 
     return LaunchDescription([
+        DeclareLaunchArgument('use_sim_time', default_value='false'),
+        DeclareLaunchArgument('auto_request', default_value='false'),
         DeclareLaunchArgument(
             'global_map', default_value='',
             description='Fallback global PCD path when Map Manager is not supplying an active map.'),
@@ -23,9 +25,12 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'follow_map_manager', default_value='true',
             description='Follow /agt/map/status for active PCD and BBS assets.'),
-        DeclareLaunchArgument('sdk_timeout_sec', default_value='10.0'),
+        DeclareLaunchArgument('sdk_timeout_sec', default_value='18.0'),
         DeclareLaunchArgument('local_map_radius_xy', default_value='35.0'),
         DeclareLaunchArgument('local_map_half_height', default_value='8.0'),
+        DeclareLaunchArgument(
+            'scan_topic', default_value='/agt/livox/points',
+            description='Live PointCloud2 query stream; offline tests may override this.'),
 
         Node(
             package='agt_global_relocalization',
@@ -45,6 +50,9 @@ def generate_launch_description():
                         LaunchConfiguration('local_map_radius_xy'), value_type=float),
                     'backend_local_map_half_height': ParameterValue(
                         LaunchConfiguration('local_map_half_height'), value_type=float),
+                    'scan_topic': LaunchConfiguration('scan_topic'),
+                    'use_sim_time': ParameterValue(LaunchConfiguration('use_sim_time'), value_type=bool),
+                    'auto_request': ParameterValue(LaunchConfiguration('auto_request'), value_type=bool),
                 },
             ],
         ),

@@ -3,6 +3,8 @@ agt_obstacle_cloud_preprocessor:
     # Navigation/local-perception branch only. FAST-LIO2 must keep its original
     # time-preserving MID360 input path (usually Livox CustomMsg).
     # agt_livox_tools normalizes either driver representation to PointCloud2 here.
+    # Live secondary PointCloud2 branch from agt_livox_tools. Recorded-bag
+    # commissioning topics must be overridden explicitly by replay launches.
     input_topic: /agt/livox/points
     output_topic: /agt/navigation/points_obstacles
     base_frame: base_link

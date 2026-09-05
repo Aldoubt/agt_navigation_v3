@@ -22,15 +22,15 @@ namespace {
 struct Options {
   std::string map;
   std::string output;
-  double map_leaf{0.35};
-  double bbs_min_level_res{0.25};
-  int bbs_max_level{6};
+  double map_leaf{0.5};
+  double bbs_min_level_res{0.5};
+  int bbs_max_level{5};
 };
 
 void usage() {
   std::cerr
     << "Usage: build_relocalization_assets --map GLOBAL_MAP.pcd --output DIR"
-    << " [--map-leaf 0.35] [--bbs-min-level-res 0.25] [--bbs-max-level 6]"
+    << " [--map-leaf 0.5] [--bbs-min-level-res 0.5] [--bbs-max-level 5]"
     << std::endl;
 }
 
@@ -121,6 +121,8 @@ int main(int argc, char** argv) {
     meta << "bbs_max_level: " << o.bbs_max_level << "\n";
     meta << "points: " << map_points.size() << "\n";
     meta.close();
+    fs::copy_file(metadata_path, fs::path(o.output) / "metadata.yaml",
+                  fs::copy_options::overwrite_existing);
 
     std::cout << "RELOCALIZATION ASSETS BUILT\n"
               << "output=" << fs::absolute(o.output).string() << "\n"

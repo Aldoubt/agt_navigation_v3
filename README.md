@@ -138,7 +138,7 @@ cd ~/agt_ws
 bash src/agt_navigation_v3/scripts/bootstrap_humble.sh --smoke
 ```
 
-脚本会自动处理三层依赖。
+脚本会自动处理三层依赖，并校验核心依赖的 exact commit。
 
 ### Ubuntu / ROS 包
 
@@ -147,18 +147,18 @@ vcstool / rosdep / colcon / build tools
 Eigen / PCL / yaml-cpp / Boost / TBB
 ROS Humble GTSAM
 Navigation2 / nav2_bringup / pcl_conversions / tf2_eigen
+Gazebo Classic / gazebo_ros / xacro / robot_state_publisher
 ```
 
 ### Workspace 源码仓库
 
-`dependencies/field_demo.repos` 现在包含：
+默认迁移使用 `dependencies/agt_navigation.repos`。当前软件 gate 所需的
+AGT interface/INS 与第三方算法都使用已验证 exact commit：
 
 ```text
-AGT hardware
-  Aldoubt/agt_ins_driver            master
-  Aldoubt/agt_bunker_base           main
-  Aldoubt/agt_chassis_description   main
-  Aldoubt/Autolabor-C1-ROS2         main
+AGT runtime dependencies
+  Aldoubt/agt_ins_driver            cfa7b94...
+  Aldoubt/Autolabor-C1-ROS2         10d8217...
 
 Pinned third party
   Livox-SDK/Livox-SDK2
@@ -167,12 +167,21 @@ Pinned third party
   Functionhx/Batch-LIO
   KOKIAOKI/3d_bbs
   koide3/small_gicp
-  morte2025/LiDAR_IMU_Init_ROS2
+  strasdat/Sophus
 ```
 
-第三方算法/Livox 使用当前已验证 commit；我们自己的硬件仓库在实车验证完成前继续跟 `main/master`，暂不冻结。
+`dependencies/field_demo.repos` 额外列出 Bunker/URDF 等硬件仓库；其中尚未经过
+本轮实车冻结的仓库仍保留 `main`，不会被误称为当前软件 gate 的可复现依赖。
 
-### Native `/usr/local` 库
+Gazebo 使用的 `ros2_livox_simulation` 已作为 MIT vendored package 放在：
+
+```text
+src/ros2_livox_simulation
+```
+
+因此新系统不需要手工复制工控机上的仿真插件目录。
+
+### Workspace-local native 库
 
 bootstrap 自动编译安装：
 
@@ -181,6 +190,14 @@ Livox-SDK2
 3D-BBS CPU
 small_gicp
 ```
+
+默认安装到 workspace：
+
+```text
+<workspace>/.agt_native
+```
+
+不会要求把验证版本写入系统 `/usr/local`，迁移和清理更可控。
 
 注意：不会调用 Livox ROS Driver 2 官方 `build.sh`，因为其脚本会删除 workspace 级 `build/`/`install/`。AGT bootstrap 只准备 ROS2 `package.xml/launch`，然后统一由 `colcon` 构建。
 
@@ -208,7 +225,8 @@ BOOTSTRAP PASS
 FIELD BUILD SMOKE PASS
 ```
 
-详细说明：`docs/BOOTSTRAP_AND_ROSBAG_GATE.md`。
+迁移步骤：`docs/MIGRATION.md`。
+详细 bootstrap 说明：`docs/BOOTSTRAP_AND_ROSBAG_GATE.md`。
 
 ---
 
@@ -503,9 +521,13 @@ src/
 重要文档：
 
 ```text
+docs/MIGRATION.md
 docs/BOOTSTRAP_AND_ROSBAG_GATE.md
 docs/RVIZ_FIELD_ACCEPTANCE.md
 docs/GLOBAL_RELOCALIZATION_BBS_GICP.md
+docs/RELOCALIZATION_DEBUGGING_RETROSPECTIVE_2026-09-05.md
+docs/ACCEPTANCE.md
+docs/TF_CONVENTION.md
 docs/FIELD_SENSOR_BASELINE.md
 docs/MAPPING_AND_LIO_POLICY.md
 docs/VIBRATION_AND_LI_INIT.md
@@ -521,23 +543,25 @@ docs/MAINLINE_POLICY.md
 | --- | --- | --- |
 | Bootstrap / dependency fetch | 🟡 | apt + repos + Livox-SDK2 + BBS + small_gicp 自动化已落地，待目标机首次完整执行 |
 | Humble CI | 🟢/🟡 | core/runtime/native 分层编译已验证；不能替代硬件验收 |
-| Mapping Fast-LIO2 + PGO/HBA | 🟡 | wrapper/config 已收口，待真实 MID360 建图 |
-| Batch-LIO navigation odom | 🟡 | explicit MID360 config + adapter 已落地，待 rosbag/实车参数冻结 |
+| Mapping Fast-LIO2 + PGO/HBA | 🟡 | 已有真实 MID360 优化地图用于离线重定位；仍待实车重新建图/版本化验收 |
+| Batch-LIO navigation odom | 🟢/🟡 | 211105 rosbag 已通过 adapter/local-odom 闭环；固定 body->base_link 外参已收口；针对上游 zero twist 已增加 pose-delta 线/角速度估计，待实车参数冻结 |
 | MID360 IMU baseline | 🟡 | acc_norm / gyro preflight 已落地 |
-| 3D-BBS global coarse | 🟡 | native CPU backend 已落地并在 Humble CI 编译 |
-| local-submap small_gicp | 🟡 | GICP refinement 已落地并在 Humble CI 编译 |
+| Global candidate + 3D-BBS coarse | 🟢/🟡 | Polar Context Top-K + candidate-local CPU BBS 已通过匹配 rosbag 离线闭环，待多点位实车成功率验收 |
+| local-submap small_gicp | 🟢/🟡 | GICP 6DoF refinement 已在真实 rosbag 自动重定位中通过，待实车分布统计 |
 | Map Package / Manager | 🟡 | PCD/Nav2/BBS assets/version/hash 已落地 |
 | Nav2 active-map hot apply | 🔴 | 两阶段 reload/rollback 后续 |
-| Localization Manager | 🟡 | 唯一 map->odom + handoff/gate 已落地 |
+| Localization Manager | 🟢/🟡 | 唯一 map->odom + handoff/gate 已在 211105 离线闭环进入 LOCALIZED 并实际发布 map->odom，待实车验收 |
 | Local obstacle branch | 🟡 | CustomMsg secondary branch + filters 已落地 |
-| Nav2 | 🟡 | SmacPlanner2D + RPP + 50 Hz baseline，待履带实车调参 |
-| Bunker guard | 🟡 | `/cmd_vel -> /mux/cmd_vel` 50 Hz，待实车 watchdog/限幅确认 |
-| Inspection runtime | 🟡 | Nav2 -> measured stop -> C1 -> synchronized record 已落地 |
+| Nav2 | 🟢/🟡 | SmacPlanner2D + RPP 50 Hz baseline；Gazebo 无 initialpose 冷启动后已取得真实 `NavigateToPose=SUCCEEDED`；PoseProgressChecker 与 RPP bootstrap 已收口，待履带实车调参 |
+| Bunker guard | 🟢/🟡 | 50 Hz + LocalizationStatus fail-closed gate 已通过 ROS pub/sub 故障注入：LOST 后约 1.4 ms 捕获到 0，恢复但无新 cmd 时 stale replay=0；待实车 watchdog/限幅确认 |
+| Inspection runtime | 🟢/🟡 | measured stop 已改为 pose delta + twist + hold time，零 twist/运动回归测试通过；C1 interface 已并入 ros2_ws，待实车拍照链验收 |
 | RViz patrol | 🟡 | queue + fixed 3 views + RETURN_HOME 已落地 |
 | HMI | ⏸️ | RViz 三点稳定后再接 |
 | Auto readiness | ⏸️ | 后续 |
 | Power-cycle resume | ⏸️ | 后续 |
-| Full hardware acceptance | 🔴 | 等 MID360 rosbag gate + Bunker/C1 实车 |
+| Offline relocalization gate | 🟢 | 2026-09-05：bag_mapping_current + 211105 无 initialpose 自动重定位闭环通过 |
+| Gazebo navigation gate | 🟢 | 2026-09-05：清理旧测试进程后单栈冷启动；自动重定位 `score=0.927`，随后 PGO 已知自由区目标 `NavigateToPose=SUCCEEDED`（45.3 s） |
+| Full hardware acceptance | 🔴 | 离线重定位 + Gazebo 闭环 gate 已通过；仍待 Bunker 多点位/多朝向、树荫、振动、C1 实车 |
 
 ---
 

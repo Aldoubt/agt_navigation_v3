@@ -1,0 +1,67 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Global Options:
+    Fixed Frame: map
+    Frame Rate: 30
+  Displays:
+    - Class: rviz_default_plugins/PointCloud2
+      Name: Global map (/agt/map/points)
+      Topic: {Value: /agt/map/points}
+      Style: Points
+      Size (Pixels): 2
+    - Class: rviz_default_plugins/Map
+      Name: /map
+      Topic: {Value: /map}
+      Enabled: true
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Show Axes: true
+    - Class: rviz_default_plugins/RobotModel
+      Name: RobotModel
+      Description Topic: {Value: /robot_description}
+    - Class: rviz_default_plugins/Odometry
+      Name: /agt/odometry/local
+      Topic: {Value: /agt/odometry/local}
+    - Class: rviz_default_plugins/Path
+      Name: /agt/debug/local_path
+      Topic: {Value: /agt/debug/local_path}
+      Color: 255; 255; 0
+    - Class: rviz_default_plugins/PointCloud2
+      Name: query_cloud
+      Topic: {Value: /agt/relocalization/query_cloud}
+      Style: Points
+      Size (Pixels): 3
+      Color Transformer: FlatColor
+      Color: 0; 255; 255
+    - Class: rviz_default_plugins/PoseWithCovariance
+      Name: coarse_pose
+      Topic: {Value: /agt/relocalization/coarse_pose}
+    - Class: rviz_default_plugins/PointCloud2
+      Name: coarse_aligned_cloud
+      Topic: {Value: /agt/relocalization/coarse_aligned_cloud}
+      Style: Points
+      Color Transformer: FlatColor
+      Color: 255; 165; 0
+    - Class: rviz_default_plugins/PoseWithCovariance
+      Name: refined pose
+      Topic: {Value: /agt/relocalization/pose}
+    - Class: rviz_default_plugins/PointCloud2
+      Name: aligned_cloud
+      Topic: {Value: /agt/relocalization/aligned_cloud}
+      Style: Points
+      Color Transformer: FlatColor
+      Color: 0; 255; 0
+    - Class: rviz_default_plugins/TF
+      Name: map -> odom correction
+      Frames: {map: true, odom: true}
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 30
+      Pitch: 0.8
+      Yaw: 0.8

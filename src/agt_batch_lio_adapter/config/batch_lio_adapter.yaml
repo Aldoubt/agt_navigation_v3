@@ -8,4 +8,21 @@ agt_batch_lio_adapter:
     output_child_frame: base_link
     max_input_age_sec: 0.20
     tf_timeout_sec: 0.20
+    # Fixed T_body_base derived from the measured base_link->lidar_link mount
+    # and the pinned MID360 LiDAR/IMU extrinsic. Using the configured value by
+    # default removes rosbag /tf_static timing as a runtime dependency.
+    use_configured_extrinsic: true
+    body_to_base_translation: [-0.16403417, 0.02439982, -0.49511119]
+    body_to_base_quaternion_xyzw: [0.000477000, -0.100267018, -0.001592000, 0.994959177]
     allow_parent_alias: true
+    # Functionhx/Batch-LIO publishes zero twist on /aft_mapped_to_init. Nav2 RPP
+    # uses odometry twist for rotate-to-heading acceleration limiting, so derive
+    # a real base_link-frame twist from consecutive adapted poses.
+    derive_twist_from_pose: true
+    twist_min_dt_sec: 0.01
+    twist_max_dt_sec: 0.50
+    twist_linear_deadband_mps: 0.01
+    twist_angular_deadband_rps: 0.01
+    twist_max_linear_mps: 2.0
+    twist_max_angular_rps: 3.0
+    debug_path_topic: /agt/debug/local_path

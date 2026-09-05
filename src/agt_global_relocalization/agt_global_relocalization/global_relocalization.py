@@ -13,14 +13,13 @@ import rclpy
 from agt_robot_interfaces.msg import MapStatus
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from nav_msgs.msg import Odometry
-from rclpy.durability import DurabilityPolicy
 from rclpy.duration import Duration
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
 from rclpy.time import Time
-from sensor_msgs.msg import PointCloud2
+from sensor_msgs.msg import PointCloud2, PointField
 from sensor_msgs_py import point_cloud2
-from std_msgs.msg import Empty, String
+from std_msgs.msg import Empty, String, Header
 from tf2_ros import Buffer, TransformException, TransformListener
 
 
@@ -38,6 +37,7 @@ class GlobalRelocalization(Node):
         p('follow_map_manager', True)
         p('map_status_topic', '/agt/map/status')
         p('sdk_command', '')
+        p('candidate_sdk_command', '')
         p('global_map', '')
         p('relocalization_assets', '')
         p('backend_local_map_radius_xy', 35.0)
@@ -48,6 +48,9 @@ class GlobalRelocalization(Node):
         p('accumulate_clouds', 5)
         p('min_points', 2000)
         p('max_points', 250000)
+        p('query_min_range_m', 0.5)
+        p('query_max_range_m', 30.0)
+        p('query_voxel_leaf_m', 0.25)
         p('require_stationary', True)
         p('local_odom_topic', '/agt/odometry/local')
         p('odom_freshness_sec', 0.50)
@@ -60,17 +63,26 @@ class GlobalRelocalization(Node):
         p('worst_position_std_m', 0.80)
         p('best_yaw_std_deg', 3.0)
         p('worst_yaw_std_deg', 15.0)
+        p('auto_request', False)
 
         self.clouds = deque(maxlen=max(1, int(self.get_parameter('accumulate_clouds').value)))
         self.busy = False
+        self.auto_requested = False
+        self.auto_timer = None
         self.latest_odom = None
         self.latest_odom_rx_ns = 0
+        self.latest_motion = None
         self.active_map_status = None
+        self.last_query_raw_points = 0
         self.tf_buffer = Buffer(cache_time=Duration(seconds=10.0))
         self.tf_listener = TransformListener(self.tf_buffer, self)
         self.pose_pub = self.create_publisher(PoseWithCovarianceStamped, self.get_parameter('output_pose_topic').value, 10)
         self.status_pub = self.create_publisher(String, self.get_parameter('status_topic').value, 10)
-        self.create_subscription(PointCloud2, self.get_parameter('scan_topic').value, self.on_cloud, 10)
+        self.query_pub = self.create_publisher(PointCloud2, '/agt/relocalization/query_cloud', 10)
+        self.coarse_cloud_pub = self.create_publisher(PointCloud2, '/agt/relocalization/coarse_aligned_cloud', 10)
+        self.aligned_cloud_pub = self.create_publisher(PointCloud2, '/agt/relocalization/aligned_cloud', 10)
+        self.coarse_pose_pub = self.create_publisher(PoseWithCovarianceStamped, '/agt/relocalization/coarse_pose', 10)
+        self.create_subscription(PointCloud2, self.get_parameter('scan_topic').value, self.on_cloud, qos_profile_sensor_data)
         self.create_subscription(Odometry, self.get_parameter('local_odom_topic').value, self.on_odom, 50)
         self.create_subscription(Empty, self.get_parameter('request_topic').value, self.on_request, 10)
 
@@ -86,12 +98,37 @@ class GlobalRelocalization(Node):
 
     def on_cloud(self, msg):
         self.clouds.append(msg)
+        if (bool(self.get_parameter('auto_request').value)
+                and not self.auto_requested
+                and len(self.clouds) >= int(self.get_parameter('accumulate_clouds').value)):
+            self.auto_requested = True
+            self.auto_timer = self.create_timer(0.5, self._auto_request)
+
+    def _auto_request(self):
+        if self.clouds and not self.busy:
+            self.auto_timer.cancel()
+            self.on_request(Empty())
+
+    def _rearm_auto_request(self, clear_clouds=True):
+        """Allow a fresh automatic attempt after any precondition/backend failure.
+
+        The auto timer is one-shot in practice: _auto_request() cancels it before
+        calling on_request(). Therefore every early return must clear the
+        auto_requested latch, otherwise a transient moving/stale/no-cloud gate
+        permanently disables automatic relocalization until node restart.
+        """
+        if self.auto_timer is not None:
+            self.auto_timer.cancel()
+            self.auto_timer = None
+        if clear_clouds:
+            self.clouds.clear()
+        self.auto_requested = False
 
     def on_map_status(self, msg):
         previous_generation = int(self.active_map_status.generation) if self.active_map_status else -1
         self.active_map_status = msg
         if msg.active and int(msg.generation) != previous_generation:
-            self.clouds.clear()
+            self._rearm_auto_request(clear_clouds=True)
             self.get_logger().info(
                 f'Following active map {msg.map_id}/{msg.map_version} generation={msg.generation}')
 
@@ -102,18 +139,46 @@ class GlobalRelocalization(Node):
         angular = math.sqrt(t.angular.x*t.angular.x + t.angular.y*t.angular.y + t.angular.z*t.angular.z)
         return linear, angular
 
+    @staticmethod
+    def pose_delta_motion(previous, current):
+        if previous is None:
+            return None
+        prev_ns = int(previous.header.stamp.sec) * 1_000_000_000 + int(previous.header.stamp.nanosec)
+        curr_ns = int(current.header.stamp.sec) * 1_000_000_000 + int(current.header.stamp.nanosec)
+        dt = (curr_ns - prev_ns) / 1e9
+        if dt <= 1e-4 or dt > 1.0:
+            return None
+        p0, p1 = previous.pose.pose.position, current.pose.pose.position
+        dx, dy, dz = p1.x-p0.x, p1.y-p0.y, p1.z-p0.z
+        linear = math.sqrt(dx*dx + dy*dy + dz*dz) / dt
+        q0, q1 = previous.pose.pose.orientation, current.pose.pose.orientation
+        a = (q0.x,q0.y,q0.z,q0.w)
+        b = (q1.x,q1.y,q1.z,q1.w)
+        na = math.sqrt(sum(v*v for v in a))
+        nb = math.sqrt(sum(v*v for v in b))
+        if na <= 1e-12 or nb <= 1e-12:
+            return None
+        dot = abs(sum(x*y for x,y in zip(a,b)) / (na*nb))
+        dot = min(1.0, max(-1.0, dot))
+        return linear, 2.0 * math.acos(dot) / dt
+
     def on_odom(self, msg):
-        first_odom = self.latest_odom is None
+        previous = self.latest_odom
+        first_odom = previous is None
+        pose_motion = self.pose_delta_motion(previous, msg)
+        twist_motion = self.motion_metrics(msg)
         self.latest_odom = msg
         self.latest_odom_rx_ns = self.get_clock().now().nanoseconds
+        if pose_motion is None:
+            self.latest_motion = None
+        else:
+            self.latest_motion = (max(twist_motion[0], pose_motion[0]),
+                                  max(twist_motion[1], pose_motion[1]))
         if bool(self.get_parameter('require_stationary').value):
-            linear, angular = self.motion_metrics(msg)
-            moving = (
-                linear > float(self.get_parameter('stationary_linear_threshold_mps').value)
-                or angular > float(self.get_parameter('stationary_angular_threshold_rps').value)
+            moving = self.latest_motion is None or (
+                self.latest_motion[0] > float(self.get_parameter('stationary_linear_threshold_mps').value)
+                or self.latest_motion[1] > float(self.get_parameter('stationary_angular_threshold_rps').value)
             )
-            # Never let a just-stopped robot reuse scans captured while it was moving.
-            # After motion, the deque must fill again with fresh stationary frames.
             if first_odom or moving:
                 self.clouds.clear()
 
@@ -133,7 +198,9 @@ class GlobalRelocalization(Node):
         age = (self.get_clock().now().nanoseconds - self.latest_odom_rx_ns) / 1e9
         if age > float(self.get_parameter('odom_freshness_sec').value):
             return False, f'local odometry stale: {age:.3f}s'
-        linear, angular = self.motion_metrics(self.latest_odom)
+        if self.latest_motion is None:
+            return False, 'local odometry motion estimate is not ready'
+        linear, angular = self.latest_motion
         if linear > float(self.get_parameter('stationary_linear_threshold_mps').value):
             return False, f'robot moving: linear={linear:.3f}m/s'
         if angular > float(self.get_parameter('stationary_angular_threshold_rps').value):
@@ -146,18 +213,27 @@ class GlobalRelocalization(Node):
             return
         if not self.clouds:
             self.status('FAILED', 'no stationary PointCloud2 scan available yet')
+            if bool(self.get_parameter('auto_request').value):
+                self._rearm_auto_request(clear_clouds=True)
             return
         stationary, detail = self.stationary_gate()
         if not stationary:
             self.status('FAILED', detail)
+            if bool(self.get_parameter('auto_request').value):
+                self._rearm_auto_request(clear_clouds=True)
             return
         self.busy = True
+        succeeded = False
         try:
+            self.status('QUERY_READY', 'stationary query is ready')
             self.run_once()
+            succeeded = True
         except Exception as exc:
-            self.status('FAILED', str(exc))
+            self.status('REJECTED', str(exc))
         finally:
             self.busy = False
+            if bool(self.get_parameter('auto_request').value) and not succeeded:
+                self._rearm_auto_request(clear_clouds=True)
 
     @staticmethod
     def transform_xyz(x, y, z, transform):
@@ -179,8 +255,29 @@ class GlobalRelocalization(Node):
     def merged_points(self):
         rows = []
         max_points = int(self.get_parameter('max_points').value)
+        min_range = float(self.get_parameter('query_min_range_m').value)
+        max_range = float(self.get_parameter('query_max_range_m').value)
+        min_range_sq = min_range * min_range
+        max_range_sq = max_range * max_range
+        voxel_leaf = float(self.get_parameter('query_voxel_leaf_m').value)
         query_frame = str(self.get_parameter('query_frame').value)
         timeout = Duration(seconds=float(self.get_parameter('tf_timeout_sec').value))
+
+        def finalize():
+            self.last_query_raw_points = len(rows)
+            if voxel_leaf <= 0.0:
+                return rows
+            voxels = {}
+            for row in rows:
+                key = (
+                    math.floor(row[0] / voxel_leaf),
+                    math.floor(row[1] / voxel_leaf),
+                    math.floor(row[2] / voxel_leaf),
+                )
+                if key not in voxels:
+                    voxels[key] = row
+            return list(voxels.values())
+
         for cloud in list(self.clouds):
             if not cloud.header.frame_id:
                 raise RuntimeError('relocalization scan has empty frame_id')
@@ -202,11 +299,34 @@ class GlobalRelocalization(Node):
                 x, y, z = float(pt[0]), float(pt[1]), float(pt[2])
                 intensity = float(pt[3]) if len(pt) > 3 else 0.0
                 if math.isfinite(x) and math.isfinite(y) and math.isfinite(z):
+                    range_sq = x*x + y*y + z*z
+                    if range_sq < min_range_sq or range_sq > max_range_sq:
+                        continue
                     x, y, z = self.transform_xyz(x, y, z, transform)
                     rows.append((x, y, z, intensity))
                 if len(rows) >= max_points:
-                    return rows
-        return rows
+                    return finalize()
+        return finalize()
+
+    @staticmethod
+    def cloud_message(rows, stamp, frame):
+        fields = [PointField(name=n, offset=i * 4, datatype=PointField.FLOAT32, count=1)
+                  for i, n in enumerate(('x', 'y', 'z', 'intensity'))]
+        header = Header()
+        header.stamp = stamp
+        header.frame_id = frame
+        return point_cloud2.create_cloud(header, fields, rows)
+
+    @staticmethod
+    def apply_pose(rows, xyz, q):
+        qx, qy, qz, qw = q
+        out = []
+        for x, y, z, intensity in rows:
+            tx = 2.0 * (qy*z - qz*y); ty = 2.0 * (qz*x - qx*z); tz = 2.0 * (qx*y - qy*x)
+            out.append((x + qw*tx + (qy*tz - qz*ty) + xyz[0],
+                        y + qw*ty + (qz*tx - qx*tz) + xyz[1],
+                        z + qw*tz + (qx*ty - qy*tx) + xyz[2], intensity))
+        return out
 
     @staticmethod
     def write_ascii_pcd(path: Path, rows):
@@ -262,9 +382,17 @@ class GlobalRelocalization(Node):
         min_points = int(self.get_parameter('min_points').value)
         if len(rows) < min_points:
             raise RuntimeError(f'not enough scan points: {len(rows)} < {min_points}')
+        stamp = self.clouds[-1].header.stamp
+        self.query_pub.publish(self.cloud_message(
+            rows, stamp, str(self.get_parameter('query_frame').value)))
 
-        command_template = str(self.get_parameter('sdk_command').value).strip()
         global_map, assets_dir, map_id, map_version, generation = self.resolve_map_inputs()
+        fallback_command = str(self.get_parameter('sdk_command').value).strip()
+        candidate_command = str(self.get_parameter('candidate_sdk_command').value).strip()
+        candidate_db = Path(assets_dir) / 'polar_context.db' if assets_dir else None
+        use_candidate_backend = bool(candidate_command and candidate_db and candidate_db.is_file())
+        command_template = candidate_command if use_candidate_backend else fallback_command
+        backend_name = 'polar_context_bbs_gicp' if use_candidate_backend else 'whole_map_bbs_gicp'
         if not command_template:
             raise RuntimeError('relocalization backend command is empty')
         if not global_map or not Path(global_map).is_file():
@@ -289,18 +417,24 @@ class GlobalRelocalization(Node):
                 min_local_map_points=int(self.get_parameter('backend_min_local_map_points').value),
             )
             self.status(
-                'RUNNING',
+                'BBS_SEARCHING',
                 'calling 3D relocalization backend',
                 points=len(rows),
+                raw_points=self.last_query_raw_points,
+                query_min_range_m=float(self.get_parameter('query_min_range_m').value),
+                query_max_range_m=float(self.get_parameter('query_max_range_m').value),
+                query_voxel_leaf_m=float(self.get_parameter('query_voxel_leaf_m').value),
                 query_frame=self.get_parameter('query_frame').value,
                 assets=bool(assets_dir),
+                backend=backend_name,
                 map_id=map_id,
                 map_version=map_version,
                 map_generation=generation,
             )
             proc = subprocess.run(shlex.split(cmd), capture_output=True, text=True, timeout=timeout, check=False)
             if proc.returncode != 0:
-                raise RuntimeError(f'backend returned {proc.returncode}: {proc.stderr.strip()}')
+                detail = proc.stderr.strip() or proc.stdout.strip() or 'no backend diagnostics'
+                raise RuntimeError(f'backend returned {proc.returncode}: {detail}')
             try:
                 result = json.loads(proc.stdout.strip().splitlines()[-1])
             except Exception as exc:
@@ -312,6 +446,7 @@ class GlobalRelocalization(Node):
 
         if not bool(result.get('success', False)):
             raise RuntimeError(str(result.get('message', 'backend reported failure')))
+        self.status('BBS_COARSE_FOUND', 'BBS coarse pose found')
         score = float(result.get('score', 0.0))
         fitness = float(result.get('fitness', math.inf))
         overlap = float(result.get('overlap', 0.0))
@@ -327,6 +462,17 @@ class GlobalRelocalization(Node):
         if qn < 1e-9:
             raise RuntimeError('backend returned invalid quaternion')
         q = [v / qn for v in q]
+        cq = [float(result[k]) for k in ('coarse_qx', 'coarse_qy', 'coarse_qz', 'coarse_qw')]
+        cp = [float(result.get(k, 0.0)) for k in ('coarse_x', 'coarse_y', 'coarse_z')]
+        coarse_pose = PoseWithCovarianceStamped()
+        coarse_pose.header.stamp = stamp
+        coarse_pose.header.frame_id = str(self.get_parameter('map_frame').value)
+        coarse_pose.pose.pose.position.x, coarse_pose.pose.pose.position.y, coarse_pose.pose.pose.position.z = cp
+        coarse_pose.pose.pose.orientation.x, coarse_pose.pose.pose.orientation.y, coarse_pose.pose.pose.orientation.z, coarse_pose.pose.pose.orientation.w = cq
+        self.coarse_pose_pub.publish(coarse_pose)
+        self.coarse_cloud_pub.publish(self.cloud_message(
+            self.apply_pose(rows, cp, cq), stamp, str(self.get_parameter('map_frame').value)))
+        self.status('GICP_REFINING', 'GICP refinement complete; publishing refined pose')
 
         score01 = min(1.0, max(0.0, score))
         pos_std = self._lerp('worst_position_std_m', 'best_position_std_m', score01)
@@ -349,6 +495,9 @@ class GlobalRelocalization(Node):
         cov[35] = yaw_std * yaw_std
         msg.pose.covariance = cov
         self.pose_pub.publish(msg)
+        self.aligned_cloud_pub.publish(self.cloud_message(
+            self.apply_pose(rows, [float(result['x']), float(result['y']), float(result['z'])], q),
+            stamp, str(self.get_parameter('map_frame').value)))
         self.status(
             'SUCCEEDED',
             'global base pose published',
@@ -361,6 +510,10 @@ class GlobalRelocalization(Node):
             map_version=map_version,
             map_generation=generation,
             bbs_elapsed_ms=result.get('bbs_elapsed_ms'),
+            backend=backend_name,
+            candidate_patch=result.get('candidate_patch'),
+            descriptor_similarity=result.get('descriptor_similarity'),
+            descriptor_yaw_seed_deg=result.get('descriptor_yaw_seed_deg'),
             bbs_assets_loaded=result.get('bbs_assets_loaded'),
             gicp_target_points=result.get('gicp_target_points'),
             gicp_full_map_fallback=result.get('gicp_full_map_fallback'),

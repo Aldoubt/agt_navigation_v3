@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import json
 from collections import deque
 from dataclasses import dataclass
 from typing import Deque, Optional, Tuple
@@ -9,7 +10,7 @@ import rclpy
 from geometry_msgs.msg import PoseWithCovarianceStamped, TransformStamped
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
-from std_msgs.msg import Empty
+from std_msgs.msg import Empty, String
 from std_srvs.srv import Trigger
 from tf2_ros import TransformBroadcaster
 
@@ -105,13 +106,16 @@ class LocalizationManager(Node):
         self.declare_parameter('local_odom_timeout_sec', 0.30)
         self.declare_parameter('local_odom_lost_sec', 1.00)
         self.declare_parameter('global_match_max_skew_sec', 0.10)
-        self.declare_parameter('odom_buffer_sec', 5.0)
+        self.declare_parameter('odom_buffer_sec', 30.0)
         self.declare_parameter('max_global_position_std_m', 1.00)
         self.declare_parameter('max_global_yaw_std_deg', 20.0)
         self.declare_parameter('accept_zero_covariance', False)
         self.declare_parameter('tf_publish_rate_hz', 30.0)
         self.declare_parameter('map_id', '')
         self.declare_parameter('map_version', '')
+        self.declare_parameter('debug_identity_map_odom', False)
+        self.declare_parameter('debug_status_topic', '/agt/relocalization/status')
+        self.declare_parameter('global_status_topic', '/agt/global_relocalization/status')
 
         self._odom: Deque[Odometry] = deque()
         self._last_odom_rx_ns = 0
@@ -123,6 +127,8 @@ class LocalizationManager(Node):
         self._tf = TransformBroadcaster(self)
         self._status_pub = self.create_publisher(
             LocalizationStatus, self.get_parameter('status_topic').value, 10)
+        self._debug_status_pub = self.create_publisher(
+            String, self.get_parameter('debug_status_topic').value, 10)
         self._request_pub = self.create_publisher(
             Empty, self.get_parameter('relocalization_request_topic').value, 10)
         self.create_subscription(
@@ -133,6 +139,9 @@ class LocalizationManager(Node):
             self._on_global_pose,
             10,
         )
+        self._backend_debug_state = None
+        self.create_subscription(String, self.get_parameter('global_status_topic').value,
+                                 self._on_backend_status, 20)
         self.create_service(
             Trigger,
             self.get_parameter('relocalization_service').value,
@@ -227,6 +236,14 @@ class LocalizationManager(Node):
             f'Global correction accepted: position_std={pos_std:.3f}m, '
             f'yaw_std={yaw_std:.2f}deg')
 
+    def _on_backend_status(self, msg: String) -> None:
+        try:
+            state = json.loads(msg.data).get('state')
+        except (TypeError, ValueError):
+            state = None
+        if state in {'QUERY_READY', 'BBS_SEARCHING', 'BBS_COARSE_FOUND', 'GICP_REFINING', 'REJECTED'}:
+            self._backend_debug_state = state
+
     def _on_relocalize(self, request, response):
         del request
         self._correction = None
@@ -268,9 +285,13 @@ class LocalizationManager(Node):
                 self._reason = 'tracking'
 
     def _publish_tf(self) -> None:
-        if self._correction is None:
+        if self._correction is None and not bool(self.get_parameter('debug_identity_map_odom').value):
             return
-        if self._state not in (
+        if self._correction is None:
+            # Visualization-only fallback. It never changes the localization
+            # state and is intentionally disabled in the formal configuration.
+            p, q = (0.0, 0.0, 0.0), (0.0, 0.0, 0.0, 1.0)
+        elif self._state not in (
             LocalizationStatus.STATE_LOCALIZED,
             LocalizationStatus.STATE_DEGRADED,
         ):
@@ -283,8 +304,9 @@ class LocalizationManager(Node):
         t.header.stamp = self.get_clock().now().to_msg()
         t.header.frame_id = self.get_parameter('map_frame').value
         t.child_frame_id = self.get_parameter('odom_frame').value
-        p = self._correction.p
-        q = self._correction.q
+        if self._correction is not None:
+            p = self._correction.p
+            q = self._correction.q
         t.transform.translation.x = p[0]
         t.transform.translation.y = p[1]
         t.transform.translation.z = p[2]
@@ -319,6 +341,16 @@ class LocalizationManager(Node):
         out.map_version = str(self.get_parameter('map_version').value)
         out.reason = self._reason
         self._status_pub.publish(out)
+        debug = String()
+        debug.data = self._debug_state()
+        self._debug_status_pub.publish(debug)
+
+    def _debug_state(self) -> str:
+        if self._correction is not None:
+            return 'LOCALIZED'
+        if self._backend_debug_state:
+            return self._backend_debug_state
+        return 'UNLOCALIZED'
 
 
 def main(args=None) -> None:

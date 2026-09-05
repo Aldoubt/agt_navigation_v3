@@ -11,7 +11,7 @@ from launch_ros.actions import Node
 def _validate_files(context):
     checks = {
         'map': LaunchConfiguration('map').perform(context),
-        'params_file': LaunchConfiguration('params_file').perform(context),
+        'nav2_params_file': LaunchConfiguration('nav2_params_file').perform(context),
     }
     for label, value in checks.items():
         path = Path(value).expanduser()
@@ -20,21 +20,41 @@ def _validate_files(context):
     return []
 
 
-def generate_launch_description():
+def _include_navigation(context):
+    """Resolve wrapper arguments before including upstream Nav2.
+
+    Humble launch scoping can otherwise lose the wrapper's default params_file
+    when this launch is itself included by a higher-level field launch.
+    """
     nav2_share = Path(get_package_share_directory('nav2_bringup'))
+    launch_arguments = {
+        'use_sim_time': LaunchConfiguration('use_sim_time').perform(context),
+        'autostart': LaunchConfiguration('autostart').perform(context),
+        'params_file': LaunchConfiguration('nav2_params_file').perform(context),
+        'use_composition': 'False',
+    }
+    return [
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(str(nav2_share / 'launch' / 'navigation_launch.py')),
+            launch_arguments=launch_arguments.items(),
+        )
+    ]
+
+
+def generate_launch_description():
     agt_share = Path(get_package_share_directory('agt_nav2_bringup'))
 
     map_yaml = LaunchConfiguration('map')
-    params_file = LaunchConfiguration('params_file')
+    nav2_params_file = LaunchConfiguration('nav2_params_file')
     use_sim_time = LaunchConfiguration('use_sim_time')
     autostart = LaunchConfiguration('autostart')
 
     return LaunchDescription([
         DeclareLaunchArgument('map', description='Absolute path to the derived Nav2 map YAML'),
         DeclareLaunchArgument(
-            'params_file',
+            'nav2_params_file',
             default_value=str(agt_share / 'config' / 'nav2_params.yaml'),
-            description='AGT Nav2 parameter file',
+            description='AGT Nav2 parameter file. Unique name avoids nested launch collisions.',
         ),
         DeclareLaunchArgument('use_sim_time', default_value='false'),
         DeclareLaunchArgument('autostart', default_value='true'),
@@ -48,7 +68,7 @@ def generate_launch_description():
             executable='map_server',
             name='map_server',
             output='screen',
-            parameters=[params_file, {'yaml_filename': map_yaml, 'use_sim_time': use_sim_time}],
+            parameters=[nav2_params_file, {'yaml_filename': map_yaml, 'use_sim_time': use_sim_time}],
         ),
         Node(
             package='nav2_lifecycle_manager',
@@ -61,13 +81,5 @@ def generate_launch_description():
                 'node_names': ['map_server'],
             }],
         ),
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(str(nav2_share / 'launch' / 'navigation_launch.py')),
-            launch_arguments={
-                'use_sim_time': use_sim_time,
-                'autostart': autostart,
-                'params_file': params_file,
-                'use_composition': 'False',
-            }.items(),
-        ),
+        OpaqueFunction(function=_include_navigation),
     ])

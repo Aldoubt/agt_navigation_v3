@@ -29,9 +29,13 @@ def generate_launch_description():
     enable_base_guard = LaunchConfiguration('enable_base_guard')
     enable_runtime = LaunchConfiguration('enable_runtime')
     map_yaml = LaunchConfiguration('map')
+    nav2_params_file = LaunchConfiguration('nav2_params_file')
+    default_nav2_params = str(
+        Path(get_package_share_directory('agt_nav2_bringup')) / 'config' / 'nav2_params.yaml')
 
     return LaunchDescription([
         DeclareLaunchArgument('map', default_value='', description='Absolute path to derived Nav2 map YAML; required when enable_nav2=true.'),
+        DeclareLaunchArgument('nav2_params_file', default_value=default_nav2_params),
         DeclareLaunchArgument('enable_map_manager', default_value='true'),
         DeclareLaunchArgument('enable_rtk', default_value='true'),
         DeclareLaunchArgument('enable_fastlio_adapter', default_value='false'),
@@ -51,6 +55,9 @@ def generate_launch_description():
         _include('agt_localization_manager', 'localization_manager.launch.py', IfCondition(enable_localization_manager)),
         _include('agt_pointcloud_preprocessor', 'obstacle_cloud.launch.py', IfCondition(enable_obstacle_cloud)),
         _include('agt_base_control', 'cmd_vel_guard.launch.py', IfCondition(enable_base_guard)),
-        _include('agt_nav2_bringup', 'navigation.launch.py', IfCondition(enable_nav2), {'map': map_yaml}),
+        _include('agt_nav2_bringup', 'navigation.launch.py', IfCondition(enable_nav2), {
+            'map': map_yaml,
+            'nav2_params_file': nav2_params_file,
+        }),
         _include('agt_navigation_runtime', 'runtime.launch.py', IfCondition(enable_runtime)),
     ])

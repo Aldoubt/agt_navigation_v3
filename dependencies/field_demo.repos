@@ -2,7 +2,7 @@ repositories:
   drivers/agt_ins_driver:
     type: git
     url: https://github.com/Aldoubt/agt_ins_driver.git
-    version: master
+    version: cfa7b94a349e613d77cf3fd8ff249941369c681e
   drivers/agt_bunker_base:
     type: git
     url: https://github.com/Aldoubt/agt_bunker_base.git
@@ -14,7 +14,7 @@ repositories:
   drivers/Autolabor-C1-ROS2:
     type: git
     url: https://github.com/Aldoubt/Autolabor-C1-ROS2.git
-    version: main
+    version: 10d82179dc34ae035b382e9b465e4b8f5d55c0a8
 
   external/Livox-SDK2:
     type: git

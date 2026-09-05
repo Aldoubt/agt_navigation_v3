@@ -22,17 +22,21 @@ def generate_launch_description():
     map_file = LaunchConfiguration('map')
     map_id = LaunchConfiguration('map_id')
     use_sim_time = LaunchConfiguration('use_sim_time')
+    nav2_params_file = LaunchConfiguration('nav2_params_file')
     launch_rviz = LaunchConfiguration('launch_rviz')
     enable_rtk = LaunchConfiguration('enable_rtk')
     rviz_config = LaunchConfiguration('rviz_config')
 
     default_rviz = os.path.join(
         get_package_share_directory('agt_rviz_patrol'), 'config', 'agt_rviz_demo.rviz')
+    default_nav2_params = os.path.join(
+        get_package_share_directory('agt_nav2_bringup'), 'config', 'nav2_params.yaml')
 
     return LaunchDescription([
         DeclareLaunchArgument('map', description='Absolute path to converted Nav2 map.yaml'),
         DeclareLaunchArgument('map_id', default_value='rviz_demo_map'),
         DeclareLaunchArgument('use_sim_time', default_value='false'),
+        DeclareLaunchArgument('nav2_params_file', default_value=default_nav2_params),
         DeclareLaunchArgument('launch_rviz', default_value='true'),
         DeclareLaunchArgument('enable_rtk', default_value='true'),
         DeclareLaunchArgument('rviz_config', default_value=default_rviz),
@@ -41,6 +45,7 @@ def generate_launch_description():
         include('agt_nav2_bringup', 'navigation.launch.py', arguments={
             'map': map_file,
             'use_sim_time': use_sim_time,
+            'nav2_params_file': nav2_params_file,
         }),
         include('agt_base_control', 'cmd_vel_guard.launch.py'),
         include('agt_navigation_runtime', 'runtime.launch.py'),

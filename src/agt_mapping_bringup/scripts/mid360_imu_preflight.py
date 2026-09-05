@@ -14,7 +14,7 @@ from sensor_msgs.msg import Imu
 class ImuPreflight(Node):
     def __init__(self):
         super().__init__('mid360_imu_preflight')
-        self.declare_parameter('imu_topic', '/livox/imu')
+        self.declare_parameter('imu_topic', '/agt/sensors/imu/data')
         self.declare_parameter('duration_sec', 10.0)
         self.declare_parameter('min_samples', 100)
         self.declare_parameter('max_static_gyro_rps', 0.10)

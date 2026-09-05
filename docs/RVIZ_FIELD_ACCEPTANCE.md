@@ -67,7 +67,7 @@ scaling before mapping; do not compensate by guessing noise parameters.
 After all pinned algorithm and hardware-interface dependencies are present:
 
 ```bash
-cd ~/agt_ws
+cd ~/ros2_ws
 bash src/agt_navigation_v3/scripts/field_build_smoke.sh
 ```
 
@@ -113,6 +113,18 @@ ros2 launch agt_system_bringup rviz_field_demo.launch.py \
   map_id:=site_A_v1
 ```
 
+For the field-demo launch, `auto_relocalize:=true` is now the default and the
+live relocalization query is `/agt/livox/points` from the secondary
+CustomMsg->PointCloud2 bridge. Use `auto_relocalize:=false` only when deliberately
+debugging the manual `/agt/localization/relocalize` service path.
+
+Scope note for the first vehicle run: automatic **startup** relocalization is in
+scope and must work. Automatic mission recovery after an injected runtime `LOST`
+event is not yet an accepted feature. The safety gate will stop the chassis; for
+this first test, keep it stopped and use the manual relocalization service below
+before deciding whether to resume. Do not use the first field run to validate
+automatic LOST->relocalize->mission-resume behavior.
+
 If BBS assets have not been generated yet, omit `relocalization_assets`; the native
 backend keeps the slower PCD-build fallback for initial debugging.
 
@@ -123,7 +135,7 @@ Batch-LIO
 agt_batch_lio_adapter
 Livox CustomMsg -> PointCloud2 secondary bridge
 local obstacle preprocessor
-3D-BBS + small_gicp global relocalization orchestrator
+Polar Context + candidate 3D-BBS + small_gicp relocalization
 Localization Manager
 optional RTK manager
 Nav2
@@ -159,6 +171,101 @@ ros2 run agt_navigation_runtime demo_preflight
 
 For the normal V1 acceptance RTK is not required. Only add `require_rtk:=true` when
 specifically checking the RTK record path.
+
+## Pre-field runtime safety fixes — PASSED on 2026-09-05
+
+The two runtime blockers that were intentionally deferred during relocalization
+development are now implemented and bench-accepted.
+
+### 1. `cmd_vel_guard` localization safety gate
+
+`agt_base_control/cmd_vel_guard.py` now subscribes to
+`/agt/localization/status` and is fail-closed by default.
+
+Motion is allowed only when all of the following are true:
+
+```text
+LocalizationStatus == LOCALIZED
+local_odom_fresh == true
+global_correction_valid == true
+LocalizationStatus age <= 0.75 s
+fresh upstream cmd_vel received while the gate is open
+```
+
+`BOOT`, `WAIT_*`, `DEGRADED`, `LOST`, `RELOCALIZING`, invalid correction,
+missing status or stale status all force `/mux/cmd_vel` to zero. A localization
+fault also clears the cached upstream command; commands received while the gate
+is closed are discarded and cannot be replayed when localization recovers.
+
+Topic-level acceptance result:
+
+```text
+missing LocalizationStatus       -> max output 0.0
+LOCALIZED + valid correction     -> 0.4 m/s command passed
+LOST                             -> max output 0.0
+reopen without a fresh command   -> max output 0.0
+status stale > 0.75 s            -> max output 0.0
+GUARD_ACCEPTANCE_PASS
+```
+
+### 2. `mission_runtime` measured-stop gate
+
+`agt_navigation_runtime/mission_runtime.py` no longer trusts odometry twist by
+itself. Capture readiness requires both:
+
+- reported twist below the configured thresholds; and
+- pose-derived planar translation/yaw rate below independent thresholds.
+
+Current initial thresholds:
+
+```text
+twist linear       <= 0.03 m/s
+twist angular      <= 0.05 rad/s
+pose-delta linear  <= 0.04 m/s
+pose-delta yaw     <= 0.06 rad/s
+continuous hold    >= 0.8 s
+odom freshness     <= 0.5 s
+```
+
+Bench acceptance explicitly reproduced the Batch-LIO failure mode:
+
+```text
+twist = 0, pose continuously moving
+  -> stationary check timed out / rejected
+
+small stationary pose jitter
+  -> accepted after hold time
+  -> pose_delta ~= 0.010 m/s, 0.010 rad/s
+
+MISSION_STATIONARY_ACCEPTANCE_PASS
+```
+
+The C1 `camera_gimbal_interfaces` package is now also present and compiled in
+the same `ros2_ws` overlay through the repository's existing
+`drivers/Autolabor-C1-ROS2` dependency layout, so `mission_runtime` no longer
+depends on manually sourcing a second workspace just to import the action type.
+
+These two fixes remove the known software blockers for the first controlled
+vehicle patrol test. They do **not** replace real Bunker watchdog, emergency-stop
+or physical field-safety procedures.
+
+## First controlled vehicle test order
+
+For the first run, keep the route short and verify each gate before expanding it:
+
+```text
+1. Start MID360 / Bunker / URDF / C1 hardware processes.
+2. Start rviz_field_demo; confirm /mux/cmd_vel stays zero before LOCALIZED.
+3. Wait for automatic relocalization; visually verify map/scan alignment.
+4. Run demo_preflight and require PASS.
+5. Send one nearby RViz inspection point.
+6. Verify Nav2 success -> measured stop -> 3 captures.
+7. Verify RETURN_HOME -> measured stop -> standby.
+8. Inspect captures.csv/jsonl and images before attempting three points.
+```
+
+Do not skip step 2: it is the real-vehicle confirmation that the localization
+safety gate is actually in the Bunker command path.
 
 ## Acceptance sequence
 

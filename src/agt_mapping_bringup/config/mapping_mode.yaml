@@ -1,8 +1,8 @@
 mapping_mode:
   source_repository: robotics-laboratory/fast-lio2
   ros_distro: humble
-  lidar_topic: /livox/lidar
-  imu_topic: /livox/imu
+  lidar_topic: /agt/sensors/lidar/custom
+  imu_topic: /agt/sensors/imu/data
   loop_closure: pgo
   large_map_refinement: hba
   save_maps_service: /pgo/save_maps

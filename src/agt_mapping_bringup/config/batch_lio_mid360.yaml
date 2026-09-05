@@ -1,8 +1,8 @@
 /**:
   ros__parameters:
     common:
-      lid_topic: /livox/lidar
-      imu_topic: /livox/imu
+      lid_topic: /agt/sensors/lidar/custom
+      imu_topic: /agt/sensors/imu/data
       con_frame: false
       con_frame_num: 1
       cut_frame: false

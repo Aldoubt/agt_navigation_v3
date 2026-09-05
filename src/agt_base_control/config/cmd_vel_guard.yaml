@@ -6,6 +6,13 @@ agt_cmd_vel_guard:
     publish_rate_hz: 50.0
     command_timeout_sec: 0.25
 
+    # Fail closed: no fresh, valid LocalizationStatus means no chassis motion.
+    # DEGRADED remains blocked in V1; enable only after a deliberate field policy.
+    localization_status_topic: /agt/localization/status
+    require_localization_status: true
+    localization_status_timeout_sec: 0.75
+    allow_degraded_localization: false
+
     # Conservative Bunker v1 demo limits. Freeze only after field benchmarks.
     max_linear_x: 0.55
     max_reverse_x: 0.20

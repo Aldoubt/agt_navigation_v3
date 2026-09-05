@@ -8,8 +8,8 @@ echo "Recording vibration diagnostic bag to: $OUT"
 echo "Suggested sequence: 20s stationary -> 20s idle tracks -> straight slow -> straight medium -> in-place left/right -> rough terrain."
 
 ros2 bag record -o "$OUT" \
-  /livox/lidar \
-  /livox/imu \
+  /agt/sensors/lidar/custom \
+  /agt/sensors/imu/data \
   /wheel/odom \
   /agt/odometry/local \
   /ins/navsatfix \

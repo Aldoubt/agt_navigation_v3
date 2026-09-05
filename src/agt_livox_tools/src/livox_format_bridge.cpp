@@ -45,7 +45,7 @@ public:
     require_per_point_time_ = declare_parameter<bool>("require_per_point_time", true);
 
     if (mode_ == "custom_to_pointcloud2") {
-      pc2_pub_ = create_publisher<sensor_msgs::msg::PointCloud2>(output_topic_, rclcpp::SensorDataQoS());
+      pc2_pub_ = create_publisher<sensor_msgs::msg::PointCloud2>(output_topic_, rclcpp::QoS(10));
       custom_sub_ = create_subscription<livox_ros_driver2::msg::CustomMsg>(
         input_topic_, rclcpp::SensorDataQoS(),
         std::bind(&LivoxFormatBridge::on_custom, this, std::placeholders::_1));

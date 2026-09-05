@@ -116,19 +116,35 @@ Limitations:
 
 SmacPlanner2D is a grid-space planner and does not enforce tracked-vehicle kinematic feasibility in the path itself. For the first Bunker demo this is acceptable because the chassis is differential/skid-steer and the local controller handles heading/curvature. If field tests show excessive in-place rotation, corner cutting or infeasible tight turns, compare against `SmacPlannerLattice` rather than immediately writing a custom planner.
 
-Current local controller baseline is Regulated Pure Pursuit at 50 Hz. It is not frozen as the final controller.
+Current local controller baseline is Regulated Pure Pursuit at 50 Hz. Gazebo
+closed-loop navigation has reached `NavigateToPose=SUCCEEDED`; the controller is
+still not frozen for the tracked field vehicle. `PoseProgressChecker` is used so
+valid in-place heading correction counts as progress. RPP's internal angular
+acceleration bootstrap is `10.0 rad/s^2`, while the downstream smoother/guard
+continue to enforce the current physical `0.8 rad/s^2` angular acceleration
+limit.
 
 ## 5. Global automatic relocalization implementation status
 
 Implemented:
 
-### FAST-LIO2 adapter
+### Batch-LIO navigation adapter
 
-`agt_fastlio_adapter` validates frame/timestamp contract and republishes local odometry as:
+`agt_batch_lio_adapter` converts Batch-LIO `camera_init -> body` odometry into:
 
 ```text
 /agt/odometry/local
 ```
+
+The `body -> base_link` conversion uses a versioned calibrated extrinsic by
+default instead of requiring a TF-buffer lookup on every odometry message. This
+makes live and rosbag behavior deterministic. TF remains available for the rest
+of the ROS graph and as an optional adapter fallback.
+
+Batch-LIO's source odometry currently reports zero twist. The adapter therefore
+derives `base_link`-frame linear/angular velocity from consecutive adapted poses
+for Nav2 consumers. The derivative has dt bounds, deadbands and maximum-norm
+guards; quaternion delta is used instead of Euler-angle differentiation.
 
 ### Localization Manager
 
@@ -173,24 +189,73 @@ Acceptance gates already implemented:
 
 Runtime states already implemented include WAIT_LOCAL_ODOM, WAIT_GLOBAL, LOCALIZED, DEGRADED, LOST and RELOCALIZING behavior.
 
-Not yet implemented:
+### Production global relocalization backend
 
-The actual **3D global search backend** that consumes `/agt/relocalization/request`, builds the live scan descriptor/candidates, performs Scan Context/coarse matching/GICP or calls the existing 3D Map Localization SDK, validates candidate consistency, and publishes the final `/agt/relocalization/pose` is not yet landed as production code in this repository.
-
-Therefore current status is:
+The no-initial-pose backend is now implemented in production code:
 
 ```text
-local odom / TF manager / acceptance / handoff    IMPLEMENTED
-3D no-initial-pose search backend                 NOT YET LANDED
-existing external SDK first-step                  AVAILABLE FOR INTEGRATION
+static MID360 query in base_link
+  -> AGT Polar Context descriptor
+  -> Top-K keyframe candidates from patches + poses.txt
+  -> descriptor yaw seed + candidate pose seed
+  -> candidate-local CPU 3D-BBS coarse registration
+  -> small_gicp 6-DoF refinement
+  -> score / fitness / overlap gates
+  -> /agt/relocalization/pose
+  -> Localization Manager
+  -> map -> odom
 ```
 
-For the current RViz demo, the next localization milestone is to wrap the already-working 3D Map Localization SDK behind the fixed contract:
+Current CPU V1 baseline:
 
 ```text
-/agt/relocalization/request
-      -> SDK adapter
-      -> /agt/relocalization/pose PoseWithCovarianceStamped
+BBS assets             0.5 m minimum level, 5 levels
+descriptor prefilter   40
+candidate Top-K        2
+candidate XY radius    +/- 4 m
+candidate Z radius     +/- 2 m
+BBS residual angles    0 deg (descriptor/map pose supplies orientation seed)
+per-candidate timeout  8 s
+BBS coarse threshold   0.05
+backend timeout        18 s
 ```
 
-Do not duplicate map->odom publication inside the SDK adapter.
+The deliberately low BBS threshold is not the final acceptance threshold. BBS
+is used to obtain a geometrically useful coarse seed; GICP and ROS-side
+`score/fitness/overlap` gates decide whether the pose is safe to publish.
+
+Offline end-to-end replay with `bag_mapping_current` + `211105` passed on
+2026-09-05 and reached `LOCALIZED` with a valid `map -> odom` correction.
+
+A clean single-stack Gazebo gate also passed on 2026-09-05 without
+`/initialpose`. Representative cold-start localization was
+`score=0.926627`, `overlap=0.991720`, `fitness=0.110056`, with candidate BBS
+finishing in `453.279 ms`; a subsequent known-free PGO target returned
+`NavigateToPose=SUCCEEDED` in `45.322 s`.
+
+The `cmd_vel_guard` fail-closed transition has a repeatable ROS pub/sub
+acceptance test in `src/agt_base_control/test/guard_fail_closed_acceptance.py`.
+The measured LOST-to-zero latency was `1.4 ms`, and stale command replay after
+localization recovery measured exactly `0.000000` in the test.
+
+Still pending before field freeze:
+
+- at least 5 materially different start positions/headings on the real map;
+- tree-shadow and repeated-tree false-positive testing;
+- rough tracked-chassis vibration testing;
+- restart/power-cycle recovery;
+- field tuning of failure/retry timing;
+
+The previously deferred vehicle-runtime blockers were closed on 2026-09-05:
+
+- `cmd_vel_guard` now fail-closes on invalid/stale `LocalizationStatus` and
+  discards motion commands received while localization is unsafe;
+- `mission_runtime` now requires pose-delta + twist stationary evidence for a
+  continuous hold period before camera capture;
+- `camera_gimbal_interfaces` is compiled inside the same `ros2_ws` dependency
+  overlay for deterministic runtime imports.
+
+See `docs/RVIZ_FIELD_ACCEPTANCE.md` for the bench evidence and first vehicle-test
+sequence.
+
+Do not duplicate `map -> odom` publication in any relocalization backend.

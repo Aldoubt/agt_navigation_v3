@@ -1,6 +1,6 @@
 livox_format_bridge:
   ros__parameters:
     mode: custom_to_pointcloud2
-    input_topic: /livox/lidar
+    input_topic: /agt/sensors/lidar/custom
     output_topic: /agt/livox/points
     lidar_id: 0

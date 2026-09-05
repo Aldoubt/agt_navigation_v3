@@ -255,6 +255,9 @@ def main(argv=None):
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader()
         writer.writerows(all_rows)
+    # Public acceptance artifact name; retain trials.csv for backwards compatibility.
+    (args.output / 'results.csv').write_text(
+        (args.output / 'trials.csv').read_text(encoding='utf-8'), encoding='utf-8')
 
     summary_doc = {
         'best_candidate': best_name,

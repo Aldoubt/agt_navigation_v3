@@ -27,7 +27,34 @@ map
 - `imu_link` must describe the actual IMU used by FAST-LIO2. Do not assume it represents the external INS.
 - External INS/GNSS frames are a later integration and require measured lever-arm/extrinsic calibration.
 - Exactly one component owns `map -> odom` during runtime: the localization manager.
-- The continuous odometry backend owns `odom -> base_footprint`.
+- The continuous odometry backend provides `odom -> base_link` semantics to the navigation stack.
+
+## Batch-LIO `body` and robot `base_link`
+
+Batch-LIO publishes `camera_init -> body`, where `body` is the LIO/IMU state
+frame. `body` is **not** the robot chassis frame and must not be aliased to
+`base_link` with an identity transform.
+
+Current calibrated relation:
+
+```text
+T_base_body:
+  translation  [ 0.25960014, -0.02326770,  0.45244230 ]
+  quaternion   [-0.00047700,  0.100267018, 0.00159200, 0.994959177]  # xyzw
+
+T_body_base:
+  translation  [-0.16403417,  0.02439982, -0.49511119 ]
+  quaternion   [ 0.00047700, -0.100267018,-0.00159200, 0.994959177]  # xyzw
+```
+
+`agt_batch_lio_adapter` uses the versioned `T_body_base` parameter directly by
+default. This fixed calibration should not depend on TF-buffer timing during
+rosbag playback. A matching static `body -> base_link` TF is still published for
+RViz/Nav2 and other graph consumers.
+
+The relocalization backend uses the inverse `T_base_body` to convert mapping
+keyframe `T_map_body` poses into runtime `T_map_base` candidate poses. Keep both
+configurations synchronized.
 
 ## Tilted sensor
 

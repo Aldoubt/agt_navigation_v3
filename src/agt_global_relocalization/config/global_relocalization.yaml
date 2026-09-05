@@ -1,5 +1,7 @@
 agt_global_relocalization:
   ros__parameters:
+    # Live default from agt_livox_tools. Offline replay launch overrides this
+    # with /agt/relocalization/input_cloud to keep recorded-query tests isolated.
     scan_topic: /agt/livox/points
     request_topic: /agt/relocalization/request
     output_pose_topic: /agt/relocalization/pose
@@ -29,6 +31,25 @@ agt_global_relocalization:
     # left empty, the backend still works but rebuilds the BBS hierarchy at runtime.
     # Parameter sweeps call the native backend directly; keep this production command
     # stable until replay testing selects a field baseline.
+    # Preferred V1 CPU backend when the active Map Package contains polar_context.db.
+    # The descriptor supplies the dominant yaw; BBS searches translation only and
+    # small_gicp absorbs descriptor quantization plus the remaining 6-DoF residual.
+    candidate_sdk_command: >-
+      ros2 run agt_global_relocalization_native candidate_bbs_gicp_localizer
+      --map {global_map} --scan {scan_pcd} {assets_arg}
+      --timeout {timeout_sec}
+      --candidate-top-k 2 --descriptor-prefilter 40
+      --candidate-xy-radius 4.0 --candidate-z-radius 2.0
+      --candidate-yaw-range-deg 0.0 --roll-pitch-range-deg 0.0
+      --base-from-body-tx 0.25960014 --base-from-body-ty -0.02326770 --base-from-body-tz 0.45244230
+      --base-from-body-qx -0.000477000 --base-from-body-qy 0.100267018
+      --base-from-body-qz 0.001592000 --base-from-body-qw 0.994959177
+      --per-candidate-timeout 8.0 --bbs-score-threshold 0.05
+      --local-map-radius-xy {local_map_radius_xy}
+      --local-map-half-height {local_map_half_height}
+      --min-local-map-points {min_local_map_points}
+
+    # Compatibility fallback for old map packages without polar_context.db.
     sdk_command: >-
       ros2 run agt_global_relocalization_native bbs_gicp_localizer
       --map {global_map} --scan {scan_pcd} {assets_arg}
@@ -42,11 +63,17 @@ agt_global_relocalization:
     backend_local_map_half_height: 8.0
     backend_min_local_map_points: 800
     work_dir: ~/.ros/agt_global_relocalization
-    sdk_timeout_sec: 10.0
+    sdk_timeout_sec: 18.0
 
     # Accumulate several navigation-only PointCloud2 frames. Batch-LIO continues
     # to consume the untouched timing-preserving Livox CustomMsg stream.
     accumulate_clouds: 5
+    # Keep online query geometry consistent with the FAST-LIO2 map source:
+    # remove no-return/near-field points, reject beyond-map-range points, then
+    # collapse repeated stationary frames before entering whole-map BBS.
+    query_min_range_m: 0.5
+    query_max_range_m: 30.0
+    query_voxel_leaf_m: 0.25
     min_points: 2000
     max_points: 250000
 

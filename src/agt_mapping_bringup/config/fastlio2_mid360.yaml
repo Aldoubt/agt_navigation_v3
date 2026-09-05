@@ -3,8 +3,8 @@
 # actually used on the robot are visible and versioned here instead of being
 # hidden behind the upstream lio_launch.py defaults.
 
-imu_topic: /livox/imu
-lidar_topic: /livox/lidar
+imu_topic: /agt/sensors/imu/data
+lidar_topic: /agt/sensors/lidar/custom
 body_frame: body
 world_frame: lidar
 print_time_cost: false
