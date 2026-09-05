@@ -24,6 +24,20 @@ endif()
 
 set(AGT_NATIVE_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
+# Workspace-local native libraries live outside the colcon install tree.
+# --symlink-install executes the build-tree binary through an install symlink,
+# so BUILD_RPATH must point at the configured native library directory.
+# A normal installed binary keeps a relocatable workspace-relative RPATH.
+get_filename_component(AGT_NATIVE_LIBRARY_DIR "${BBS3D_CPU_LIBRARY}" DIRECTORY)
+set(AGT_NATIVE_BUILD_RPATH "${AGT_NATIVE_LIBRARY_DIR}")
+set(AGT_NATIVE_INSTALL_RPATH "\$ORIGIN/../../../../.agt_native/lib")
+function(agt_set_native_runtime_path target_name)
+  set_target_properties(${target_name} PROPERTIES
+    BUILD_RPATH "${AGT_NATIVE_BUILD_RPATH}"
+    INSTALL_RPATH "${AGT_NATIVE_INSTALL_RPATH}"
+  )
+endfunction()
+
 add_executable(bbs_gicp_localizer src/bbs_gicp_localizer.cpp)
 target_include_directories(bbs_gicp_localizer PRIVATE
   ${AGT_NATIVE_INCLUDE_DIR}
@@ -84,6 +98,10 @@ target_link_libraries(build_relocalization_candidates PRIVATE
   Eigen3::Eigen
 )
 target_compile_definitions(build_relocalization_candidates PRIVATE ${PCL_DEFINITIONS})
+
+agt_set_native_runtime_path(bbs_gicp_localizer)
+agt_set_native_runtime_path(candidate_bbs_gicp_localizer)
+agt_set_native_runtime_path(build_relocalization_assets)
 
 install(TARGETS
   bbs_gicp_localizer

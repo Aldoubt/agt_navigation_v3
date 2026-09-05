@@ -5,7 +5,6 @@
   <description>Quality-gated RTK/INS manager and WGS84-to-map observation adapter for AGT navigation.</description>
   <maintainer email="contact@aldoubt.com">AGT</maintainer>
   <license>Apache-2.0</license>
-  <buildtool_depend>ament_python</buildtool_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>

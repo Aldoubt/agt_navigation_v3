@@ -5,7 +5,6 @@
   <description>Backend-neutral AGT global 3D relocalization orchestrator; V1 follows the active Map Package and defaults to 3D-BBS plus small_gicp.</description>
   <maintainer email="contact@aldoubt.com">AGT</maintainer>
   <license>Apache-2.0</license>
-  <buildtool_depend>ament_python</buildtool_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>sensor_msgs_py</exec_depend>
@@ -19,6 +18,6 @@
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>agt_robot_interfaces</exec_depend>
   <exec_depend>agt_global_relocalization_native</exec_depend>
-  <test_depend>ament_pytest</test_depend>
+  <test_depend>python3-pytest</test_depend>
   <export><build_type>ament_python</build_type></export>
 </package>

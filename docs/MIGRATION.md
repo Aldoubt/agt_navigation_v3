@@ -1,4 +1,4 @@
-# AGT Navigation V3 migration guide
+﻿# AGT Navigation V3 migration guide
 
 This document defines the reproducible migration boundary for the software
 checkpoint that passed the 2026-09-05 offline relocalization and Gazebo
@@ -35,6 +35,9 @@ The bootstrap will:
    `<workspace>/.agt_native`;
 5. build the field software chain and `agt_gazebo_sim`;
 6. run the hardware-independent smoke checks when `--smoke` is supplied.
+
+For an already provisioned Ubuntu/ROS host or an offline rebuild, add `--no-apt`.
+That mode skips apt and rosdep network installation but still verifies exact source revisions, rebuilds workspace-local native libraries, runs colcon, and executes the smoke gate.
 
 The validated Gazebo Livox package is vendored at
 `src/ros2_livox_simulation` with its upstream MIT license. This is deliberate:

@@ -5,7 +5,6 @@
   <description>RViz waypoint queue adapter for the AGT inspection demo.</description>
   <maintainer email="contact@aldoubt.com">AGT</maintainer>
   <license>Apache-2.0</license>
-  <buildtool_depend>ament_python</buildtool_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>visualization_msgs</exec_depend>

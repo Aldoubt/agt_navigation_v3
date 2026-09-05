@@ -131,6 +131,26 @@ set +u
 source install/setup.bash
 set -u
 
+# Native relocalization binaries must remain runnable in a fresh shell.
+# This catches workspace-local .so linkage regressions that build/show-args miss.
+native_runtime_bins=(
+  "${WS_ROOT}/install/agt_global_relocalization_native/lib/agt_global_relocalization_native/bbs_gicp_localizer"
+  "${WS_ROOT}/install/agt_global_relocalization_native/lib/agt_global_relocalization_native/candidate_bbs_gicp_localizer"
+  "${WS_ROOT}/install/agt_global_relocalization_native/lib/agt_global_relocalization_native/build_relocalization_assets"
+)
+for exe in "${native_runtime_bins[@]}"; do
+  if [[ ! -x "${exe}" ]]; then
+    echo "MISSING native executable: ${exe}" >&2
+    exit 5
+  fi
+  if ldd "${exe}" | grep -Fq "not found"; then
+    echo "UNRESOLVED native runtime dependency: ${exe}" >&2
+    ldd "${exe}" >&2
+    exit 5
+  fi
+done
+echo "PASS native relocalization runtime linkage"
+
 # Pure software tests that should not need sensors.
 colcon test --event-handlers console_direct+ \
   --packages-select \

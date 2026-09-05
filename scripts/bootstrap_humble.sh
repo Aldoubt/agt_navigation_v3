@@ -19,7 +19,7 @@ Bootstrap the current AGT RViz field-demo workspace after cloning agt_navigation
 
 Options:
   --workspace PATH   ROS 2 workspace root. Auto-detected when repo is under <ws>/src/.
-  --no-apt           Do not install Ubuntu/ROS apt dependencies.
+  --no-apt           Skip apt/rosdep network installation; use preinstalled system dependencies.
   --no-native        Do not build/install Livox-SDK2, 3D-BBS or small_gicp.
   --no-build         Only fetch/install dependencies; do not colcon build.
   --smoke            Run scripts/field_build_smoke.sh after bootstrap build.
@@ -131,6 +131,7 @@ if [[ "${DO_APT}" -eq 1 ]]; then
     libeigen3-dev libpcl-dev libyaml-cpp-dev libboost-all-dev libtbb-dev \
     gazebo \
     ros-humble-gtsam \
+    ros-humble-ament-cmake-clang-format \
     ros-humble-navigation2 ros-humble-nav2-bringup \
     ros-humble-gazebo-ros-pkgs ros-humble-xacro ros-humble-robot-state-publisher \
     ros-humble-pcl-conversions ros-humble-tf2-eigen
@@ -147,7 +148,7 @@ if ! command -v vcs >/dev/null 2>&1; then
   echo "ERROR: vcs is missing. Install vcstool or rerun without --no-apt." >&2
   exit 5
 fi
-if ! command -v rosdep >/dev/null 2>&1; then
+if [[ "${DO_APT}" -eq 1 ]] && ! command -v rosdep >/dev/null 2>&1; then
   echo "ERROR: rosdep is missing. Install python3-rosdep or rerun without --no-apt." >&2
   exit 5
 fi
@@ -234,6 +235,7 @@ prepare_livox_ros2_source() {
 }
 prepare_livox_ros2_source
 
+if [[ "${DO_APT}" -eq 1 ]]; then
 if [[ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]]; then
   echo "==> Initializing rosdep"
   sudo rosdep init
@@ -245,7 +247,11 @@ echo "==> Installing package.xml dependencies"
 # PGO uses uppercase GTSAM as a rosdep key; the actual library is installed above
 # from the ROS Humble binary package.
 rosdep install --from-paths "${SRC_DIR}" --ignore-src -r -y \
-  --rosdistro humble --skip-keys "GTSAM"
+  --rosdistro humble \
+  --skip-keys GTSAM --skip-keys ament_python --skip-keys ament_pytest --skip-keys libeigen3-dev
+else
+  echo "==> Skipping rosdep update/install (--no-apt; system dependencies must already be present)"
+fi
 
 install_native() {
   local name="$1"

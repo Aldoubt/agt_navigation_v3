@@ -5,7 +5,6 @@
   <description>Velocity guard and 50 Hz command refresh layer for Bunker tracked base.</description>
   <maintainer email="contact@aldoubt.com">AGT</maintainer>
   <license>Apache-2.0</license>
-  <buildtool_depend>ament_python</buildtool_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>agt_robot_interfaces</exec_depend>
