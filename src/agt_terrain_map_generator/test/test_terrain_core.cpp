@@ -1,10 +1,12 @@
 #include <cmath>
 #include <limits>
+#include <string>
 #include <vector>
 
 #include <gtest/gtest.h>
 
 #include "agt_terrain_map_generator/central_difference_slope_builder.hpp"
+#include "agt_terrain_map_generator/gravity_level_patch_preprocessor.hpp"
 #include "agt_terrain_map_generator/height_obstacle_builder.hpp"
 #include "agt_terrain_map_generator/mapping_assets.hpp"
 #include "agt_terrain_map_generator/median_elevation_builder.hpp"
@@ -114,7 +116,6 @@ TEST(TerrainCore, MappingPoseTransformsBodyPointToMap)
   transform.tx = 10.0;
   transform.ty = 20.0;
   transform.tz = 1.0;
-  // 90-degree yaw.
   transform.qw = std::sqrt(0.5);
   transform.qz = std::sqrt(0.5);
 
@@ -122,4 +123,41 @@ TEST(TerrainCore, MappingPoseTransformsBodyPointToMap)
   EXPECT_NEAR(mapped.x, 10.0, 1.0e-5);
   EXPECT_NEAR(mapped.y, 21.0, 1.0e-5);
   EXPECT_NEAR(mapped.z, 3.0, 1.0e-5);
+}
+
+TEST(TerrainCore, GravityLevelRoundTripPreservesMapPoint)
+{
+  const double roll = 0.20;
+  const double pitch = -0.15;
+  const double yaw = 0.70;
+  const double cr = std::cos(roll * 0.5);
+  const double sr = std::sin(roll * 0.5);
+  const double cp = std::cos(pitch * 0.5);
+  const double sp = std::sin(pitch * 0.5);
+  const double cy = std::cos(yaw * 0.5);
+  const double sy = std::sin(yaw * 0.5);
+
+  agt::PatchAsset asset;
+  asset.patch_name = "0.pcd";
+  asset.map_from_body.tx = 4.0;
+  asset.map_from_body.ty = -2.0;
+  asset.map_from_body.tz = 0.5;
+  asset.map_from_body.qw = cr * cp * cy + sr * sp * sy;
+  asset.map_from_body.qx = sr * cp * cy - cr * sp * sy;
+  asset.map_from_body.qy = cr * sp * cy + sr * cp * sy;
+  asset.map_from_body.qz = cr * cp * sy - sr * sp * cy;
+
+  const agt::Point3f body_point{1.2F, -0.4F, -0.6F};
+  const auto expected_map = asset.map_from_body.transform(body_point);
+
+  agt::GravityLevelPatchPreprocessor preprocessor;
+  agt::PreparedPatch prepared;
+  std::string error;
+  ASSERT_TRUE(preprocessor.process(asset, {body_point}, prepared, error)) << error;
+  ASSERT_EQ(prepared.local_cloud.size(), 1U);
+
+  const auto recovered_map = prepared.map_from_local.transform(prepared.local_cloud.front());
+  EXPECT_NEAR(recovered_map.x, expected_map.x, 1.0e-5);
+  EXPECT_NEAR(recovered_map.y, expected_map.y, 1.0e-5);
+  EXPECT_NEAR(recovered_map.z, expected_map.z, 1.0e-5);
 }
