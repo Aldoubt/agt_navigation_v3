@@ -1,26 +1,49 @@
 agt_terrain_map_generator:
   ros__parameters:
-    # v0.1 is intentionally interface-only. Enable only after the selected
-    # GroundSegmenter adapter and the terrain builders are wired in.
+    # Keep disabled until PatchSetSource + elevation/slope/obstacle builders
+    # have passed the offline A/B acceptance suite against agt_map_converter.
     pipeline:
       enabled: false
 
-    input_pcd: ""
+    source:
+      # Preferred source for sensor/body-local ground segmentation.
+      # Expected map directory contains poses.txt and patches/*.pcd.
+      type: patch_set
+      map_directory: ""
+      global_map_pcd: ""
+      poses_txt: ""
+      patches_directory: ""
+
     output_root: ~/.ros/agt_maps/latest
 
     ground_segmenter:
-      # Preferred first implementation for the outdoor tracked platform.
-      # The core pipeline is not coupled to Patchwork++; other adapters may
-      # implement the same GroundSegmenter interface later.
       type: patchworkpp
+      patchworkpp:
+        # REQUIRED CALIBRATION. This is the height of the BODY-FRAME PATCH
+        # ORIGIN above local ground, not a guessed MID360 mounting value.
+        # A value <= 0 keeps production activation invalid until measured.
+        sensor_height_m: 0.0
+        min_range_m: 1.0
+        max_range_m: 80.0
+        verbose: false
+
+        # Mapping patches currently expose XYZ, not trustworthy intensity.
+        # Patchwork++ RNR is intensity-dependent and therefore stays disabled.
+        enable_rnr: false
+        enable_rvpf: true
+        enable_tgr: true
 
     grid:
       resolution_m: 0.05
+      # Builders must process large outdoor maps in bounded chunks rather than
+      # assuming one full-resolution dense grid always fits in memory.
+      tile_size_cells: 512
 
     elevation:
-      # Median ground height is the baseline because it is more robust than
-      # min/max height to leaf returns, vibration residuals and outliers.
+      # Robust ground statistic; replaces the fallback converter's min_z surface.
       method: median
+      min_points_per_cell: 3
+      max_variance_m2: 0.04
 
     obstacle:
       # Height is evaluated relative to the estimated local ground surface.
@@ -30,7 +53,12 @@ agt_terrain_map_generator:
     slope:
       max_angle_deg: 20.0
 
+    unknown:
+      # Low-confidence cells stay unknown instead of being promoted to free.
+      min_confidence: 0.5
+
     output:
       save_elevation: true
       save_slope: true
       save_obstacle: true
+      save_confidence: true
