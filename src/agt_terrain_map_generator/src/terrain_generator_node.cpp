@@ -2,6 +2,12 @@
 #include <stdexcept>
 #include <string>
 
+#include "agt_terrain_map_generator/elevation_builder.hpp"
+#include "agt_terrain_map_generator/ground_segmenter.hpp"
+#include "agt_terrain_map_generator/map_exporter.hpp"
+#include "agt_terrain_map_generator/obstacle_builder.hpp"
+#include "agt_terrain_map_generator/slope_builder.hpp"
+#include "agt_terrain_map_generator/terrain_types.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 class TerrainGeneratorNode : public rclcpp::Node
