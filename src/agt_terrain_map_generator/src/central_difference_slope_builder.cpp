@@ -10,6 +10,8 @@ namespace agt_terrain_map_generator
 namespace
 {
 
+constexpr double kRadToDeg = 57.2957795130823208768;
+
 bool valid_cell(const ElevationCell & cell, const double min_confidence)
 {
   return std::isfinite(cell.median_height) &&
@@ -122,7 +124,7 @@ bool CentralDifferenceSlopeBuilder::build(
       }
 
       const double gradient = std::hypot(have_dx ? dz_dx : 0.0, have_dy ? dz_dy : 0.0);
-      slope_deg[center_idx] = static_cast<float>(std::atan(gradient) * 180.0 / M_PI);
+      slope_deg[center_idx] = static_cast<float>(std::atan(gradient) * kRadToDeg);
     }
   }
 
