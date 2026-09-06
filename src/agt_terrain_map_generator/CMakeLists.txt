@@ -69,5 +69,13 @@ install(DIRECTORY include/
 install(DIRECTORY config launch
   DESTINATION share/${PROJECT_NAME})
 
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_terrain_core test/test_terrain_core.cpp)
+  target_include_directories(test_terrain_core PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include)
+  target_link_libraries(test_terrain_core agt_terrain_core)
+endif()
+
 ament_export_include_directories(include)
 ament_package()
