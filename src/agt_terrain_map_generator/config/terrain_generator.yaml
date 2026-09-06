@@ -1,0 +1,36 @@
+agt_terrain_map_generator:
+  ros__parameters:
+    # v0.1 is intentionally interface-only. Enable only after the selected
+    # GroundSegmenter adapter and the terrain builders are wired in.
+    pipeline:
+      enabled: false
+
+    input_pcd: ""
+    output_root: ~/.ros/agt_maps/latest
+
+    ground_segmenter:
+      # Preferred first implementation for the outdoor tracked platform.
+      # The core pipeline is not coupled to Patchwork++; other adapters may
+      # implement the same GroundSegmenter interface later.
+      type: patchworkpp
+
+    grid:
+      resolution_m: 0.05
+
+    elevation:
+      # Median ground height is the baseline because it is more robust than
+      # min/max height to leaf returns, vibration residuals and outliers.
+      method: median
+
+    obstacle:
+      # Height is evaluated relative to the estimated local ground surface.
+      min_height_m: 0.25
+      max_height_m: 3.0
+
+    slope:
+      max_angle_deg: 20.0
+
+    output:
+      save_elevation: true
+      save_slope: true
+      save_obstacle: true
