@@ -14,6 +14,7 @@ option(AGT_ENABLE_PATCHWORKPP "Build the Patchwork++ GroundSegmenter adapter whe
 add_definitions(${PCL_DEFINITIONS})
 
 add_library(agt_terrain_core SHARED
+  src/gravity_level_patch_preprocessor.cpp
   src/median_elevation_builder.cpp
   src/central_difference_slope_builder.cpp
   src/height_obstacle_builder.cpp)
