@@ -25,22 +25,6 @@ def generate_launch_description():
         cfg = run_dir / 'batch_lio.yaml'
         cfg.write_text(Path(batch_config.perform(context)).read_text().replace('/livox/lidar', lidar_topic.perform(context)).replace('/livox/imu', imu_topic.perform(context)))
         return [
-            # Batch-LIO publishes camera_init->body where body is its IMU/LIO
-            # state frame. This calibrated static transform makes base_link the
-            # physical robot frame used by navigation and relocalization.
-            Node(
-                package='tf2_ros', executable='static_transform_publisher',
-                name='agt_body_to_base_link', output='screen',
-                arguments=[
-                    '--x', '-0.16403417', '--y', '0.02439982', '--z', '-0.49511119',
-                    '--qx', '0.000477000', '--qy', '-0.100267018',
-                    '--qz', '-0.001592000', '--qw', '0.994959177',
-                    '--frame-id', 'body', '--child-frame-id', 'base_link',
-                ],
-                parameters=[{
-                    'use_sim_time': use_sim_time.perform(context).lower() == 'true'
-                }],
-            ),
             IncludeLaunchDescription(PythonLaunchDescriptionSource(str(batch_share / 'launch' / 'mapping_avia.launch.py')), launch_arguments={'config': str(cfg), 'rviz': launch_batch_rviz.perform(context), 'use_sim_time': use_sim_time.perform(context)}.items()),
             IncludeLaunchDescription(PythonLaunchDescriptionSource(str(adapter_share / 'launch' / 'batch_lio_adapter.launch.py')), launch_arguments={'use_sim_time': use_sim_time.perform(context)}.items()),
         ]

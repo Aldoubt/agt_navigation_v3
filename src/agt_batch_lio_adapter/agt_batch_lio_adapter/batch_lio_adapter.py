@@ -9,7 +9,7 @@ from geometry_msgs.msg import PoseStamped, TransformStamped
 from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.time import Time
-from tf2_ros import Buffer, StaticTransformBroadcaster, TransformException, TransformListener
+from tf2_ros import Buffer, StaticTransformBroadcaster, TransformBroadcaster, TransformException, TransformListener
 
 
 def q_norm(q):
@@ -108,7 +108,7 @@ class BatchLioAdapter(Node):
         self.declare_parameter(
             'body_to_base_quaternion_xyzw',
             [0.000477000, -0.100267018, -0.001592000, 0.994959177])
-        self.declare_parameter('allow_parent_alias', True)
+        self.declare_parameter('allow_parent_alias', False)
         self.declare_parameter('debug_path_topic', '/agt/debug/local_path')
         self.declare_parameter('derive_twist_from_pose', True)
         self.declare_parameter('twist_min_dt_sec', 0.01)
@@ -120,8 +120,7 @@ class BatchLioAdapter(Node):
 
         self.buffer = Buffer(cache_time=Duration(seconds=10.0))
         self.listener = TransformListener(self.buffer, self)
-        self.static_broadcaster = StaticTransformBroadcaster(self)
-        self._publish_parent_alias()
+        self.tf_broadcaster = TransformBroadcaster(self)
         self.pub = self.create_publisher(
             Odometry, str(self.get_parameter('output_topic').value), 50)
         self.path_pub = self.create_publisher(Path, str(self.get_parameter('debug_path_topic').value), 10)
@@ -170,9 +169,6 @@ class BatchLioAdapter(Node):
             self.get_logger().warning(
                 f'drop Batch-LIO odom frames {msg.header.frame_id}->{msg.child_frame_id}; '
                 f'expected {src_parent}->{src_child}')
-            return
-        if src_parent != out_parent and not bool(self.get_parameter('allow_parent_alias').value):
-            self.get_logger().error('parent alias disabled; cannot expose camera_init as odom')
             return
 
         stamp = Time.from_msg(msg.header.stamp)
@@ -269,6 +265,23 @@ class BatchLioAdapter(Node):
         out.twist.twist.linear.x, out.twist.twist.linear.y, out.twist.twist.linear.z = v_base
         out.twist.twist.angular.x, out.twist.twist.angular.y, out.twist.twist.angular.z = w_base
         self.pub.publish(out)
+
+        # Public navigation TF contract: odom -> base_link.
+        # Batch-LIO internal frames (camera_init/body) must not leak into the
+        # navigation TF tree.
+        tf = TransformStamped()
+        tf.header.stamp = out.header.stamp
+        tf.header.frame_id = out_parent
+        tf.child_frame_id = out_child
+        tf.transform.translation.x = p_camera_base[0]
+        tf.transform.translation.y = p_camera_base[1]
+        tf.transform.translation.z = p_camera_base[2]
+        tf.transform.rotation.x = q_camera_base[0]
+        tf.transform.rotation.y = q_camera_base[1]
+        tf.transform.rotation.z = q_camera_base[2]
+        tf.transform.rotation.w = q_camera_base[3]
+        self.tf_broadcaster.sendTransform(tf)
+
         self.path.header.stamp = out.header.stamp
         pose = PoseStamped()
         pose.header = out.header

@@ -14,7 +14,7 @@ agt_batch_lio_adapter:
     use_configured_extrinsic: true
     body_to_base_translation: [-0.16403417, 0.02439982, -0.49511119]
     body_to_base_quaternion_xyzw: [0.000477000, -0.100267018, -0.001592000, 0.994959177]
-    allow_parent_alias: true
+    allow_parent_alias: false
     # Functionhx/Batch-LIO publishes zero twist on /aft_mapped_to_init. Nav2 RPP
     # uses odometry twist for rotate-to-heading acceleration limiting, so derive
     # a real base_link-frame twist from consecutive adapted poses.
