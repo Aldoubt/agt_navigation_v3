@@ -72,6 +72,7 @@ jobs:
               agt_robot_interfaces \
               agt_pointcloud_preprocessor \
               agt_map_converter \
+              agt_terrain_map_generator \
               agt_map_manager \
               agt_localization_manager \
               agt_batch_lio_adapter \
