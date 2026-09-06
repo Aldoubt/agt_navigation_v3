@@ -17,22 +17,24 @@ jobs:
       - name: Shell syntax and repository manifest
         run: |
           bash -n scripts/bootstrap_humble.sh
+          bash -n scripts/bootstrap_terrain_mapping.sh
           bash -n scripts/field_build_smoke.sh
           python3 - <<'PY'
           import pathlib
           import yaml
-          path = pathlib.Path('dependencies/field_demo.repos')
-          data = yaml.safe_load(path.read_text(encoding='utf-8'))
-          repos = data.get('repositories') if isinstance(data, dict) else None
-          assert isinstance(repos, dict) and repos
-          for relpath, spec in repos.items():
-              parts = pathlib.PurePosixPath(relpath).parts
-              assert relpath and not relpath.startswith('/') and '..' not in parts
-              assert isinstance(spec, dict)
-              assert spec.get('type') == 'git'
-              assert isinstance(spec.get('url'), str) and spec['url']
-              assert isinstance(spec.get('version'), str) and spec['version']
-          print(f'repos manifest PASS: {len(repos)} repositories')
+          for manifest_name in ('dependencies/field_demo.repos', 'dependencies/terrain_native.repos'):
+              path = pathlib.Path(manifest_name)
+              data = yaml.safe_load(path.read_text(encoding='utf-8'))
+              repos = data.get('repositories') if isinstance(data, dict) else None
+              assert isinstance(repos, dict) and repos
+              for relpath, spec in repos.items():
+                  parts = pathlib.PurePosixPath(relpath).parts
+                  assert relpath and not relpath.startswith('/') and '..' not in parts
+                  assert isinstance(spec, dict)
+                  assert spec.get('type') == 'git'
+                  assert isinstance(spec.get('url'), str) and spec['url']
+                  assert isinstance(spec.get('version'), str) and spec['version']
+              print(f'{manifest_name} PASS: {len(repos)} repositories')
           PY
       - name: Parse package manifests and YAML
         run: |
@@ -86,6 +88,47 @@ jobs:
           colcon test --event-handlers console_direct+ \
             --packages-select agt_map_converter agt_map_manager
           colcon test-result --verbose
+
+  terrain-patchworkpp-adapter-build:
+    runs-on: ubuntu-22.04
+    container: osrf/ros:humble-desktop
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install terrain native build dependencies
+        shell: bash
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            cmake \
+            git \
+            libeigen3-dev \
+            libpcl-dev \
+            python3-colcon-common-extensions \
+            ros-humble-pcl-conversions
+      - name: Build and install pinned Patchwork++
+        shell: bash
+        run: |
+          git clone https://github.com/url-kaist/patchwork-plusplus.git /tmp/patchwork-plusplus
+          git -C /tmp/patchwork-plusplus checkout 3e6903a1d5537a4cc2ace897b0bbb98a92d6014c
+          cmake -S /tmp/patchwork-plusplus/cpp -B /tmp/patchwork-plusplus/build-agt \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/opt/agt-native \
+            -DUSE_SYSTEM_EIGEN3=ON \
+            -DINCLUDE_CPP_EXAMPLES=OFF
+          cmake --build /tmp/patchwork-plusplus/build-agt -j2
+          cmake --install /tmp/patchwork-plusplus/build-agt
+          find /opt/agt-native -type f \
+            \( -name 'patchworkppConfig.cmake' -o -name 'patchworkpp-config.cmake' \) \
+            -print -quit | grep -q .
+      - name: Build AGT terrain generator with Patchwork++ adapter
+        shell: bash
+        run: |
+          source /opt/ros/humble/setup.bash
+          export CMAKE_PREFIX_PATH="/opt/agt-native:${CMAKE_PREFIX_PATH:-}"
+          colcon build --symlink-install --event-handlers console_direct+ \
+            --packages-select agt_terrain_map_generator \
+            --cmake-args -DAGT_ENABLE_PATCHWORKPP=ON
+          test -f install/agt_terrain_map_generator/lib/libagt_patchworkpp_ground_segmenter.so
 
   inspection-runtime-build:
     runs-on: ubuntu-22.04
