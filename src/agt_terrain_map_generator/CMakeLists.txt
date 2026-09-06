@@ -11,6 +11,16 @@ find_package(PCL REQUIRED COMPONENTS common io)
 
 option(AGT_ENABLE_PATCHWORKPP "Build the Patchwork++ GroundSegmenter adapter when the native package is installed" ON)
 
+add_definitions(${PCL_DEFINITIONS})
+
+add_library(agt_terrain_core SHARED
+  src/median_elevation_builder.cpp
+  src/central_difference_slope_builder.cpp
+  src/height_obstacle_builder.cpp)
+target_include_directories(agt_terrain_core PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+
 add_library(agt_pcl_patch_set_source SHARED
   src/pcl_patch_set_source.cpp)
 target_include_directories(agt_pcl_patch_set_source PUBLIC
@@ -18,17 +28,19 @@ target_include_directories(agt_pcl_patch_set_source PUBLIC
   $<INSTALL_INTERFACE:include>
   ${PCL_INCLUDE_DIRS})
 target_link_libraries(agt_pcl_patch_set_source PRIVATE ${PCL_LIBRARIES})
-target_compile_definitions(agt_pcl_patch_set_source PRIVATE ${PCL_DEFINITIONS})
 
 add_executable(terrain_generator_node src/terrain_generator_node.cpp)
 target_include_directories(terrain_generator_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
 ament_target_dependencies(terrain_generator_node rclcpp)
-target_link_libraries(terrain_generator_node PRIVATE agt_pcl_patch_set_source)
+target_link_libraries(terrain_generator_node PRIVATE
+  agt_terrain_core
+  agt_pcl_patch_set_source)
 
 set(AGT_TERRAIN_INSTALL_TARGETS
   terrain_generator_node
+  agt_terrain_core
   agt_pcl_patch_set_source)
 
 if(AGT_ENABLE_PATCHWORKPP)
