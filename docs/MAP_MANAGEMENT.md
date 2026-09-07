@@ -9,7 +9,7 @@
 Recommended structure:
 
 ```text
-maps/
+/home/yangxuan/ros2_ws/agt_data/maps/
 └── <map_id>/
     ├── metadata.yaml
     ├── localization/
@@ -72,6 +72,11 @@ select map package
 ## HMI Policy
 
 The HMI displays map packages, not raw files. Operators select a named area/version instead of manually selecting YAML files.
+
+An HMI map edit is first saved to a staging directory, then imported as a new
+Map Package version. It must never overwrite the active package in place:
+that would invalidate its asset hashes and make its navigation and localization
+provenance ambiguous. See `HMI_MAP_WORKFLOW.md` for the import command.
 
 Example:
 

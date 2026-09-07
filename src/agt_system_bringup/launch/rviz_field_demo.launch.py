@@ -41,6 +41,7 @@ def generate_launch_description():
     global_map = LaunchConfiguration('global_map')
     relocalization_assets = LaunchConfiguration('relocalization_assets')
     map_id = LaunchConfiguration('map_id')
+    mission_dir = LaunchConfiguration('mission_dir')
     use_sim_time = LaunchConfiguration('use_sim_time')
     auto_relocalize = LaunchConfiguration('auto_relocalize')
     nav2_params_file = LaunchConfiguration('nav2_params_file')
@@ -48,6 +49,8 @@ def generate_launch_description():
     enable_rtk = LaunchConfiguration('enable_rtk')
     launch_rviz = LaunchConfiguration('launch_rviz')
     rviz_config = LaunchConfiguration('rviz_config')
+    lidar_topic = LaunchConfiguration('lidar_topic')
+    imu_topic = LaunchConfiguration('imu_topic')
 
     default_rviz = os.path.join(
         get_package_share_directory('agt_rviz_patrol'), 'config', 'agt_rviz_demo.rviz')
@@ -63,6 +66,9 @@ def generate_launch_description():
             'relocalization_assets', default_value='',
             description='Optional output directory from build_relocalization_assets.'),
         DeclareLaunchArgument('map_id', default_value='rviz_field_demo'),
+        DeclareLaunchArgument(
+            'mission_dir', default_value='~/.ros/agt_rviz_patrol',
+            description='Directory where operator-approved inspection mission YAML files are stored.'),
         DeclareLaunchArgument('use_sim_time', default_value='false'),
         DeclareLaunchArgument(
             'nav2_params_file', default_value=default_nav2_params,
@@ -76,6 +82,12 @@ def generate_launch_description():
         DeclareLaunchArgument('enable_rtk', default_value='true'),
         DeclareLaunchArgument('launch_rviz', default_value='true'),
         DeclareLaunchArgument('rviz_config', default_value=default_rviz),
+        DeclareLaunchArgument(
+            'lidar_topic', default_value='/livox/lidar',
+            description='Live timing-preserving Livox CustomMsg input for Batch-LIO.'),
+        DeclareLaunchArgument(
+            'imu_topic', default_value='/livox/imu',
+            description='Live MID360 IMU input for Batch-LIO.'),
         OpaqueFunction(function=_validate_required_files),
 
         # Hardware prerequisites intentionally stay outside this launch:
@@ -85,6 +97,8 @@ def generate_launch_description():
         # Navigation odometry: Batch-LIO + frame adapter.
         include('agt_mapping_bringup', 'navigation_lio.launch.py', arguments={
             'use_sim_time': use_sim_time,
+            'lidar_topic': lidar_topic,
+            'imu_topic': imu_topic,
         }),
 
         # Secondary PointCloud2 branch for local obstacles and global relocalization.
@@ -123,6 +137,7 @@ def generate_launch_description():
         include('agt_navigation_runtime', 'runtime.launch.py'),
         include('agt_rviz_patrol', 'rviz_patrol.launch.py', arguments={
             'map_id': map_id,
+            'mission_dir': mission_dir,
         }),
 
         Node(

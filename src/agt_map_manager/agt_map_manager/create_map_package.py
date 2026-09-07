@@ -19,6 +19,15 @@ NAV_OPTIONAL = (
     'roughness.pgm',
     'obstacle.pgm',
     'converter_metadata.yaml',
+    # The OctoMap baseline stores the immutable generation parameters and the
+    # scan-time rear-filter accounting next to map.pgm.  They are navigation
+    # provenance only and never replace the localization PCD.
+    'octomap_baseline_parameters.yaml',
+    'rear_filter_statistics.yaml',
+    # HMI stores editable named navigation points alongside the edited PGM.
+    # It is copied as an opaque HMI asset and never interpreted by Nav2.
+    'map.topology',
+    'hmi_edit_metadata.yaml',
 )
 
 
@@ -179,7 +188,7 @@ def build_package(
 def main(argv=None) -> None:
     parser = argparse.ArgumentParser(
         description='Atomically build a versioned AGT Map Package from a source PCD and converter output.')
-    parser.add_argument('--map-root', default='~/.ros/agt_maps')
+    parser.add_argument('--map-root', default='/home/yangxuan/ros2_ws/agt_data/maps')
     parser.add_argument('--map-id', required=True)
     parser.add_argument('--map-version', required=True)
     parser.add_argument('--source-pcd', required=True)

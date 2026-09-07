@@ -1,0 +1,34 @@
+# FAST-LIO2 input for the default OctoMap navigation-map baseline.
+# Calibration, IMU handling, topics, and time synchronization remain identical
+# to fastlio2_mid360.yaml.  The four requested mapping parameters are frozen.
+imu_topic: /agt/sensors/imu/data
+lidar_topic: /agt/sensors/lidar/custom
+body_frame: body
+world_frame: map
+print_time_cost: false
+
+lidar_filter_num: 6
+lidar_min_range: 0.5
+lidar_max_range: 30.0
+scan_resolution: 0.50
+map_resolution: 0.50
+cube_len: 200
+det_range: 300
+move_thresh: 1.5
+
+na: 0.01
+ng: 0.01
+nba: 0.0001
+nbg: 0.0001
+imu_init_num: 20
+near_search_num: 5
+ieskf_max_iter: 5
+gravity_align: true
+esti_il: false
+
+# Upstream FAST-LIO2 t_il direction is the inverse of Batch-LIO extrinsic_T.
+r_il: [1.0, 0.0, 0.0,
+       0.0, 1.0, 0.0,
+       0.0, 0.0, 1.0]
+t_il: [-0.011, -0.02329, 0.04412]
+lidar_cov_inv: 1000.0

@@ -7,9 +7,8 @@ from typing import Dict, List, Optional, Tuple
 
 import rclpy
 import yaml
-from rclpy.durability import DurabilityPolicy
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 
 from agt_robot_interfaces.msg import MapPackage, MapStatus
 from agt_robot_interfaces.srv import ListMapPackages, LoadMapPackage
@@ -28,9 +27,9 @@ class MapManager(Node):
 
     def __init__(self) -> None:
         super().__init__('agt_map_manager')
-        self.declare_parameter('map_root', '~/.ros/agt_maps')
+        self.declare_parameter('map_root', '/home/yangxuan/ros2_ws/agt_data/maps')
         self.declare_parameter(
-            'active_state_file', '~/.ros/agt_navigation_v3/active_map.yaml')
+            'active_state_file', '/home/yangxuan/ros2_ws/agt_data/maps/active_map.yaml')
         self.declare_parameter('verify_hashes_on_discovery', False)
         self.declare_parameter('verify_hashes_on_load', True)
         self.declare_parameter('status_topic', '/agt/map/status')
@@ -260,8 +259,15 @@ def main(args=None) -> None:
     except KeyboardInterrupt:
         pass
     finally:
-        node.destroy_node()
-        rclpy.shutdown()
+        # Humble can deliver the terminal SIGINT while service handles are being
+        # destroyed. Treat that as the normal Ctrl-C shutdown path instead of
+        # printing a misleading traceback/process-died error.
+        try:
+            node.destroy_node()
+        except KeyboardInterrupt:
+            pass
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':

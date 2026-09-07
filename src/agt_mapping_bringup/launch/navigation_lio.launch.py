@@ -23,7 +23,16 @@ def generate_launch_description():
         import tempfile
         run_dir = Path(tempfile.mkdtemp(prefix='agt_batch_lio_'))
         cfg = run_dir / 'batch_lio.yaml'
-        cfg.write_text(Path(batch_config.perform(context)).read_text().replace('/livox/lidar', lidar_topic.perform(context)).replace('/livox/imu', imu_topic.perform(context)))
+        config_text = Path(batch_config.perform(context)).read_text()
+        # The checked-in config retains rosbag topic names.  Bind the raw,
+        # timing-preserving Batch-LIO input explicitly for either live MID360
+        # topics or an offline bag replay passed through launch arguments.
+        config_text = config_text.replace(
+            '/agt/sensors/lidar/custom', lidar_topic.perform(context)).replace(
+            '/agt/sensors/imu/data', imu_topic.perform(context)).replace(
+            '/livox/lidar', lidar_topic.perform(context)).replace(
+            '/livox/imu', imu_topic.perform(context))
+        cfg.write_text(config_text)
         return [
             IncludeLaunchDescription(PythonLaunchDescriptionSource(str(batch_share / 'launch' / 'mapping_avia.launch.py')), launch_arguments={'config': str(cfg), 'rviz': launch_batch_rviz.perform(context), 'use_sim_time': use_sim_time.perform(context)}.items()),
             IncludeLaunchDescription(PythonLaunchDescriptionSource(str(adapter_share / 'launch' / 'batch_lio_adapter.launch.py')), launch_arguments={'use_sim_time': use_sim_time.perform(context)}.items()),
@@ -40,8 +49,8 @@ def generate_launch_description():
             default_value='false',
             description='Launch Batch-LIO upstream RViz. Keep false in the AGT field demo.',
         ),
-        DeclareLaunchArgument('lidar_topic', default_value='/agt/sensors/lidar/custom'),
-        DeclareLaunchArgument('imu_topic', default_value='/agt/sensors/imu/data'),
+        DeclareLaunchArgument('lidar_topic', default_value='/livox/lidar'),
+        DeclareLaunchArgument('imu_topic', default_value='/livox/imu'),
         DeclareLaunchArgument('use_sim_time', default_value='false'),
         OpaqueFunction(function=includes),
     ])

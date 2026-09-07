@@ -12,10 +12,12 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('map_id', default_value='demo_map'),
         DeclareLaunchArgument('preset_file', default_value=default_preset),
+        DeclareLaunchArgument('mission_dir', default_value='~/.ros/agt_rviz_patrol'),
         Node(
             package='agt_rviz_patrol', executable='rviz_patrol', output='screen',
             parameters=[{
                 'map_id': LaunchConfiguration('map_id'),
                 'preset_file': LaunchConfiguration('preset_file'),
+                'mission_dir': LaunchConfiguration('mission_dir'),
             }]),
     ])

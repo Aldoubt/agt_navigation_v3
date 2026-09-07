@@ -13,7 +13,7 @@ Hardware constants:
 
 ```text
 MID360 IP: 192.168.1.117
-Bunker CAN: can0 @ 50000 bit/s
+Bunker CAN: can0 @ 500000 bit/s
 ```
 
 Do not let RTK correct `map->odom` in V1, do not bypass Bunker remote/manual priority, and do not remove the measured-stop gate before C1 capture.

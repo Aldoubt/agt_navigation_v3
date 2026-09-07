@@ -1,7 +1,10 @@
 agt_map_manager:
   ros__parameters:
-    map_root: ~/.ros/agt_maps
-    active_state_file: ~/.ros/agt_navigation_v3/active_map.yaml
+    # All immutable map packages and their active-map pointer live inside the
+    # shared ROS workspace, so mapping, HMI editing and navigation consume one
+    # visible storage root.
+    map_root: /home/yangxuan/ros2_ws/agt_data/maps
+    active_state_file: /home/yangxuan/ros2_ws/agt_data/maps/active_map.yaml
 
     # Discovery should stay responsive even for very large PCD files.
     # Full declared hashes are checked at the load boundary.

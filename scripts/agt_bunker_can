@@ -2,8 +2,8 @@
 set -euo pipefail
 
 CAN_IFACE="${AGT_CAN_IFACE:-can0}"
-CAN_BITRATE="${AGT_CAN_BITRATE:-50000}"
-CAN_RESTART_MS="${AGT_CAN_RESTART_MS:-100}"
+CAN_BITRATE="${AGT_CAN_BITRATE:-500000}"
+CAN_RESTART_MS="${AGT_CAN_RESTART_MS:-0}"
 
 show_status() {
   ip -details link show "${CAN_IFACE}"
@@ -14,9 +14,14 @@ configure_once() {
     return 10
   fi
   ip link set "${CAN_IFACE}" down 2>/dev/null || true
-  ip link set "${CAN_IFACE}" type can bitrate "${CAN_BITRATE}" restart-ms "${CAN_RESTART_MS}"
+  if [[ "${CAN_RESTART_MS}" -gt 0 ]] && ! ip link set "${CAN_IFACE}" type can bitrate "${CAN_BITRATE}" restart-ms "${CAN_RESTART_MS}"; then
+    echo "${CAN_IFACE} does not support restart-ms=${CAN_RESTART_MS}; configuring without automatic bus-off restart." >&2
+    ip link set "${CAN_IFACE}" type can bitrate "${CAN_BITRATE}"
+  elif [[ "${CAN_RESTART_MS}" -eq 0 ]]; then
+    ip link set "${CAN_IFACE}" type can bitrate "${CAN_BITRATE}"
+  fi
   ip link set "${CAN_IFACE}" up
-  echo "Configured ${CAN_IFACE}: bitrate=${CAN_BITRATE}, restart-ms=${CAN_RESTART_MS}"
+  echo "Configured ${CAN_IFACE}: bitrate=${CAN_BITRATE}"
 }
 
 case "${1:-status}" in

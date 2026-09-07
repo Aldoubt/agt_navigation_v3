@@ -20,6 +20,145 @@ RViz 定点
 
 ---
 
+## 0. 实车传感器启动固定流程
+
+本节是 Bunker v1 实车的固定**传感器/底盘状态验收**流程。每个长期运行的
+命令使用独立终端；先启动并验证传感器，确认静止数据正常后才允许进入建图或
+导航流程。
+
+当前已现场验证的物理基线：MID360 `192.168.1.117`，Bunker `can0@500000`，
+ASENSING 使用 Prolific 的稳定 `/dev/serial/by-id` 路径，C1 相机使用
+`/dev/video0`、`1920x1080@30`。
+
+### 0.1 前检（不启动任何运动控制）
+
+```bash
+cd ~/ros2_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+
+ip -br address show enp2s0
+ping -c 2 192.168.1.117
+ls -l /dev/serial/by-id
+v4l2-ctl --device=/dev/video0 --all | head -30
+```
+
+预期 MID360 ping 成功，且至少存在下列稳定设备链接：
+
+```text
+usb-1a86_USB_Serial-if00-port0                    # C1 云台
+usb-Prolific_Technology_Inc._USB-Serial_Controller_* # ASENSING INS
+```
+
+### 0.2 启动 MID360（终端 1）
+
+```bash
+cd ~/ros2_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+
+ros2 run livox_ros_driver2 livox_ros_driver2_node --ros-args \
+  -p xfer_format:=1 \
+  -p multi_topic:=0 \
+  -p data_src:=0 \
+  -p publish_freq:=10.0 \
+  -p output_data_type:=0 \
+  -p frame_id:=livox_frame \
+  -p user_config_path:=/home/yangxuan/ros2_ws/src/external/livox_ros_driver2/config/MID360_config.json
+```
+
+### 0.3 启动 ASENSING RTK/INS（终端 2）
+
+不要使用配置文件中的 `/dev/ttyUSB0` 默认值；它与 C1 云台端口冲突。始终显式
+覆盖为 Prolific 的 by-id 路径：
+
+```bash
+cd ~/ros2_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+
+ros2 run agt_asensing_driver asensing_node --ros-args \
+  --params-file ~/ros2_ws/install/agt_asensing_driver/share/agt_asensing_driver/config/asensing.yaml \
+  -p port:=/dev/serial/by-id/usb-Prolific_Technology_Inc._USB-Serial_Controller_DTAZj137C01-if00-port0
+```
+
+RTK/INS 在 V1 只记录质量和照片元数据；不得用它发布或修正 `map -> odom`。
+
+### 0.4 启动 C1 相机与云台（终端 3）
+
+```bash
+cd ~/ros2_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+
+ros2 launch autolabor_c1_bringup autolabor_c1.launch.py \
+  gui:=false \
+  device_path:=/dev/video0 \
+  port_name:=/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0
+```
+
+此步骤只打开图像流与云台反馈；不要调用 `/camera_gimbal/acquire_view`，以免云台
+发生主动转动。
+
+### 0.5 启动 CAN 与 Bunker 状态驱动（终端 4）
+
+先启用 SocketCAN 并确认底盘持续有报文：
+
+```bash
+sudo ~/ros2_ws/src/agt_navigation_v3/scripts/agt_bunker_can up
+ip -details link show can0
+candump can0
+```
+
+预期 `can0` 为 `UP / ERROR-ACTIVE` 且 `candump` 持续输出。没有 RX 报文、出现
+`ERROR-PASSIVE` 或 `BUS-OFF` 时，停止在这里，检查底盘电源、急停、CAN 线束、
+终端电阻及 `500000` 位速率；不要启动 ROS 底盘驱动。
+
+CAN 正常后，在另一个终端启动驱动：
+
+```bash
+cd ~/ros2_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+
+ros2 launch bunker_base bunker_base.launch.py \
+  port_name:=can0 \
+  odom_topic_name:=/wheel/odom \
+  publish_odom_tf:=false
+```
+
+该启动入口已将第三方驱动内部的 `/cmd_vel` 重映射为 `/mux/cmd_vel`。驱动连接时会
+请求 commanded mode；保持遥控器和急停可用。传感器验收阶段严禁发布
+`/cmd_vel` 或 `/mux/cmd_vel`。
+
+### 0.6 只读验收与停止顺序
+
+```bash
+source /opt/ros/humble/setup.bash
+source ~/ros2_ws/install/setup.bash
+
+ros2 topic hz /livox/lidar       # 约 10 Hz
+ros2 topic hz /livox/imu         # 约 200 Hz
+ros2 topic hz /cv_camera0/image_raw  # 1080p 下接近 30 Hz
+ros2 topic echo --once /camera_gimbal/health
+ros2 topic echo --once /pantilt_camera_serial0/pantilt_status
+ros2 topic echo --once /ins/status
+ros2 topic echo --once /bunker_status
+ros2 topic echo --once /bunker_rc_state
+ros2 topic hz /wheel/odom        # 约 50 Hz；静止时速度为 0
+ros2 topic info /mux/cmd_vel -v  # 传感器验收时 Publisher count 必须为 0
+```
+
+停止时按反向顺序在各终端 `Ctrl+C`：先 Bunker，再 C1、RTK/INS、MID360；最后执行：
+
+```bash
+sudo ~/ros2_ws/src/agt_navigation_v3/scripts/agt_bunker_can down
+```
+
+完成本节并且全车保持静止后，才可启动 URDF、LIO、建图或导航链路。
+
+---
+
 ## 1. 设计原则
 
 1. **建图和导航里程计解耦**：Fast-LIO2 + PGO/HBA 负责全局一致地图；Batch-LIO 负责运行时连续局部里程计。
@@ -48,14 +187,14 @@ GTSAM PGO
 可选 HBA refinement
           ↓
 final global_map.pcd
-          ├────────────────┐
-          ↓                ↓
-agt_map_converter      build_relocalization_assets
-          ↓                ↓
-Nav2 / terrain map     3D-BBS assets + downsampled PCD
-          └────────┬───────┘
-                   ↓
-                Map Package
+          ├─────────────────────┐
+          ↓                     ↓
+build_relocalization_assets   FAST-LIO2 body_cloud
+          ↓                     ↓
+3D-BBS assets + PCD     rear dynamic filter → OctoMap O1-H2
+          └─────────────────────┬───────────────────────┘
+                                ↓
+                           Map Package
 ```
 
 ### Navigation Mode
@@ -95,6 +234,16 @@ T_map_odom = T_map_base * inverse(T_odom_base)
 ```
 
 Batch-LIO 从开机持续运行；重定位成功只锚定 `map -> odom`，不重启 LIO。
+
+### 默认导航地图生成
+
+当前默认导航地图生成能力是 **OctoMap O1-H2 + 后方动态扇区过滤**：0.1 m
+OctoMap、`0.0 < z < 2.0 m`，并在 FAST-LIO2 已发布的 `body_cloud` 上过滤
+0.8–5.0 m 后方、60° 扇区内的点。该分支只生成 Nav2 `map.pgm/map.yaml`；
+它不修改 MID360 原始输入、FAST-LIO2、全局定位 PCD 或 Batch-LIO。
+
+启动与导出命令见 `agt_mapping_bringup/README.md`。`agt_terrain_map_generator`
+及旧 `agt_map_converter` 保留为显式的后续升级/回归路径，不再作为默认地图生成器。
 
 ### RTK V1
 
@@ -415,7 +564,7 @@ ros2 run agt_global_relocalization_native build_relocalization_assets \
 
 ```bash
 ros2 run agt_map_manager create_map_package \
-  --map-root ~/.ros/agt_maps \
+  --map-root /home/yangxuan/ros2_ws/agt_data/maps \
   --map-id site_A \
   --map-version v1 \
   --source-pcd /data/site_A/global_map.pcd \

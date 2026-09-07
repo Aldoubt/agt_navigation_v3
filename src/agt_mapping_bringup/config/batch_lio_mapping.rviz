@@ -1,0 +1,74 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Views
+    Name: Views
+  - Class: rviz_common/Time
+    Name: Time
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: true
+      Cell Size: 1
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Enabled: true
+      Show Axes: true
+      Show Names: false
+    - Class: rviz_default_plugins/PointCloud2
+      Name: Registered Cloud
+      Enabled: true
+      Topic:
+        Value: /cloud_registered
+      Queue Size: 5
+      Style: Points
+      Size (Pixels): 2
+      Color Transformer: Intensity
+    - Class: rviz_default_plugins/PointCloud2
+      Name: Body Cloud
+      Enabled: true
+      Topic:
+        Value: /cloud_registered_body
+      Queue Size: 5
+      Style: Points
+      Size (Pixels): 2
+      Color Transformer: Intensity
+    - Class: rviz_default_plugins/PointCloud2
+      Name: Laser Map
+      Enabled: true
+      Topic:
+        Value: /Laser_map
+      Queue Size: 5
+      Style: Points
+      Size (Pixels): 1
+      Color Transformer: AxisColor
+      Axis: Z
+      Decay Time: 30
+    - Class: rviz_default_plugins/Path
+      Name: Batch LIO Path
+      Enabled: true
+      Topic:
+        Value: /path
+      Line Style: Lines
+      Line Width: 0.03
+  Global Options:
+    Fixed Frame: camera_init
+    Frame Rate: 20
+    Background Color: 48; 48; 48
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+  Views:
+    Current:
+      Class: rviz_default_plugins/XYOrbit
+      Distance: 30
+      Pitch: 0.9
+      Yaw: 0.8
+Window Geometry:
+  Width: 1600
+  Height: 900

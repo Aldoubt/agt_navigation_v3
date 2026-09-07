@@ -23,6 +23,14 @@ public:
     const std::vector<ElevationCell> & elevation,
     std::vector<std::uint8_t> & obstacle) override;
 
+  // Reuses the same non-ground / local-ground association as build(), but
+  // retains maximum height evidence for v0.3 traversability scoring.
+  bool build_height_above_ground(
+    const PointCloud & non_ground,
+    const GridGeometry & geometry,
+    const std::vector<ElevationCell> & elevation,
+    std::vector<float> & height_above_ground_m);
+
 private:
   HeightObstacleOptions options_;
 };

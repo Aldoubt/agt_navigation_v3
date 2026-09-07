@@ -11,6 +11,10 @@ struct PreparedPatch
 {
   PointCloud local_cloud;
   RigidTransform3d map_from_local;
+  // Converts the gravity-level local frame back to the source body frame.
+  // Terrain filters use this only to evaluate robot-relative geometry; points
+  // retained for segmentation remain in the gravity-level local frame.
+  RigidTransform3d body_from_local;
 };
 
 class PatchPreprocessor

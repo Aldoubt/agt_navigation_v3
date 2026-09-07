@@ -1,6 +1,8 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <filesystem>
+#include <fstream>
 #include <limits>
 #include <memory>
 #include <string>
@@ -63,6 +65,18 @@ bool valid_xyz(const float x, const float y, const float z)
   return std::isfinite(x) && std::isfinite(y) && std::isfinite(z);
 }
 
+struct FilterStatistics
+{
+  std::uint64_t clouds{};
+  std::uint64_t input_points{};
+  std::uint64_t invalid_removed{};
+  std::uint64_t range_removed{};
+  std::uint64_t self_removed{};
+  std::uint64_t rear_removed{};
+  std::uint64_t voxel_removed{};
+  std::uint64_t output_points{};
+};
+
 }  // namespace
 
 class ObstacleCloudNode : public rclcpp::Node
@@ -100,6 +114,7 @@ public:
     voxel_leaf_ = declare_parameter<double>("voxel.leaf_size_m", 0.20);
     tf_timeout_sec_ = declare_parameter<double>("tf_timeout_sec", 0.05);
     drop_on_tf_failure_ = declare_parameter<bool>("drop_on_tf_failure", true);
+    statistics_output_ = declare_parameter<std::string>("statistics_output", "");
 
     if (self_center_.size() != 3U || self_size_.size() != 3U) {
       throw std::runtime_error("self_filter.center_xyz and size_xyz must each contain 3 values");
@@ -121,6 +136,11 @@ public:
       get_logger(),
       "Obstacle cloud branch: %s -> %s. This node is navigation-only and must not replace the FAST-LIO2 time-preserving input.",
       input_topic_.c_str(), output_topic_.c_str());
+  }
+
+  ~ObstacleCloudNode() override
+  {
+    write_statistics();
   }
 
 private:
@@ -195,11 +215,15 @@ private:
     }
 
     std::vector<std::array<float, 3>> accepted;
-    accepted.reserve(static_cast<std::size_t>(cloud->width) * cloud->height / 2U);
+    const auto point_count = static_cast<std::size_t>(cloud->width) * cloud->height;
+    accepted.reserve(point_count / 2U);
     std::unordered_set<VoxelKey, VoxelHash> occupied;
     if (voxel_enabled_) {
-      occupied.reserve(static_cast<std::size_t>(cloud->width) * cloud->height / 4U);
+      occupied.reserve(point_count / 4U);
     }
+
+    ++statistics_.clouds;
+    statistics_.input_points += point_count;
 
     try {
       sensor_msgs::PointCloud2ConstIterator<float> iter_x(*cloud, "x");
@@ -211,21 +235,25 @@ private:
         const float y = *iter_y;
         const float z = *iter_z;
         if (!valid_xyz(x, y, z)) {
+          ++statistics_.invalid_removed;
           continue;
         }
 
         const double range = std::sqrt(
           static_cast<double>(x) * x + static_cast<double>(y) * y + static_cast<double>(z) * z);
         if (range < min_range_ || range > max_range_) {
+          ++statistics_.range_removed;
           continue;
         }
 
         if (need_tf && tf_ok) {
           const tf2::Vector3 p_base = base_from_cloud * tf2::Vector3(x, y, z);
           if (self_filter_enabled_ && inside_self_box(p_base)) {
+            ++statistics_.self_removed;
             continue;
           }
           if (rear_enabled_ && inside_rear_sector(p_base)) {
+            ++statistics_.rear_removed;
             continue;
           }
         }
@@ -236,6 +264,7 @@ private:
             static_cast<std::int64_t>(std::floor(y / voxel_leaf_)),
             static_cast<std::int64_t>(std::floor(z / voxel_leaf_))};
           if (!occupied.insert(key).second) {
+            ++statistics_.voxel_removed;
             continue;
           }
         }
@@ -248,6 +277,8 @@ private:
         "Input PointCloud2 must contain float x/y/z fields: %s", ex.what());
       return;
     }
+
+    statistics_.output_points += accepted.size();
 
     sensor_msgs::msg::PointCloud2 output;
     output.header = cloud->header;
@@ -274,6 +305,40 @@ private:
     publisher_->publish(output);
   }
 
+  void write_statistics() const
+  {
+    if (statistics_output_.empty()) {
+      return;
+    }
+
+    try {
+      const std::filesystem::path path(statistics_output_);
+      if (path.has_parent_path()) {
+        std::filesystem::create_directories(path.parent_path());
+      }
+      std::ofstream output(path, std::ios::trunc);
+      if (!output) {
+        RCLCPP_ERROR(get_logger(), "Cannot write filter statistics: %s", path.c_str());
+        return;
+      }
+      output << "clouds: " << statistics_.clouds
+             << "\ninput_points: " << statistics_.input_points
+             << "\ninvalid_removed_points: " << statistics_.invalid_removed
+             << "\nrange_removed_points: " << statistics_.range_removed
+             << "\nself_removed_points: " << statistics_.self_removed
+             << "\nrear_removed_points: " << statistics_.rear_removed
+             << "\nvoxel_removed_points: " << statistics_.voxel_removed
+             << "\noutput_points: " << statistics_.output_points
+             << "\nrear_sector_enabled: " << (rear_enabled_ ? "true" : "false")
+             << "\nrear_sector_center_deg: " << rear_center_rad_ * 180.0 / M_PI
+             << "\nrear_sector_width_deg: " << rear_half_width_rad_ * 2.0 * 180.0 / M_PI
+             << "\nrear_sector_min_range_m: " << rear_min_range_
+             << "\nrear_sector_max_range_m: " << rear_max_range_ << '\n';
+    } catch (const std::exception & ex) {
+      RCLCPP_ERROR(get_logger(), "Cannot write filter statistics: %s", ex.what());
+    }
+  }
+
   std::string input_topic_;
   std::string output_topic_;
   std::string base_frame_;
@@ -293,6 +358,8 @@ private:
   double voxel_leaf_{};
   double tf_timeout_sec_{};
   bool drop_on_tf_failure_{};
+  std::string statistics_output_;
+  FilterStatistics statistics_;
 
   tf2_ros::Buffer tf_buffer_;
   tf2_ros::TransformListener tf_listener_;

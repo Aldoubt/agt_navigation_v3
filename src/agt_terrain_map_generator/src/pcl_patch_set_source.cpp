@@ -92,6 +92,10 @@ bool PclPatchSetSource::open(const MappingAssetSet & assets, std::string & error
         return false;
       }
 
+      patch.patch_id = static_cast<int>(impl_->patches.size());
+      patch.pose_id = patch.patch_id;
+      patch.timestamp = static_cast<double>(patch.pose_id);
+
       const fs::path patch_path = patches_dir / patch.patch_name;
       if (!fs::is_regular_file(patch_path)) {
         error = "patch referenced by poses.txt is missing: " + patch_path.string();

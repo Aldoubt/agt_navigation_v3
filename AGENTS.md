@@ -21,7 +21,7 @@ HMI integration, power-cycle mission resume, automatic RTK relocalization and pe
 - LiDAR: Livox MID360, lidar IP `192.168.1.117`, intentionally tilted in the robot URDF.
 - MID360 internal LiDAR/IMU translation baseline: `[0.011, 0.02329, -0.04412]`; `extrinsic_est_en=false` for V1.
 - IMU: MID360 built-in IMU first. Run `mid360_imu_preflight.py` before freezing `acc_norm`.
-- Bunker v1 CAN: interface `can0`, bitrate `50000` bit/s.
+- Bunker v1 CAN: interface `can0`, bitrate `500000` bit/s.
 - Bunker remote controller remains higher priority. Software may bring CAN up automatically but must not bypass the chassis/manual safety arbitration.
 - Bunker ROS driver consumes `/mux/cmd_vel`, publishes `/wheel/odom`, `publish_odom_tf=false`, control rate 50 Hz.
 - RTK/INS: record/quality only in V1; never use it to move `map->odom` or seed automatic relocalization.
@@ -126,7 +126,7 @@ journalctl -u agt-bunker-can.service -b --no-pager
 candump can0
 ```
 
-Expected bitrate is 50000. Bringing CAN up does not mean the chassis is in autonomous-control mode; the physical remote/controller arbitration still applies.
+Expected bitrate is 500000. Bringing CAN up does not mean the chassis is in autonomous-control mode; the physical remote/controller arbitration still applies.
 
 ### Batch-LIO unstable
 

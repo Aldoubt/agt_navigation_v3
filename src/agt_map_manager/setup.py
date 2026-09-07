@@ -23,5 +23,8 @@ setup(
     entry_points={'console_scripts': [
         'map_manager = agt_map_manager.map_manager:main',
         'create_map_package = agt_map_manager.create_map_package:main',
+        'promote_hmi_navigation_edit = agt_map_manager.promote_hmi_navigation_edit:main',
+        'select_map_package = agt_map_manager.select_map_package:main',
+        'list_map_packages = agt_map_manager.select_map_package:main_list',
     ]},
 )

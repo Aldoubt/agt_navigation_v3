@@ -37,6 +37,7 @@ bool GravityLevelPatchPreprocessor::process(
   error.clear();
   prepared.local_cloud.clear();
   prepared.map_from_local = RigidTransform3d{};
+  prepared.body_from_local = RigidTransform3d{};
 
   if (!asset.map_from_body.has_valid_rotation()) {
     error = "patch pose has invalid quaternion: " + asset.patch_name;
@@ -81,6 +82,7 @@ bool GravityLevelPatchPreprocessor::process(
   prepared.map_from_local.qx = 0.0;
   prepared.map_from_local.qy = 0.0;
   prepared.map_from_local.qz = std::sin(0.5 * yaw);
+  prepared.body_from_local = asset.map_from_body.inverse().compose(prepared.map_from_local);
   return true;
 }
 

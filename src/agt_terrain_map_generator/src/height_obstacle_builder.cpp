@@ -28,6 +28,25 @@ bool HeightObstacleBuilder::build(
   const std::vector<ElevationCell> & elevation,
   std::vector<std::uint8_t> & obstacle)
 {
+  std::vector<float> heights;
+  if (!build_height_above_ground(non_ground, geometry, elevation, heights)) {
+    return false;
+  }
+  obstacle.assign(heights.size(), 0U);
+  for (std::size_t index = 0U; index < heights.size(); ++index) {
+    if (static_cast<double>(heights[index]) >= options_.min_height_m) {
+      obstacle[index] = 1U;
+    }
+  }
+  return true;
+}
+
+bool HeightObstacleBuilder::build_height_above_ground(
+  const PointCloud & non_ground,
+  const GridGeometry & geometry,
+  const std::vector<ElevationCell> & elevation,
+  std::vector<float> & height_above_ground_m)
+{
   const std::size_t expected =
     static_cast<std::size_t>(geometry.width) * static_cast<std::size_t>(geometry.height);
   if (geometry.width == 0U || geometry.height == 0U || geometry.resolution <= 0.0 ||
@@ -36,7 +55,7 @@ bool HeightObstacleBuilder::build(
     return false;
   }
 
-  obstacle.assign(expected, 0U);
+  height_above_ground_m.assign(expected, 0.0F);
   for (const auto & point : non_ground) {
     if (!std::isfinite(point.x) || !std::isfinite(point.y) || !std::isfinite(point.z)) {
       continue;
@@ -63,10 +82,10 @@ bool HeightObstacleBuilder::build(
 
     const double height_above_ground =
       static_cast<double>(point.z) - static_cast<double>(ground.median_height);
-    if (height_above_ground >= options_.min_height_m &&
-      height_above_ground <= options_.max_height_m)
+    if (height_above_ground >= 0.0 && height_above_ground <= options_.max_height_m)
     {
-      obstacle[index] = 1U;
+      height_above_ground_m[index] = std::max(
+        height_above_ground_m[index], static_cast<float>(height_above_ground));
     }
   }
   return true;

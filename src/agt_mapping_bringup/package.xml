@@ -18,5 +18,9 @@
   <exec_depend>batch_lio</exec_depend>
   <exec_depend>agt_batch_lio_adapter</exec_depend>
   <exec_depend>agt_map_converter</exec_depend>
+  <exec_depend>agt_map_manager</exec_depend>
+  <exec_depend>agt_pointcloud_preprocessor</exec_depend>
+  <exec_depend>octomap_server</exec_depend>
+  <exec_depend>nav2_map_server</exec_depend>
   <export><build_type>ament_cmake</build_type></export>
 </package>

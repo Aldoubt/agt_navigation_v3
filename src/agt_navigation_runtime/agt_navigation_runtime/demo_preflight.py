@@ -8,6 +8,7 @@ from nav2_msgs.action import NavigateToPose
 from rclpy.action import ActionClient
 from rclpy.duration import Duration
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 from rclpy.time import Time
 from sensor_msgs.msg import NavSatFix, PointCloud2
 from tf2_ros import Buffer, TransformException, TransformListener
@@ -21,6 +22,7 @@ class DemoPreflight(Node):
         super().__init__('demo_preflight')
         params = {
             'timeout_sec': 5.0,
+            'action_server_timeout_sec': 2.0,
             'global_frame': 'map',
             'base_frame': 'base_link',
             'local_odom_topic': '/agt/odometry/local',
@@ -49,7 +51,8 @@ class DemoPreflight(Node):
             self._localization_cb,
             10)
         self.create_subscription(
-            PointCloud2, self.get_parameter('obstacle_cloud_topic').value, self._cloud_cb, 10)
+            PointCloud2, self.get_parameter('obstacle_cloud_topic').value, self._cloud_cb,
+            qos_profile_sensor_data)
         self.create_subscription(
             NavSatFix, self.get_parameter('navsat_topic').value, self._rtk_cb, 10)
 
@@ -74,9 +77,10 @@ class DemoPreflight(Node):
                 break
 
         checks: list[tuple[str, bool, str]] = []
-        nav_ok = self.nav_client.wait_for_server(timeout_sec=0.5)
+        action_timeout = float(self.get_parameter('action_server_timeout_sec').value)
+        nav_ok = self.nav_client.wait_for_server(timeout_sec=action_timeout)
         checks.append(('Nav2 /navigate_to_pose', nav_ok, 'action server'))
-        camera_ok = self.camera_client.wait_for_server(timeout_sec=0.5)
+        camera_ok = self.camera_client.wait_for_server(timeout_sec=action_timeout)
         checks.append(('C1 /camera_gimbal/acquire_view', camera_ok, 'action server'))
         checks.append(('local odometry', self.odom is not None, self.get_parameter('local_odom_topic').value))
         checks.append(('obstacle cloud', self.cloud is not None, self.get_parameter('obstacle_cloud_topic').value))

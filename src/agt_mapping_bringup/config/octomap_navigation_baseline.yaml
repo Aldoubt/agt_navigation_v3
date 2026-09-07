@@ -1,0 +1,49 @@
+# Default static navigation-map baseline: O1-H2 plus a rear dynamic mask.
+# This is a mapping-only branch after FAST-LIO2 body_cloud. It must never be
+# connected to the raw CustomMsg path consumed by FAST-LIO2 or Batch-LIO.
+
+agt_obstacle_cloud_preprocessor:
+  ros__parameters:
+    input_topic: /fastlio2/body_cloud
+    output_topic: /agt/octomap/rear_filtered_cloud
+    # FAST-LIO2 publishes body_cloud already transformed from the tilted MID360
+    # lidar frame using its fixed r_il/t_il.  Using body here avoids a second
+    # unverified robot-frame transform in the offline mapping baseline.
+    base_frame: body
+    expected_input_frame: body
+    tf_timeout_sec: 0.05
+    drop_on_tf_failure: true
+    statistics_output: ""
+
+    range:
+      min_m: 0.5
+      max_m: 30.0
+    self_filter:
+      enabled: false
+      center_xyz: [0.0, 0.0, 0.20]
+      size_xyz: [1.023, 0.778, 0.400]
+      padding_m: 0.05
+    # Dynamic-person suppression for the close rear follow zone.  Real static
+    # rear features farther away remain map evidence.  Review in RViz before
+    # enlarging this sector or applying it to reverse-driving mapping passes.
+    rear_sector:
+      enabled: true
+      center_deg: 180.0
+      width_deg: 60.0
+      min_range_m: 0.8
+      max_range_m: 5.0
+    voxel:
+      enabled: false
+      leaf_size_m: 0.20
+
+octomap_server:
+  ros__parameters:
+    frame_id: map
+    base_frame_id: body
+    resolution: 0.1
+    point_cloud_min_z: 0.0
+    point_cloud_max_z: 2.0
+    occupancy_min_z: 0.0
+    occupancy_max_z: 2.0
+    filter_ground_plane: false
+    incremental_2D_projection: false

@@ -8,7 +8,27 @@ mapping_mode:
   save_maps_service: /pgo/save_maps
   save_patches_for_hba: true
 
-map_conversion:
+navigation_map_generation:
+  # Default V1 navigation-map generator.  The localization PCD remains the
+  # untouched FAST-LIO2/PGO mapping product; only the separate Nav2 map uses
+  # this OctoMap projection branch.
+  default_generator: octomap_o1h2_rear_filter
+  launch: octomap_navigation_baseline.launch.py
+  fastlio_config: fastlio2_octomap_baseline.yaml
+  octomap_resolution_m: 0.10
+  height_window_m: [0.0, 2.0]
+  rear_dynamic_filter:
+    enabled: true
+    center_deg: 180.0
+    width_deg: 60.0
+    min_range_m: 0.8
+    max_range_m: 5.0
+  # Terrain/patch/traversability processing is retained as an explicit future
+  # upgrade path; it is not silently selected by the default mapping job.
+  advanced_generator: agt_terrain_map_generator
+
+legacy_map_conversion:
+  generator: agt_map_converter
   resolution_m: 0.10
   max_step_m: 0.22
   max_slope_deg: 20.0

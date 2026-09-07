@@ -16,6 +16,69 @@ agt_terrain_map_generator:
 
     output_root: ~/.ros/agt_maps/latest
 
+    # Terrain/navigation map cleaning only; never alters FAST-LIO, localization
+    # input, or the localization global_map.pcd.
+    map_cleaning:
+      enabled: true
+      # v0.3.2 first phase: evidence only. No terrain point is removed by this
+      # analysis and no result is consumed by traversability in this release.
+      voxel_persistence:
+        enabled: true
+        resolution_m: 0.10
+        min_observation: 3
+      static_confidence:
+        enabled: true
+        voxel_scales:
+          fine: 0.10
+          structure: 0.25
+          scene: 0.50
+        weights:
+          temporal: 0.30
+          fine: 0.25
+          structure: 0.25
+          scene: 0.10
+          ground: 0.10
+        thresholds:
+          high: 0.8
+          medium: 0.5
+
+    robot_mesh_filter:
+      enabled: true
+      robot_frame: base_link
+      # The tracked chassis runtime URDF publishes lidar_link. Supply a
+      # rendered URDF; xacro expansion is performed by caller/bringup.
+      lidar_frame: lidar_link
+      urdf_path: ""
+
+    # TerrainPreprocessor runs after patch gravity alignment.  Geometric
+    # decisions are evaluated in body coordinates, while retained points stay
+    # in the gravity-level frame used by Patchwork++.
+    robot_geometry:
+      body_box:
+        center_xyz: [0.0, 0.0, 0.20]
+        size_xyz: [1.023, 0.778, 0.400]
+        padding_m: 0.05
+
+    self_filter:
+      enabled: true
+
+    # Conservative by default: only enable this for the offline terrain map
+    # experiment after comparing against the baseline map.  This has no path
+    # into FAST-LIO or localization.
+    rear_filter:
+      enabled: false
+      box:
+        x_min: -2.0
+        x_max: 0.0
+        y_min: -0.8
+        y_max: 0.8
+        z_min: -0.5
+        z_max: 2.0
+
+    voxel:
+      enabled: true
+      leaf_size_m: 0.20
+
     ground_segmenter:
       type: patchworkpp
       patchworkpp:
@@ -51,7 +114,28 @@ agt_terrain_map_generator:
       max_height_m: 3.0
 
     slope:
+      # Legacy 2D-map threshold; v0.3 traversability uses the three bands
+      # below so tracked robots are not blocked at 20 degrees by default.
       max_angle_deg: 20.0
+      safe_degree: 10.0
+      warning_degree: 20.0
+      blocked_degree: 30.0
+
+    trajectory:
+      enabled: true
+      robot_radius_m: 0.45
+      inflation_m: 0.20
+
+    traversability:
+      slope_weight: 0.35
+      obstacle_weight: 0.35
+      roughness_weight: 0.15
+      confidence_weight: 0.15
+      trajectory_bonus: 0.10
+      obstacle_ignore_height_m: 0.15
+      obstacle_blocked_height_m: 0.50
+      roughness_variance_m2: 0.04
+      min_confidence: 0.50
 
     unknown:
       # Low-confidence cells stay unknown instead of being promoted to free.
