@@ -4,4 +4,5 @@ string version
 uint64 generation
 string state
 string active_component
+string backend_status
 string reason
