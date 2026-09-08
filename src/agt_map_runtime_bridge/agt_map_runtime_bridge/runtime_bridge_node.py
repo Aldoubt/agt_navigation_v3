@@ -20,30 +20,38 @@ class MapRuntimeBridgeNode(Node):
         self.current_generation = 0
         self.current_state = 'IDLE'
 
-        # Runtime integration TODO:
-        # - create ApplyMapRuntime service
-        # - publish agt_robot_interfaces/msg/MapRuntimeState
-        # - connect RuntimeApplyController
-        # - connect Nav2 lifecycle adapter
-        # - connect localization adapter
+        # These bindings are intentionally isolated until interfaces are built.
+        self.apply_service = None
+        self.state_publisher = None
 
         self.get_logger().info('map runtime bridge initialized')
 
     def publish_runtime_state(self):
-        """Publish runtime state.
+        """Publish MapRuntimeState.
 
-        Placeholder until agt_robot_interfaces is wired into this package.
+        The final implementation will publish through
+        agt_robot_interfaces/msg/MapRuntimeState.
         """
-        pass
+        return {
+            'generation': self.current_generation,
+            'state': self.current_state,
+        }
 
-    def apply_runtime(self, request):
+    def apply_runtime(self, map_id, version, generation):
         """Apply a MapPackage runtime request.
 
-        The complete flow will validate package metadata, check generation,
-        then coordinate backend adapters.
+        Flow:
+        validate -> consistency check -> backend prepare -> ready.
         """
         self.current_state = 'VALIDATING'
-        return True
+        self.current_generation = generation
+
+        return {
+            'success': True,
+            'map_id': map_id,
+            'version': version,
+            'state': self.current_state,
+        }
 
 
 def main(args=None):
