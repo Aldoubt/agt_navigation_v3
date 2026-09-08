@@ -13,8 +13,12 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/LocalizationStatus.msg"
   "msg/MapPackage.msg"
   "msg/MapStatus.msg"
+  "msg/MapEditSession.msg"
   "srv/ListMapPackages.srv"
   "srv/LoadMapPackage.srv"
+  "srv/StartMapEdit.srv"
+  "srv/PublishMapEdit.srv"
+  "srv/CancelMapEdit.srv"
   "action/ExecuteInspectionMission.action"
   DEPENDENCIES builtin_interfaces geometry_msgs
 )
