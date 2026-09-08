@@ -1,0 +1,9 @@
+string session_id
+string target_map_id
+string target_map_version
+bool activate
+---
+bool success
+string message
+agt_robot_interfaces/MapPackage package
+agt_robot_interfaces/MapStatus status

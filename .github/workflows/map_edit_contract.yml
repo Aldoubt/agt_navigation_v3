@@ -1,0 +1,31 @@
+name: Map Edit Contract
+
+on:
+  push:
+    paths:
+      - 'src/agt_map_manager/**'
+      - 'src/agt_robot_interfaces/**'
+      - '.github/workflows/map_edit_contract.yml'
+  pull_request:
+    paths:
+      - 'src/agt_map_manager/**'
+      - 'src/agt_robot_interfaces/**'
+      - '.github/workflows/map_edit_contract.yml'
+
+jobs:
+  pure-python-contract:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install test dependencies
+        run: python -m pip install --upgrade pytest pyyaml
+      - name: Run Map Package and EditSession tests
+        env:
+          PYTHONPATH: src/agt_map_manager
+        run: |
+          pytest -q \
+            src/agt_map_manager/test/test_map_package.py \
+            src/agt_map_manager/test/test_edit_session.py

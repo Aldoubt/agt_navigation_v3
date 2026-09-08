@@ -1,0 +1,11 @@
+builtin_interfaces/Time stamp
+bool active
+string session_id
+string state
+string base_map_id
+string base_map_version
+string session_path
+string navigation_map_yaml
+string geometry_fingerprint
+string contract_fingerprint
+string reason

@@ -18,8 +18,14 @@ DEFAULT_MISSION_ROOT = '/home/yangxuan/ros2_ws/agt_data/missions'
 DEFAULT_HMI_RUNTIME_ROOT = '/home/yangxuan/ros2_ws/agt_data/hmi_runtime'
 
 
-def _write_hmi_runtime_config(runtime_dir: Path, navigation_map: Path) -> None:
-    """Give upstream HMI a private config.json that opens the active map on boot."""
+def _write_hmi_runtime_config(
+    runtime_dir: Path,
+    navigation_map: Path,
+    map_id: str,
+    map_version: str,
+    generation: int,
+) -> None:
+    """Give HMI a V3-owned runtime context and the exact active map to open."""
     runtime_dir.mkdir(parents=True, exist_ok=True)
     config_path = runtime_dir / 'config.json'
     data = {
@@ -29,7 +35,14 @@ def _write_hmi_runtime_config(runtime_dir: Path, navigation_map: Path) -> None:
         },
         'display_config': [],
         'images': [],
-        'key_value': {},
+        # These values are generated from active_map.yaml by V3. They are not
+        # HMI preferences and must never be inferred from a last-opened file.
+        'key_value': {
+            'agt_map_id': map_id,
+            'agt_map_version': map_version,
+            'agt_map_generation': str(generation),
+            'agt_map_context_source': 'v3_active_map',
+        },
         'map_config': {'path': str(navigation_map)},
         'robot_shape_config': {
             'color': '0x00000FF', 'is_ellipse': False,
@@ -64,13 +77,23 @@ def _start_from_active_map(context):
     relocalization_assets = str(state.get('relocalization_assets_path', '')).strip()
     map_id = str(state.get('map_id', '')).strip()
     map_version = str(state.get('map_version', '')).strip()
+    try:
+        generation = max(0, int(state.get('generation', 0)))
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError('active map state has invalid generation') from exc
     if not navigation_map.is_file() or not localization_map.is_file() or not map_id or not map_version:
         raise RuntimeError('active map state is incomplete or points to missing navigation/localization assets')
     if relocalization_assets and not Path(relocalization_assets).is_dir():
         raise RuntimeError(f'active relocalization assets do not exist: {relocalization_assets}')
 
     hmi_runtime_dir = Path(DEFAULT_HMI_RUNTIME_ROOT) / map_id / map_version
-    _write_hmi_runtime_config(hmi_runtime_dir, navigation_map)
+    _write_hmi_runtime_config(
+        hmi_runtime_dir,
+        navigation_map,
+        map_id,
+        map_version,
+        generation,
+    )
 
     system_share = Path(get_package_share_directory('agt_system_bringup'))
     field_demo = system_share / 'launch' / 'rviz_field_demo.launch.py'
