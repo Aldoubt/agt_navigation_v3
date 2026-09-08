@@ -1,0 +1,6 @@
+string map_id
+string version
+---
+bool success
+string reason
+uint64 generation
