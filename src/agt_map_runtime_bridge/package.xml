@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>agt_map_runtime_bridge</name>
+  <version>0.1.0</version>
+  <description>Runtime bridge between Map Manager, Nav2 and localization backends.</description>
+  <maintainer email="dev@localhost">agt</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>ament_python</buildtool_depend>
+  <depend>rclpy</depend>
+  <depend>std_msgs</depend>
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
