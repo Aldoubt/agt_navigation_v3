@@ -12,6 +12,7 @@ from pathlib import Path
 import yaml
 
 from .create_map_package import NAV_OPTIONAL, build_package
+from .edit_session import assert_navigation_maps_compatible
 from .map_package import PackageInfo, validate_package
 
 
@@ -118,6 +119,15 @@ def promote(
     edited_map_yaml = edited_map_yaml.expanduser().resolve()
     if not edited_map_yaml.is_file():
         raise FileNotFoundError(edited_map_yaml)
+
+    # This is the non-bypassable geometry boundary.  Even callers that still
+    # use the legacy CLI instead of MapEditSession services cannot publish an
+    # HMI map whose grid size, resolution, origin, yaw or Nav2 interpretation
+    # differs from the immutable base package.
+    assert_navigation_maps_compatible(
+        Path(base.asset_path('navigation_map')),
+        edited_map_yaml,
+    )
 
     with tempfile.TemporaryDirectory(prefix='agt_hmi_navigation_edit_') as tmp:
         navigation = Path(tmp) / 'navigation'
