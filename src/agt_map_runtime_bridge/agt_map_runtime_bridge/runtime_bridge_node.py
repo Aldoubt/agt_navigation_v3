@@ -20,17 +20,23 @@ class MapRuntimeBridgeNode(Node):
         self.current_generation = 0
         self.current_state = 'IDLE'
 
-        # These bindings are intentionally isolated until interfaces are built.
+        # ROS2 interfaces are attached after agt_robot_interfaces is available.
         self.apply_service = None
         self.state_publisher = None
 
         self.get_logger().info('map runtime bridge initialized')
 
-    def publish_runtime_state(self):
-        """Publish MapRuntimeState.
+    def set_state(self, state, generation=None):
+        self.current_state = state
+        if generation is not None:
+            self.current_generation = generation
+        return self.publish_runtime_state()
 
-        The final implementation will publish through
-        agt_robot_interfaces/msg/MapRuntimeState.
+    def publish_runtime_state(self):
+        """Publish runtime state.
+
+        Placeholder return structure mirrors MapRuntimeState.msg until the
+        interface package is wired into this workspace.
         """
         return {
             'generation': self.current_generation,
@@ -43,8 +49,7 @@ class MapRuntimeBridgeNode(Node):
         Flow:
         validate -> consistency check -> backend prepare -> ready.
         """
-        self.current_state = 'VALIDATING'
-        self.current_generation = generation
+        self.set_state('VALIDATING', generation)
 
         return {
             'success': True,
