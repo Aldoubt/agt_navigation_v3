@@ -1,16 +1,20 @@
 agt_map_manager:
   ros__parameters:
-    # All immutable map packages and their active-map pointer live inside the
-    # shared ROS workspace, so mapping, HMI editing and navigation consume one
-    # visible storage root.
+    # Released Map Packages are immutable. HMI edits are staged separately and
+    # can only become visible under map_root after contract validation creates a
+    # new map_id/map_version directory.
     map_root: /home/yangxuan/ros2_ws/agt_data/maps
     active_state_file: /home/yangxuan/ros2_ws/agt_data/maps/active_map.yaml
+    edit_root: /home/yangxuan/ros2_ws/agt_data/map_edits
 
     # Discovery should stay responsive even for very large PCD files.
-    # Full declared hashes are checked at the load boundary.
+    # Full declared hashes are checked at load/start-edit/publish boundaries.
     verify_hashes_on_discovery: false
     verify_hashes_on_load: true
 
     status_topic: /agt/map/status
     list_service: /agt/map/list
     load_service: /agt/map/load
+    start_edit_service: /agt/map/edit/start
+    publish_edit_service: /agt/map/edit/publish
+    cancel_edit_service: /agt/map/edit/cancel
