@@ -1,0 +1,12 @@
+map_runtime_bridge:
+  ros__parameters:
+    status_topic: /agt/map/status
+    runtime_state_topic: /agt/map/runtime/state
+    default_timeout_sec: 10.0
+
+    adapters:
+      nav2_enabled: false
+      localization_enabled: false
+
+    consistency:
+      require_same_generation: true
