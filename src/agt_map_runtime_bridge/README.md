@@ -4,17 +4,36 @@
 
 Runtime integration layer between `agt_map_manager` and navigation/localization backends.
 
+## Architecture boundary
+
+Map Manager owns map assets and versions.
+
+Runtime Bridge owns applying one validated map generation to running components.
+
+```
+Map Manager
+    |
+    | /agt/map/status
+    v
+Runtime Bridge
+    |
+    +--> Nav2 adapter
+    |
+    +--> Localization adapter
+```
+
 ## Current stage
 
 Implemented:
 
-- subscribe to validated map status
-- publish runtime application state
-- keep Map Manager independent from Nav2/localization implementations
+- map runtime state contract
+- map generation tracking
+- runtime state machine skeleton
+- typed ROS2 interface preparation
 
 ## Next steps
 
-1. Add typed ROS2 interfaces instead of String transport.
+1. Implement ROS2 node wrapper.
 2. Add Nav2 lifecycle adapter.
 3. Add Global Localization reload adapter.
-4. Add runtime consistency checks using map generation IDs.
+4. Add runtime consistency tests.
