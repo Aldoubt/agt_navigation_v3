@@ -5,9 +5,15 @@
   <description>Runtime bridge between Map Manager, Nav2 and localization backends.</description>
   <maintainer email="dev@localhost">agt</maintainer>
   <license>Apache-2.0</license>
+
   <buildtool_depend>ament_python</buildtool_depend>
+
   <depend>rclpy</depend>
   <depend>std_msgs</depend>
+  <depend>agt_robot_interfaces</depend>
+
+  <exec_depend>ros2launch</exec_depend>
+
   <export>
     <build_type>ament_python</build_type>
   </export>
