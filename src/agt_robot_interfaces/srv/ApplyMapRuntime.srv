@@ -1,6 +1,7 @@
 string map_id
 string version
+uint64 generation
 ---
 bool success
 string reason
-uint64 generation
+uint64 applied_generation
