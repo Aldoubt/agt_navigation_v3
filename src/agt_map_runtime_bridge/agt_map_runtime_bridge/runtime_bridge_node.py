@@ -1,13 +1,13 @@
 """ROS2 node wrapper for map runtime integration.
 
-This node intentionally does not own Nav2 or localization implementation.
-It exposes the runtime boundary and will later delegate to adapters.
+This node owns the ROS2 communication boundary only.
+Nav2 and localization backends are accessed through adapters.
 """
 
 try:
     import rclpy
     from rclpy.node import Node
-except ImportError:  # allow documentation/static inspection without ROS installed
+except ImportError:
     rclpy = None
     Node = object
 
@@ -18,14 +18,32 @@ class MapRuntimeBridgeNode(Node):
 
         self.declare_parameter('runtime_namespace', '/agt/map/runtime')
         self.current_generation = 0
+        self.current_state = 'IDLE'
 
-        # TODO:
-        # - subscribe agt_robot_interfaces/msg/MapRuntimeState
-        # - provide ApplyMapRuntime service
+        # Runtime integration TODO:
+        # - create ApplyMapRuntime service
+        # - publish agt_robot_interfaces/msg/MapRuntimeState
+        # - connect RuntimeApplyController
         # - connect Nav2 lifecycle adapter
         # - connect localization adapter
 
-        self.get_logger().info('Map runtime bridge initialized')
+        self.get_logger().info('map runtime bridge initialized')
+
+    def publish_runtime_state(self):
+        """Publish runtime state.
+
+        Placeholder until agt_robot_interfaces is wired into this package.
+        """
+        pass
+
+    def apply_runtime(self, request):
+        """Apply a MapPackage runtime request.
+
+        The complete flow will validate package metadata, check generation,
+        then coordinate backend adapters.
+        """
+        self.current_state = 'VALIDATING'
+        return True
 
 
 def main(args=None):
