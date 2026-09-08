@@ -11,6 +11,13 @@ except ImportError:
     rclpy = None
     Node = object
 
+try:
+    from agt_robot_interfaces.msg import MapRuntimeState
+    from agt_robot_interfaces.srv import ApplyMapRuntime
+except ImportError:
+    MapRuntimeState = None
+    ApplyMapRuntime = None
+
 
 class MapRuntimeBridgeNode(Node):
     def __init__(self):
@@ -20,11 +27,27 @@ class MapRuntimeBridgeNode(Node):
         self.current_generation = 0
         self.current_state = 'IDLE'
 
-        # ROS2 interfaces are attached after agt_robot_interfaces is available.
         self.apply_service = None
         self.state_publisher = None
 
+        self._setup_interfaces()
         self.get_logger().info('map runtime bridge initialized')
+
+    def _setup_interfaces(self):
+        """Create ROS2 interfaces when agt_robot_interfaces is available."""
+        if ApplyMapRuntime is not None:
+            self.apply_service = self.create_service(
+                ApplyMapRuntime,
+                '/agt/map/runtime/apply',
+                self.apply_callback,
+            )
+
+        if MapRuntimeState is not None:
+            self.state_publisher = self.create_publisher(
+                MapRuntimeState,
+                '/agt/map/runtime/state',
+                10,
+            )
 
     def set_state(self, state, generation=None):
         self.current_state = state
@@ -33,22 +56,31 @@ class MapRuntimeBridgeNode(Node):
         return self.publish_runtime_state()
 
     def publish_runtime_state(self):
-        """Publish runtime state.
+        if self.state_publisher is None or MapRuntimeState is None:
+            return {
+                'generation': self.current_generation,
+                'state': self.current_state,
+            }
 
-        Placeholder return structure mirrors MapRuntimeState.msg until the
-        interface package is wired into this workspace.
-        """
-        return {
-            'generation': self.current_generation,
-            'state': self.current_state,
-        }
+        msg = MapRuntimeState()
+        msg.generation = self.current_generation
+        msg.state = self.current_state
+        self.state_publisher.publish(msg)
+        return msg
+
+    def apply_callback(self, request, response):
+        result = self.apply_runtime(
+            request.map_id,
+            request.version,
+            request.generation,
+        )
+
+        response.success = result['success']
+        response.reason = result.get('reason', '')
+        response.generation = request.generation
+        return response
 
     def apply_runtime(self, map_id, version, generation):
-        """Apply a MapPackage runtime request.
-
-        Flow:
-        validate -> consistency check -> backend prepare -> ready.
-        """
         self.set_state('VALIDATING', generation)
 
         return {
