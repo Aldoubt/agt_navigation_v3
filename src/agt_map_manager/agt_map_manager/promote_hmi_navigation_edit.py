@@ -98,7 +98,7 @@ def _copy_hmi_navigation(edited_map_yaml: Path, staging_navigation: Path, base: 
         'topology_imported': source_topology.is_file(),
         'note': (
             'HMI edit changes only the navigation occupancy/topology asset. '
-            'The localization PCD and relocalization assets are copied unchanged.'),
+            'The localization PCD, relocalization assets and RTK origin are copied unchanged.'),
     }
     (staging_navigation / 'hmi_edit_metadata.yaml').write_text(
         yaml.safe_dump(edit_metadata, sort_keys=False), encoding='utf-8')
@@ -120,7 +120,7 @@ def promote(
     if not edited_map_yaml.is_file():
         raise FileNotFoundError(edited_map_yaml)
 
-    # This is the non-bypassable geometry boundary.  Even callers that still
+    # This is the non-bypassable geometry boundary. Even callers that still
     # use the legacy CLI instead of MapEditSession services cannot publish an
     # HMI map whose grid size, resolution, origin, yaw or Nav2 interpretation
     # differs from the immutable base package.
@@ -141,6 +141,9 @@ def promote(
             relocalization_assets_dir=(
                 Path(base.asset_path('relocalization_assets'))
                 if base.asset_path('relocalization_assets') else None),
+            rtk_origin=(
+                Path(base.asset_path('rtk_origin'))
+                if base.asset_path('rtk_origin') else None),
         )
 
     info = validate_package(destination / 'metadata.yaml', verify_hashes=True)
