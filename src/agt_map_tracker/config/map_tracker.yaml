@@ -1,0 +1,26 @@
+agt_map_tracker:
+  ros__parameters:
+    scan_topic: /agt/livox/points
+    local_odom_topic: /agt/odometry/local
+    localization_status_topic: /agt/localization/status
+    output_pose_topic: /agt/map_tracking/pose
+    status_topic: /agt/map_tracking/status
+    map_frame: map
+    odom_frame: odom
+    base_frame: base_link
+    global_map: ''
+    tracking_rate_hz: 0.5
+    local_map_radius_xy_m: 20.0
+    local_map_half_height_m: 5.0
+    query_accumulate_clouds: 3
+    query_voxel_leaf_m: 0.25
+    max_points: 150000
+    min_query_points: 1500
+    min_local_map_points: 1000
+    max_fitness: 0.50
+    min_overlap: 0.40
+    max_translation_innovation_m: 0.50
+    max_yaw_innovation_deg: 5.0
+    odom_match_max_skew_sec: 0.10
+    tf_timeout_sec: 0.10
+    native_timeout_sec: 8.0

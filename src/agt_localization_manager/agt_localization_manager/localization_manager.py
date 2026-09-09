@@ -66,6 +66,40 @@ def _compose(a: _Pose3, b: _Pose3) -> _Pose3:
     return _Pose3(p, q)
 
 
+def _slerp(a: _Pose3, b: _Pose3, alpha: float) -> _Pose3:
+    """Interpolate SE(3) conservatively for the map->odom correction."""
+    alpha = max(0.0, min(1.0, float(alpha)))
+    qa = _q_normalize(a.q)
+    qb = _q_normalize(b.q)
+    dot = sum(x * y for x, y in zip(qa, qb))
+    if dot < 0.0:
+        qb = tuple(-x for x in qb)
+        dot = -dot
+    if dot > 0.9995:
+        q = _q_normalize(tuple(x + alpha * (y - x) for x, y in zip(qa, qb)))
+    else:
+        theta = math.acos(max(-1.0, min(1.0, dot)))
+        sin_theta = math.sin(theta)
+        wa = math.sin((1.0 - alpha) * theta) / sin_theta
+        wb = math.sin(alpha * theta) / sin_theta
+        q = _q_normalize(tuple(wa * x + wb * y for x, y in zip(qa, qb)))
+    p = tuple(x + alpha * (y - x) for x, y in zip(a.p, b.p))
+    return _Pose3(p, q)
+
+
+def _translation_delta(a: _Pose3, b: _Pose3) -> float:
+    return math.sqrt(sum((x - y) ** 2 for x, y in zip(a.p, b.p)))
+
+
+def _yaw(q) -> float:
+    x, y, z, w = _q_normalize(q)
+    return math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
+
+
+def _angle_wrap(angle: float) -> float:
+    return (angle + math.pi) % (2.0 * math.pi) - math.pi
+
+
 def _stamp_ns(stamp) -> int:
     return int(stamp.sec) * 1_000_000_000 + int(stamp.nanosec)
 
@@ -97,6 +131,8 @@ class LocalizationManager(Node):
         super().__init__('agt_localization_manager')
         self.declare_parameter('local_odom_topic', '/agt/odometry/local')
         self.declare_parameter('global_pose_topic', '/agt/relocalization/pose')
+        self.declare_parameter('tracking_pose_topic', '/agt/map_tracking/pose')
+        self.declare_parameter('tracking_status_topic', '/agt/map_tracking/status')
         self.declare_parameter('status_topic', '/agt/localization/status')
         self.declare_parameter('relocalization_request_topic', '/agt/relocalization/request')
         self.declare_parameter('relocalization_service', '/agt/localization/relocalize')
@@ -114,12 +150,26 @@ class LocalizationManager(Node):
         self.declare_parameter('map_id', '')
         self.declare_parameter('map_version', '')
         self.declare_parameter('debug_identity_map_odom', False)
+        self.declare_parameter('correction_smoothing_enabled', True)
+        self.declare_parameter('correction_tau_sec', 3.0)
+        self.declare_parameter('max_correction_linear_rate_mps', 0.10)
+        self.declare_parameter('max_correction_yaw_rate_degps', 2.0)
+        self.declare_parameter('max_tracking_translation_innovation_m', 0.50)
+        self.declare_parameter('max_tracking_yaw_innovation_deg', 5.0)
+        self.declare_parameter('tracking_consecutive_accepts', 2)
+        self.declare_parameter('tracking_consistency_translation_m', 0.20)
+        self.declare_parameter('tracking_consistency_yaw_deg', 2.0)
         self.declare_parameter('debug_status_topic', '/agt/relocalization/status')
         self.declare_parameter('global_status_topic', '/agt/global_relocalization/status')
+        self.declare_parameter('map_events_topic', '/agt/map/events')
 
         self._odom: Deque[Odometry] = deque()
         self._last_odom_rx_ns = 0
-        self._correction: Optional[_Pose3] = None
+        self._correction_current: Optional[_Pose3] = None
+        self._correction_target: Optional[_Pose3] = None
+        self._last_tracking_measurement: Optional[_Pose3] = None
+        self._tracking_consistent_count = 0
+        self._last_tick_ns = self.get_clock().now().nanoseconds
         self._last_global_std = (math.inf, math.inf)
         self._state = LocalizationStatus.STATE_BOOT
         self._reason = 'boot'
@@ -139,9 +189,17 @@ class LocalizationManager(Node):
             self._on_global_pose,
             10,
         )
+        self.create_subscription(
+            PoseWithCovarianceStamped,
+            self.get_parameter('tracking_pose_topic').value,
+            self._on_tracking_pose,
+            10,
+        )
         self._backend_debug_state = None
         self.create_subscription(String, self.get_parameter('global_status_topic').value,
                                  self._on_backend_status, 20)
+        self.create_subscription(String, self.get_parameter('map_events_topic').value,
+                                 self._on_map_event, 10)
         self.create_service(
             Trigger,
             self.get_parameter('relocalization_service').value,
@@ -224,17 +282,75 @@ class LocalizationManager(Node):
         try:
             map_base = _global_pose(msg)
             odom_base = _odom_pose(local)
-            self._correction = _compose(map_base, _inverse(odom_base))
+            correction = _compose(map_base, _inverse(odom_base))
         except ValueError as exc:
             self._reason = f'invalid_pose:{exc}'
             self.get_logger().error(self._reason)
             return
 
+        # A global result is a hard anchor.  It is intentionally distinct from
+        # the low-rate tracker, which only changes the target correction.
+        self._correction_current = correction
+        self._correction_target = correction
         self._state = LocalizationStatus.STATE_LOCALIZED
         self._reason = 'global_pose_accepted'
         self.get_logger().info(
             f'Global correction accepted: position_std={pos_std:.3f}m, '
             f'yaw_std={yaw_std:.2f}deg')
+
+    def _on_tracking_pose(self, msg: PoseWithCovarianceStamped) -> None:
+        """Accept a local-map measurement without taking ownership of TF."""
+        if self._correction_current is None:
+            self._reason = 'tracking_ignored_without_global_anchor'
+            return
+        ok, pos_std, yaw_std, reason = self._validate_global(msg)
+        if not ok:
+            self._reason = f'tracking_rejected:{reason}'
+            return
+        local = self._nearest_odom(_stamp_ns(msg.header.stamp))
+        if local is None:
+            self._reason = 'tracking_rejected:no_time_aligned_local_odom'
+            return
+        try:
+            measurement = _compose(_global_pose(msg), _inverse(_odom_pose(local)))
+            predicted_base = _compose(self._correction_current, _odom_pose(local))
+            measured_base = _global_pose(msg)
+            translation = _translation_delta(predicted_base, measured_base)
+            yaw_delta = abs(_angle_wrap(_yaw(measured_base.q) - _yaw(predicted_base.q)))
+        except ValueError as exc:
+            self._reason = f'tracking_rejected:invalid_pose:{exc}'
+            return
+
+        max_translation = float(self.get_parameter('max_tracking_translation_innovation_m').value)
+        max_yaw = math.radians(float(self.get_parameter('max_tracking_yaw_innovation_deg').value))
+        if translation > max_translation or yaw_delta > max_yaw:
+            self._tracking_consistent_count = 0
+            self._last_tracking_measurement = None
+            self._reason = 'tracking_suspect:innovation_gate'
+            self.get_logger().warn(
+                f'Rejected map tracking innovation: translation={translation:.3f}m '
+                f'yaw={math.degrees(yaw_delta):.2f}deg', throttle_duration_sec=2.0)
+            return
+
+        if self._last_tracking_measurement is not None:
+            d = _translation_delta(measurement, self._last_tracking_measurement)
+            dy = abs(_angle_wrap(_yaw(measurement.q) - _yaw(self._last_tracking_measurement.q)))
+            if (d <= float(self.get_parameter('tracking_consistency_translation_m').value)
+                    and dy <= math.radians(float(self.get_parameter('tracking_consistency_yaw_deg').value))):
+                self._tracking_consistent_count += 1
+            else:
+                self._tracking_consistent_count = 1
+        else:
+            self._tracking_consistent_count = 1
+        self._last_tracking_measurement = measurement
+
+        needed = max(1, int(self.get_parameter('tracking_consecutive_accepts').value))
+        if self._tracking_consistent_count < needed:
+            self._reason = 'tracking_waiting_consistency'
+            return
+        self._correction_target = measurement
+        self._reason = 'map_tracking_target_updated'
+        self._state = LocalizationStatus.STATE_LOCALIZED
 
     def _on_backend_status(self, msg: String) -> None:
         try:
@@ -244,9 +360,27 @@ class LocalizationManager(Node):
         if state in {'QUERY_READY', 'BBS_SEARCHING', 'BBS_COARSE_FOUND', 'GICP_REFINING', 'REJECTED'}:
             self._backend_debug_state = state
 
+    def _on_map_event(self, msg: String) -> None:
+        try:
+            event = json.loads(msg.data)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return
+        if event.get('type') != 'MAP_ACTIVATED':
+            return
+        event_id = str(event.get('map_id', '')).strip()
+        event_version = str(event.get('map_version', event.get('version', ''))).strip()
+        configured = (str(self.get_parameter('map_id').value).strip(),
+                      str(self.get_parameter('map_version').value).strip())
+        if event_id and event_version and configured != (event_id, event_version):
+            self._correction_current = None
+            self._correction_target = None
+            self._state = LocalizationStatus.STATE_RELOCALIZING
+            self._reason = f'active_map_changed:{event_id}/{event_version}'
+            self.get_logger().warn(
+                f'Active map changed to {event_id}/{event_version}; waiting for relocalization.')
+
     def _on_relocalize(self, request, response):
         del request
-        self._correction = None
         self._state = LocalizationStatus.STATE_RELOCALIZING
         self._reason = 'relocalization_requested'
         self._request_pub.publish(Empty())
@@ -268,7 +402,7 @@ class LocalizationManager(Node):
             self._state = LocalizationStatus.STATE_WAIT_LOCAL_ODOM
             self._reason = 'waiting_local_odom'
             return
-        if self._correction is None:
+        if self._correction_current is None:
             if self._state != LocalizationStatus.STATE_RELOCALIZING:
                 self._state = LocalizationStatus.STATE_WAIT_GLOBAL
                 self._reason = 'waiting_global_pose'
@@ -285,9 +419,9 @@ class LocalizationManager(Node):
                 self._reason = 'tracking'
 
     def _publish_tf(self) -> None:
-        if self._correction is None and not bool(self.get_parameter('debug_identity_map_odom').value):
+        if self._correction_current is None and not bool(self.get_parameter('debug_identity_map_odom').value):
             return
-        if self._correction is None:
+        if self._correction_current is None:
             # Visualization-only fallback. It never changes the localization
             # state and is intentionally disabled in the formal configuration.
             p, q = (0.0, 0.0, 0.0), (0.0, 0.0, 0.0, 1.0)
@@ -304,9 +438,9 @@ class LocalizationManager(Node):
         t.header.stamp = self.get_clock().now().to_msg()
         t.header.frame_id = self.get_parameter('map_frame').value
         t.child_frame_id = self.get_parameter('odom_frame').value
-        if self._correction is not None:
-            p = self._correction.p
-            q = self._correction.q
+        if self._correction_current is not None:
+            p = self._correction_current.p
+            q = self._correction_current.q
         t.transform.translation.x = p[0]
         t.transform.translation.y = p[1]
         t.transform.translation.z = p[2]
@@ -317,6 +451,25 @@ class LocalizationManager(Node):
         self._tf.sendTransform(t)
 
     def _tick(self) -> None:
+        now_ns = self.get_clock().now().nanoseconds
+        dt = max(0.0, min(1.0, (now_ns - self._last_tick_ns) / 1e9))
+        self._last_tick_ns = now_ns
+        if self._correction_current is not None and self._correction_target is not None:
+            if bool(self.get_parameter('correction_smoothing_enabled').value):
+                tau = max(1.0e-3, float(self.get_parameter('correction_tau_sec').value))
+                alpha = 1.0 - math.exp(-dt / tau)
+                max_step = float(self.get_parameter('max_correction_linear_rate_mps').value) * dt
+                distance = _translation_delta(self._correction_current, self._correction_target)
+                if distance > 1.0e-9:
+                    alpha = min(alpha, max_step / distance)
+                yaw_distance = abs(_angle_wrap(_yaw(self._correction_target.q) - _yaw(self._correction_current.q)))
+                max_yaw_step = math.radians(float(
+                    self.get_parameter('max_correction_yaw_rate_degps').value)) * dt
+                if yaw_distance > 1.0e-9:
+                    alpha = min(alpha, max_yaw_step / yaw_distance)
+                self._correction_current = _slerp(self._correction_current, self._correction_target, alpha)
+            else:
+                self._correction_current = self._correction_target
         self._update_state()
         self._publish_tf()
 
@@ -328,11 +481,11 @@ class LocalizationManager(Node):
         out.state = self._state
         out.local_odom_fresh = math.isfinite(age) and age <= float(
             self.get_parameter('local_odom_timeout_sec').value)
-        out.global_correction_valid = self._correction is not None
+        out.global_correction_valid = self._correction_current is not None
         out.local_odom_age_sec = float(age if math.isfinite(age) else 1.0e9)
         # A global correction is an anchor, not a periodic sensor reading. Its
         # usefulness does not expire merely because a new global pose is absent.
-        out.global_correction_age_sec = 0.0 if self._correction is not None else 1.0e9
+        out.global_correction_age_sec = 0.0 if self._correction_current is not None else 1.0e9
         out.global_position_std_m = float(
             self._last_global_std[0] if math.isfinite(self._last_global_std[0]) else 1.0e9)
         out.global_yaw_std_deg = float(
@@ -346,7 +499,7 @@ class LocalizationManager(Node):
         self._debug_status_pub.publish(debug)
 
     def _debug_state(self) -> str:
-        if self._correction is not None:
+        if self._correction_current is not None:
             return 'LOCALIZED'
         if self._backend_debug_state:
             return self._backend_debug_state

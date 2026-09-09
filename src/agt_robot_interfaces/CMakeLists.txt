@@ -19,6 +19,11 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/StartMapEdit.srv"
   "srv/PublishMapEdit.srv"
   "srv/CancelMapEdit.srv"
+  "srv/ValidateMap.srv"
+  "srv/ActivateMap.srv"
+  "srv/DiscardMap.srv"
+  "srv/CaptureCamera.srv"
+  "action/GenerateMapPackage.action"
   "action/ExecuteInspectionMission.action"
   DEPENDENCIES builtin_interfaces geometry_msgs
 )

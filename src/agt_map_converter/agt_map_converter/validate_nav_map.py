@@ -6,6 +6,10 @@ import sys
 import yaml
 
 
+UNKNOWN_PGM_VALUE = 205
+UNKNOWN_OCCUPANCY_PROBABILITY = 50.0 / 255.0
+
+
 def read_pgm_header(path: Path):
     with path.open('rb') as f:
         magic = f.readline().strip()
@@ -77,6 +81,12 @@ def validate(directory: Path) -> list[str]:
         print(
             f'map cells={total} free={free} ({free/total:.1%}) '
             f'occupied={occupied} ({occupied/total:.1%}) unknown={unknown} ({unknown/total:.1%})')
+        if (
+            UNKNOWN_PGM_VALUE in map_payload
+            and int(nav.get('negate', 0)) == 0
+            and float(nav.get('free_thresh', 0.25)) > UNKNOWN_OCCUPANCY_PROBABILITY
+        ):
+            errors.append('map.yaml free_thresh makes PGM value 205 free instead of unknown')
 
     metadata = directory / 'converter_metadata.yaml'
     if metadata.exists():

@@ -11,6 +11,7 @@ setup(
         ('share/' + package_name + '/config', [
             'config/map_manager.yaml',
             'config/metadata.example.yaml',
+            'config/map_pipeline.example.yaml',
         ]),
         ('share/' + package_name + '/launch', ['launch/map_manager.launch.py']),
     ],
@@ -26,5 +27,7 @@ setup(
         'promote_hmi_navigation_edit = agt_map_manager.promote_hmi_navigation_edit:main',
         'select_map_package = agt_map_manager.select_map_package:main',
         'list_map_packages = agt_map_manager.select_map_package:main_list',
+        'generate_map_package = agt_map_manager.map_pipeline:main',
+        'validate_active_map = agt_map_manager.runtime_binding:main',
     ]},
 )

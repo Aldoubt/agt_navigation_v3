@@ -1,3 +1,4 @@
+import json
 import rclpy
 from rclpy.node import Node
 from std_srvs.srv import Trigger
@@ -28,6 +29,10 @@ class MappingSession(Node):
         self.state = 'IDLE'
         self.session_id = None
         self.last_result = 'none'
+        self.declare_parameter('map_event_topic', '/agt/map/events')
+        self.declare_parameter('map_id', '')
+        self.declare_parameter('map_version', '')
+        self.declare_parameter('map_path', '')
 
         self.status_pub = self.create_publisher(
             String,
@@ -38,6 +43,8 @@ class MappingSession(Node):
             String,
             '/agt/mapping/result',
             10)
+        self.map_event_pub = self.create_publisher(
+            String, self.get_parameter('map_event_topic').value, 10)
 
         self.create_service(
             Trigger,
@@ -111,6 +118,16 @@ class MappingSession(Node):
         # Save backend / converter pipeline will be connected later.
         self.last_result = 'save_requested'
         self.publish_result('save_requested')
+        map_path = str(self.get_parameter('map_path').value).strip()
+        map_id = str(self.get_parameter('map_id').value).strip()
+        map_version = str(self.get_parameter('map_version').value).strip()
+        if map_path and map_id and map_version:
+            event = String()
+            event.data = json.dumps({
+                'type': 'MAP_GENERATED', 'map_id': map_id,
+                'map_version': map_version, 'path': map_path,
+            }, sort_keys=True)
+            self.map_event_pub.publish(event)
 
         response.success = True
         response.message = 'save pipeline requested'

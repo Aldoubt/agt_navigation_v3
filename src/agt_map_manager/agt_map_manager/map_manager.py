@@ -2,14 +2,18 @@ from __future__ import annotations
 
 import os
 import tempfile
+import json
+import shutil
 from pathlib import Path
 from typing import Dict, List, Optional
 
 import rclpy
 import yaml
+from rclpy.action import ActionServer
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 
+from agt_robot_interfaces.action import GenerateMapPackage
 from agt_robot_interfaces.msg import MapEditSession, MapPackage, MapStatus
 from agt_robot_interfaces.srv import (
     CancelMapEdit,
@@ -17,7 +21,11 @@ from agt_robot_interfaces.srv import (
     LoadMapPackage,
     PublishMapEdit,
     StartMapEdit,
+    ValidateMap,
+    ActivateMap,
+    DiscardMap,
 )
+from std_msgs.msg import String
 
 from .edit_session import (
     EditSessionInfo,
@@ -27,7 +35,12 @@ from .edit_session import (
     validate_edit_session_for_publish,
 )
 from .map_package import PackageInfo, discover_packages, validate_package
+from .create_map_package import build_package
+from .map_pipeline import generate_map_package
 from .promote_hmi_navigation_edit import promote
+from .map_events import MAP_ACTIVATED, MAP_GENERATED, MAP_VALIDATED, decode_event, encode_event
+from .map_registry import MapRegistry, MapState
+from .map_validator import validate_map_package, write_validation_report
 
 
 class MapManager(Node):
@@ -58,6 +71,12 @@ class MapManager(Node):
         self.declare_parameter('start_edit_service', '/agt/map/edit/start')
         self.declare_parameter('publish_edit_service', '/agt/map/edit/publish')
         self.declare_parameter('cancel_edit_service', '/agt/map/edit/cancel')
+        self.declare_parameter('generate_action', '/agt/map/generate')
+        self.declare_parameter('registry_file', '/home/yangxuan/ros2_ws/agt_data/maps/map_registry.yaml')
+        self.declare_parameter('events_topic', '/agt/map/events')
+        self.declare_parameter('validate_service', '/agt/map/validate')
+        self.declare_parameter('activate_service', '/agt/map/activate')
+        self.declare_parameter('discard_service', '/agt/map/discard')
 
         self._root = Path(str(self.get_parameter('map_root').value)).expanduser().resolve()
         self._state_file = Path(
@@ -67,12 +86,17 @@ class MapManager(Node):
         self._root.mkdir(parents=True, exist_ok=True)
         self._state_file.parent.mkdir(parents=True, exist_ok=True)
         self._edit_root.mkdir(parents=True, exist_ok=True)
+        self._registry = MapRegistry(Path(str(self.get_parameter('registry_file').value)))
 
         qos = QoSProfile(depth=1)
         qos.reliability = ReliabilityPolicy.RELIABLE
         qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
         self._status_pub = self.create_publisher(
             MapStatus, self.get_parameter('status_topic').value, qos)
+        self._events_pub = self.create_publisher(
+            String, self.get_parameter('events_topic').value, 10)
+        self.create_subscription(
+            String, self.get_parameter('events_topic').value, self._on_map_event, 10)
 
         self._packages: List[PackageInfo] = []
         self._active: Optional[PackageInfo] = None
@@ -104,9 +128,19 @@ class MapManager(Node):
             self.get_parameter('cancel_edit_service').value,
             self._on_cancel_edit,
         )
+        self.create_service(ValidateMap, self.get_parameter('validate_service').value, self._on_validate)
+        self.create_service(ActivateMap, self.get_parameter('activate_service').value, self._on_activate)
+        self.create_service(DiscardMap, self.get_parameter('discard_service').value, self._on_discard)
+        self._generate_action = ActionServer(
+            self,
+            GenerateMapPackage,
+            self.get_parameter('generate_action').value,
+            execute_callback=self._on_generate,
+        )
 
         self._refresh()
         self._restore_active_state()
+        self._sync_registry()
         self._publish_status()
         self.get_logger().info(
             f'Map Manager root={self._root}; edit_root={self._edit_root}; '
@@ -116,8 +150,16 @@ class MapManager(Node):
         verify = bool(self.get_parameter('verify_hashes_on_discovery').value)
         self._packages = list(discover_packages(self._root, verify_hashes=verify))
 
-    @staticmethod
-    def _to_package_msg(info: PackageInfo) -> MapPackage:
+    def _sync_registry(self) -> None:
+        active = None
+        if self._active is not None:
+            active = self._active.key
+        self._registry.sync(self._packages, active=active)
+
+    def _record(self, info: PackageInfo):
+        return self._registry.get(info.map_id, info.map_version)
+
+    def _to_package_msg(self, info: PackageInfo) -> MapPackage:
         out = MapPackage()
         out.map_id = info.map_id
         out.map_version = info.map_version
@@ -128,6 +170,12 @@ class MapManager(Node):
         out.localization_map_pcd = info.asset_path('localization_map')
         out.relocalization_assets_path = info.asset_path('relocalization_assets')
         out.rtk_origin_yaml = info.asset_path('rtk_origin')
+        record = self._record(info)
+        if record is not None:
+            out.status = record.status
+            out.active = record.status == MapState.ACTIVE
+            out.created_time = record.created_time
+            out.package_hash = record.package_hash
         return out
 
     def _to_edit_session_msg(self, info: EditSessionInfo) -> MapEditSession:
@@ -161,6 +209,115 @@ class MapManager(Node):
             out.rtk_origin_yaml = self._active.asset_path('rtk_origin')
         return out
 
+    def _publish_event(self, event_type: str, **fields) -> None:
+        msg = String()
+        msg.data = encode_event(event_type, **fields)
+        self._events_pub.publish(msg)
+
+    def _find_info_or_raise(self, map_id: str, map_version: str) -> PackageInfo:
+        self._refresh()
+        self._sync_registry()
+        info = self._find_exact(str(map_id).strip(), str(map_version).strip())
+        if info is None:
+            raise ValueError('exact_map_id_and_version_not_uniquely_found')
+        return info
+
+    def _validate_info(self, info: PackageInfo) -> dict:
+        record = self._record(info)
+        if record is not None and record.status in (MapState.CANDIDATE, MapState.FAILED):
+            self._registry.transition(info.map_id, info.map_version, MapState.VALIDATING)
+        report = validate_map_package(info.metadata_path)
+        write_validation_report(info.metadata_path, report)
+        current = self._registry.get(info.map_id, info.map_version)
+        if current is not None:
+            target = MapState.VALIDATED if report['result'] == 'PASS' else MapState.FAILED
+            if current.status != target:
+                self._registry.transition(info.map_id, info.map_version, target, report.get('reason', ''))
+        return report
+
+    def _on_validate(self, request, response):
+        try:
+            info = self._find_info_or_raise(request.map_id, request.map_version)
+            report = self._validate_info(info)
+            response.success = report['result'] == 'PASS'
+            response.message = report.get('reason', '') or report['result']
+            response.report = json.dumps(report, sort_keys=True)
+            self._publish_event(MAP_VALIDATED, map_id=info.map_id,
+                                map_version=info.map_version, result=report['result'])
+        except (OSError, ValueError, TypeError) as exc:
+            response.success = False
+            response.message = str(exc)
+            response.report = json.dumps({'result': 'FAIL', 'reason': str(exc)})
+        return response
+
+    def _on_activate(self, request, response):
+        try:
+            info = self._find_info_or_raise(request.map_id, request.map_version)
+            report = self._validate_info(info)
+            if report['result'] != 'PASS':
+                raise ValueError('map_validation_failed')
+            status = self._activate_candidate(info, 'validated_and_activated')
+            self._registry.set_active(info.map_id, info.map_version)
+            response.success = True
+            response.message = 'validated map activated; runtime consumers must apply the new generation'
+            response.status = status
+            self._publish_event(MAP_ACTIVATED, map_id=info.map_id, version=info.map_version,
+                                map_version=info.map_version, generation=status.generation)
+        except (OSError, ValueError, TypeError) as exc:
+            response.success = False
+            response.message = str(exc)
+            response.status = self._status_msg()
+        return response
+
+    def _on_discard(self, request, response):
+        try:
+            info = self._find_info_or_raise(request.map_id, request.map_version)
+            record = self._registry.get(info.map_id, info.map_version)
+            if record is None or record.status not in (MapState.CANDIDATE, MapState.FAILED):
+                raise ValueError('only_candidate_or_failed_maps_can_be_discarded')
+            if self._active is not None and info.key == self._active.key:
+                raise ValueError('active_map_cannot_be_discarded')
+            info.package_path.relative_to(self._root)
+            shutil.rmtree(info.package_path)
+            self._registry.records.pop(info.key, None)
+            self._registry.save()
+            self._refresh()
+            response.success = True
+            response.message = 'map package discarded'
+        except (OSError, ValueError) as exc:
+            response.success = False
+            response.message = str(exc)
+        return response
+
+    def _on_map_event(self, msg: String) -> None:
+        try:
+            event = decode_event(msg.data)
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            self.get_logger().warning(f'Ignoring invalid map event: {exc}')
+            return
+        if event.get('type') != MAP_GENERATED:
+            return
+        try:
+            map_id = str(event.get('map_id', '')).strip()
+            version = str(event.get('map_version', event.get('version', ''))).strip()
+            source = Path(str(event.get('source_pcd', ''))).expanduser()
+            root = Path(str(event.get('path', event.get('package_path', '')))).expanduser()
+            if source.is_file():
+                package = build_package(
+                    self._root, map_id, version, source,
+                    Path(str(event['navigation_dir'])),
+                    relocalization_assets_dir=Path(str(event['relocalization_assets_dir']))
+                    if event.get('relocalization_assets_dir') else None)
+            else:
+                metadata = root / 'metadata.yaml' if root.is_dir() else root
+                package = validate_package(metadata, verify_hashes=False)
+                if not package.valid:
+                    raise ValueError(f'generated_package_invalid:{package.reason}')
+            self._refresh(); self._sync_registry()
+            self.get_logger().info(f'Map generated candidate: {map_id}/{version}')
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            self.get_logger().error(f'MAP_GENERATED processing failed: {exc}')
+
     def _publish_status(self) -> MapStatus:
         msg = self._status_msg()
         self._status_pub.publish(msg)
@@ -169,6 +326,7 @@ class MapManager(Node):
     def _on_list(self, request, response):
         del request
         self._refresh()
+        self._sync_registry()
         response.packages = [self._to_package_msg(info) for info in self._packages]
         return response
 
@@ -197,10 +355,19 @@ class MapManager(Node):
             'relocalization_assets_path': candidate.asset_path('relocalization_assets'),
             'rtk_origin_yaml': candidate.asset_path('rtk_origin'),
         }
-        self._atomic_write_yaml(self._state_file, state)
+        backup = self._state_file.with_name(self._state_file.name + '.bak')
+        try:
+            if self._state_file.is_file():
+                shutil.copy2(self._state_file, backup)
+            self._atomic_write_yaml(self._state_file, state)
+        except Exception:
+            if backup.is_file():
+                os.replace(backup, self._state_file)
+            raise
         self._active = candidate
         self._generation = next_generation
         self._reason = reason
+        self._registry.set_active(candidate.map_id, candidate.map_version)
         status = self._publish_status()
         self.get_logger().info(
             f'Active map selected: {candidate.map_id}/{candidate.map_version} '
@@ -232,6 +399,9 @@ class MapManager(Node):
             return response
         try:
             candidate = self._fully_validate_exact(map_id, map_version)
+            report = self._validate_info(candidate)
+            if report['result'] != 'PASS':
+                raise ValueError('map_validation_failed')
             status = self._activate_candidate(candidate, 'selected_and_validated')
         except (OSError, ValueError) as exc:
             response.success = False
@@ -318,6 +488,7 @@ class MapManager(Node):
                 f'published_as:{published.map_id}/{published.map_version}',
             )
             self._refresh()
+            self._sync_registry()
         except (OSError, ValueError, RuntimeError) as exc:
             response.success = False
             response.message = str(exc)
@@ -327,6 +498,9 @@ class MapManager(Node):
         response.package = self._to_package_msg(published)
         if bool(request.activate):
             try:
+                report = self._validate_info(published)
+                if report['result'] != 'PASS':
+                    raise ValueError('map_validation_failed')
                 status = self._activate_candidate(
                     published, 'published_edit_selected_and_validated')
             except (OSError, ValueError) as exc:
@@ -371,6 +545,58 @@ class MapManager(Node):
         response.message = 'edit session cancelled; staging files retained for audit'
         response.session = self._to_edit_session_msg(cancelled)
         return response
+
+    @staticmethod
+    def _optional_path(value: str) -> Optional[Path]:
+        value = str(value).strip()
+        return Path(value) if value else None
+
+    def _on_generate(self, goal_handle):
+        request = goal_handle.request
+        result = GenerateMapPackage.Result()
+        feedback = GenerateMapPackage.Feedback()
+        feedback.phase = 'generate_navigation_assets'
+        goal_handle.publish_feedback(feedback)
+        if goal_handle.is_cancel_requested:
+            goal_handle.canceled()
+            result.success = False
+            result.message = 'map generation cancelled before publication'
+            return result
+        try:
+            destination = generate_map_package(
+                map_root=self._root,
+                map_id=str(request.map_id),
+                map_version=str(request.map_version),
+                source_pcd=Path(str(request.source_pcd)),
+                pipeline_config=Path(str(request.pipeline_config)),
+                relocalization_assets_dir=self._optional_path(request.relocalization_assets_dir),
+                trajectory_poses=self._optional_path(request.trajectory_poses),
+                rtk_origin=self._optional_path(request.rtk_origin),
+                preview=self._optional_path(request.preview),
+            )
+            feedback.phase = 'validate_published_package'
+            goal_handle.publish_feedback(feedback)
+            package = validate_package(destination / 'metadata.yaml', verify_hashes=True)
+            if not package.valid:
+                raise RuntimeError(f'published_map_failed_validation:{package.reason}')
+        except (OSError, RuntimeError, ValueError) as exc:
+            goal_handle.abort()
+            result.success = False
+            result.message = str(exc)
+            return result
+
+        goal_handle.succeed()
+        result.success = True
+        result.message = 'generated and published immutable Map Package; awaiting validation/activation'
+        self._refresh()
+        self._sync_registry()
+        result.package = self._to_package_msg(package)
+        self._publish_event(MAP_GENERATED, map_id=package.map_id,
+                            map_version=package.map_version,
+                            package_path=str(package.package_path))
+        self.get_logger().info(
+            f'Generated map package {package.map_id}/{package.map_version} via action')
+        return result
 
     @staticmethod
     def _atomic_write_yaml(path: Path, data: Dict) -> None:

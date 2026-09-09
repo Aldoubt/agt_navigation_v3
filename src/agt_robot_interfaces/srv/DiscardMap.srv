@@ -1,0 +1,5 @@
+string map_id
+string map_version
+---
+bool success
+string message

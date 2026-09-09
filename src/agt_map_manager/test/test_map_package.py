@@ -13,6 +13,7 @@ def _write_package(root: Path, map_id='site_a', version='v1', nav_path=None):
     pcd = package / 'localization' / 'global_map.pcd'
     nav = package / 'navigation' / 'map.yaml'
     pcd.write_bytes(b'pcd-test')
+    (package / 'navigation' / 'map.pgm').write_bytes(b'P5\n1 1\n255\n\xfe')
     nav.write_text('image: map.pgm\nresolution: 0.05\norigin: [0,0,0]\n', encoding='utf-8')
     data = {
         'schema_version': 1,
@@ -35,6 +36,8 @@ def _add_relocalization_assets(package: Path, metadata: Path):
     vox.mkdir(parents=True)
     (rel / 'relocalization_assets.yaml').write_text('schema_version: 1\n', encoding='utf-8')
     (rel / 'global_map_downsampled.pcd').write_bytes(b'downsampled-pcd')
+    (rel / 'polar_context.db').write_bytes(b'polar-context-db')
+    (rel / 'polar_context.yaml').write_text('schema_version: 1\n', encoding='utf-8')
     (vox / 'voxel_params.txt').write_text('min_level_res 0.25\nmax_level 1\nv_rate 2\n', encoding='utf-8')
     (vox / '0.pcd').write_bytes(b'voxel-level-0')
     (vox / '1.pcd').write_bytes(b'voxel-level-1')
@@ -83,6 +86,18 @@ def test_relocalization_assets_require_voxel_files(tmp_path):
     info = validate_package(metadata, verify_hashes=False)
     assert not info.valid
     assert info.reason == 'relocalization_assets_missing:voxelmaps_coords/*.pcd'
+
+
+def test_relocalization_assets_require_candidate_database(tmp_path):
+    package, metadata, _, _ = _write_package(tmp_path)
+    rel = _add_relocalization_assets(package, metadata)
+    (rel / 'polar_context.db').unlink()
+    data = yaml.safe_load(metadata.read_text(encoding='utf-8'))
+    data['assets']['relocalization_assets'].pop('sha256', None)
+    metadata.write_text(yaml.safe_dump(data, sort_keys=False), encoding='utf-8')
+    info = validate_package(metadata, verify_hashes=False)
+    assert not info.valid
+    assert info.reason == 'relocalization_assets_missing:polar_context.db'
 
 
 def test_invalid_schema_is_rejected_not_raised(tmp_path):

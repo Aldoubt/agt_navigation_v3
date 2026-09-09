@@ -19,6 +19,8 @@ KNOWN_ASSETS = (
     'roughness',
     'obstacle',
     'preview',
+    'generation_pipeline',
+    'quality_report',
 )
 DIRECTORY_ASSETS = {'relocalization_assets'}
 
@@ -101,6 +103,8 @@ def _validate_relocalization_assets(path: Path) -> str:
     required_files = (
         path / 'relocalization_assets.yaml',
         path / 'global_map_downsampled.pcd',
+        path / 'polar_context.db',
+        path / 'polar_context.yaml',
         path / 'voxelmaps_coords' / 'voxel_params.txt',
     )
     for required in required_files:
@@ -109,6 +113,85 @@ def _validate_relocalization_assets(path: Path) -> str:
     voxel_pcds = sorted((path / 'voxelmaps_coords').glob('*.pcd'))
     if not voxel_pcds:
         return 'relocalization_assets_missing:voxelmaps_coords/*.pcd'
+    return ''
+
+
+def _validate_navigation_map(path: Path, package_path: Path) -> str:
+    """Validate the minimum Nav2 runtime contract owned by a Map Package."""
+    try:
+        data = yaml.safe_load(path.read_text(encoding='utf-8')) or {}
+    except (OSError, UnicodeError, yaml.YAMLError) as exc:
+        return f'navigation_map_read_failed:{exc}'
+    if not isinstance(data, dict):
+        return 'navigation_map_must_be_mapping'
+
+    image = data.get('image')
+    if not isinstance(image, str) or not image.strip():
+        return 'navigation_map_missing_image'
+    image_path = (path.parent / image).resolve()
+    if not _inside(package_path, image_path):
+        return 'navigation_map_image_escapes_package_root'
+    if not image_path.is_file():
+        return f'navigation_map_image_missing:{image}'
+
+    try:
+        resolution = float(data.get('resolution', 0.0))
+    except (TypeError, ValueError):
+        return 'navigation_map_invalid_resolution'
+    if resolution <= 0.0:
+        return 'navigation_map_invalid_resolution'
+
+    origin = data.get('origin')
+    if not isinstance(origin, list) or len(origin) != 3:
+        return 'navigation_map_invalid_origin'
+    try:
+        [float(value) for value in origin]
+    except (TypeError, ValueError):
+        return 'navigation_map_invalid_origin'
+
+    try:
+        from agt_map_converter.validate_nav_map import (
+            UNKNOWN_OCCUPANCY_PROBABILITY,
+            UNKNOWN_PGM_VALUE,
+            read_pgm_header,
+        )
+
+        _, _, payload = read_pgm_header(image_path)
+        if (
+            UNKNOWN_PGM_VALUE in payload
+            and int(data.get('negate', 0)) == 0
+            and float(data.get('free_thresh', 0.25)) > UNKNOWN_OCCUPANCY_PROBABILITY
+        ):
+            return 'navigation_map_unknown_cells_interpreted_as_free'
+    except (OSError, ValueError) as exc:
+        return f'navigation_map_pgm_invalid:{exc}'
+    return ''
+
+
+def _validate_provenance_sections(data: Dict, assets: Dict[str, Asset]) -> str:
+    """Keep generated-package provenance explicit without rejecting legacy packages."""
+    generation = data.get('generation')
+    if generation is not None:
+        if not isinstance(generation, dict):
+            return 'generation_must_be_mapping'
+        if generation.get('pipeline_asset') != 'generation_pipeline':
+            return 'generation_pipeline_asset_must_be_generation_pipeline'
+        if 'generation_pipeline' not in assets:
+            return 'generation_pipeline_asset_missing'
+        source_hash = str(generation.get('source_pcd_sha256', '')).strip().lower()
+        if len(source_hash) != 64 or any(ch not in '0123456789abcdef' for ch in source_hash):
+            return 'generation_invalid_source_pcd_sha256'
+
+    quality = data.get('quality')
+    if quality is not None:
+        if not isinstance(quality, dict):
+            return 'quality_must_be_mapping'
+        if quality.get('report_asset') != 'quality_report':
+            return 'quality_report_asset_must_be_quality_report'
+        if 'quality_report' not in assets:
+            return 'quality_report_asset_missing'
+        if quality.get('status') not in ('pass', 'fail'):
+            return 'quality_status_must_be_pass_or_fail'
     return ''
 
 
@@ -218,6 +301,18 @@ def validate_package(metadata_path: Path, verify_hashes: bool = True) -> Package
     if assets['localization_map'].path.suffix.lower() != '.pcd':
         return _invalid(
             metadata_path, package_path, 'localization_map_must_be_pcd',
+            map_id, map_version, frame_id, assets)
+
+    nav_error = _validate_navigation_map(nav_yaml, package_path)
+    if nav_error:
+        return _invalid(
+            metadata_path, package_path, nav_error,
+            map_id, map_version, frame_id, assets)
+
+    provenance_error = _validate_provenance_sections(data, assets)
+    if provenance_error:
+        return _invalid(
+            metadata_path, package_path, provenance_error,
             map_id, map_version, frame_id, assets)
 
     return PackageInfo(

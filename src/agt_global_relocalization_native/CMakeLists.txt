@@ -99,15 +99,23 @@ target_link_libraries(build_relocalization_candidates PRIVATE
 )
 target_compile_definitions(build_relocalization_candidates PRIVATE ${PCL_DEFINITIONS})
 
+add_executable(map_gicp_tracker src/map_gicp_tracker.cpp)
+target_include_directories(map_gicp_tracker PRIVATE ${PCL_INCLUDE_DIRS})
+target_link_libraries(map_gicp_tracker PRIVATE
+  small_gicp::small_gicp ${PCL_LIBRARIES} Eigen3::Eigen)
+target_compile_definitions(map_gicp_tracker PRIVATE ${PCL_DEFINITIONS})
+
 agt_set_native_runtime_path(bbs_gicp_localizer)
 agt_set_native_runtime_path(candidate_bbs_gicp_localizer)
 agt_set_native_runtime_path(build_relocalization_assets)
+agt_set_native_runtime_path(map_gicp_tracker)
 
 install(TARGETS
   bbs_gicp_localizer
   candidate_bbs_gicp_localizer
   build_relocalization_assets
   build_relocalization_candidates
+  map_gicp_tracker
   DESTINATION lib/${PROJECT_NAME}
 )
 

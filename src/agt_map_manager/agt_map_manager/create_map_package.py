@@ -49,6 +49,8 @@ def _validate_relocalization_source(path: Path) -> None:
     required = (
         path / 'relocalization_assets.yaml',
         path / 'global_map_downsampled.pcd',
+        path / 'polar_context.db',
+        path / 'polar_context.yaml',
         path / 'voxelmaps_coords' / 'voxel_params.txt',
     )
     for required_path in required:
@@ -56,6 +58,17 @@ def _validate_relocalization_source(path: Path) -> None:
             raise ValueError(f'relocalization assets missing {required_path.relative_to(path)}')
     if not list((path / 'voxelmaps_coords').glob('*.pcd')):
         raise ValueError('relocalization assets missing voxelmaps_coords/*.pcd')
+
+
+def _quality_status(path: Path) -> str:
+    try:
+        data = yaml.safe_load(path.read_text(encoding='utf-8')) or {}
+    except (OSError, UnicodeError, yaml.YAMLError) as exc:
+        raise ValueError(f'quality_report must be readable YAML: {exc}') from exc
+    status = data.get('status') if isinstance(data, dict) else None
+    if status not in ('pass', 'fail'):
+        raise ValueError('quality_report must contain status: pass or status: fail')
+    return status
 
 
 def build_package(
@@ -67,6 +80,8 @@ def build_package(
     rtk_origin: Path | None = None,
     preview: Path | None = None,
     relocalization_assets_dir: Path | None = None,
+    generation_pipeline: Path | None = None,
+    quality_report: Path | None = None,
 ) -> Path:
     map_id = _safe_component(map_id, 'map_id')
     map_version = _safe_component(map_version, 'map_version')
@@ -86,6 +101,15 @@ def build_package(
         if not relocalization_assets_dir.is_dir():
             raise ValueError(f'relocalization_assets_dir must exist: {relocalization_assets_dir}')
         _validate_relocalization_source(relocalization_assets_dir)
+
+    if generation_pipeline is not None:
+        generation_pipeline = generation_pipeline.expanduser().resolve()
+        if not generation_pipeline.is_file():
+            raise FileNotFoundError(generation_pipeline)
+    if quality_report is not None:
+        quality_report = quality_report.expanduser().resolve()
+        if not quality_report.is_file():
+            raise FileNotFoundError(quality_report)
 
     map_root.mkdir(parents=True, exist_ok=True)
     destination_parent = map_root / map_id
@@ -159,6 +183,33 @@ def build_package(
                 'sha256': sha256_file(preview_dst),
             }
 
+        generation = None
+        if generation_pipeline is not None:
+            pipeline_dst = staging / 'generation' / 'pipeline.yaml'
+            _copy_file(generation_pipeline, pipeline_dst)
+            assets['generation_pipeline'] = {
+                'path': 'generation/pipeline.yaml',
+                'sha256': sha256_file(pipeline_dst),
+            }
+            generation = {
+                'pipeline_asset': 'generation_pipeline',
+                'source_pcd_sha256': sha256_file(localization_dst),
+            }
+
+        quality = None
+        if quality_report is not None:
+            quality_status = _quality_status(quality_report)
+            quality_dst = staging / 'quality' / 'report.yaml'
+            _copy_file(quality_report, quality_dst)
+            assets['quality_report'] = {
+                'path': 'quality/report.yaml',
+                'sha256': sha256_file(quality_dst),
+            }
+            quality = {
+                'report_asset': 'quality_report',
+                'status': quality_status,
+            }
+
         metadata = {
             'schema_version': 1,
             'map_id': map_id,
@@ -168,6 +219,10 @@ def build_package(
             'generator': 'agt_map_manager/create_map_package',
             'assets': assets,
         }
+        if generation is not None:
+            metadata['generation'] = generation
+        if quality is not None:
+            metadata['quality'] = quality
         (staging / 'metadata.yaml').write_text(
             yaml.safe_dump(metadata, sort_keys=False), encoding='utf-8')
 
@@ -196,6 +251,8 @@ def main(argv=None) -> None:
     parser.add_argument('--relocalization-assets-dir')
     parser.add_argument('--rtk-origin')
     parser.add_argument('--preview')
+    parser.add_argument('--generation-pipeline')
+    parser.add_argument('--quality-report')
     args = parser.parse_args(argv)
 
     destination = build_package(
@@ -208,6 +265,9 @@ def main(argv=None) -> None:
             Path(args.relocalization_assets_dir) if args.relocalization_assets_dir else None),
         rtk_origin=Path(args.rtk_origin) if args.rtk_origin else None,
         preview=Path(args.preview) if args.preview else None,
+        generation_pipeline=(
+            Path(args.generation_pipeline) if args.generation_pipeline else None),
+        quality_report=Path(args.quality_report) if args.quality_report else None,
     )
     print(f'Created validated Map Package: {destination}')
 

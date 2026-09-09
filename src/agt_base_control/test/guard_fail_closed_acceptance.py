@@ -6,15 +6,18 @@ from agt_robot_interfaces.msg import LocalizationStatus
 from geometry_msgs.msg import Twist
 from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node
+from std_msgs.msg import String
 
 
 EPS = 1.0e-6
 
 
 class Probe(Node):
-    def __init__(self, input_topic, output_topic, status_topic):
+    def __init__(self, input_topic, manual_input_topic, control_mode_topic, output_topic, status_topic):
         super().__init__('agt_cmd_vel_guard_acceptance_probe')
         self.cmd_pub = self.create_publisher(Twist, input_topic, 20)
+        self.manual_cmd_pub = self.create_publisher(Twist, manual_input_topic, 20)
+        self.mode_pub = self.create_publisher(String, control_mode_topic, 10)
         self.status_pub = self.create_publisher(LocalizationStatus, status_topic, 20)
         self.samples = []
         self.create_subscription(Twist, output_topic, self._on_output, 50)
@@ -37,6 +40,11 @@ class Probe(Node):
         msg.linear.x = float(linear)
         msg.angular.z = float(angular)
         return msg
+
+    def mode(self, value):
+        msg = String()
+        msg.data = value
+        self.mode_pub.publish(msg)
 
 
 def run_phase(executor, probe, duration, state, cmd=None):
@@ -61,6 +69,8 @@ def main():
     guard = CmdVelGuard()
     probe = Probe(
         str(guard.get_parameter('input_topic').value),
+        str(guard.get_parameter('manual_input_topic').value),
+        str(guard.get_parameter('control_mode_topic').value),
         str(guard.get_parameter('output_topic').value),
         str(guard.get_parameter('localization_status_topic').value),
     )
@@ -120,13 +130,38 @@ def main():
     if fresh_peak < 0.08:
         raise RuntimeError(f'fresh command did not resume after recovery: peak={fresh_peak:.4f}')
 
+    # HMI publishes on an isolated topic. It has no effect until an explicit
+    # manual handoff, and switching source clears all previously cached intent.
+    probe.samples.clear()
+    probe.mode('manual')
+    run_phase(executor, probe, 0.20, LocalizationStatus.STATE_LOCALIZED, cmd=None)
+    manual_at = time.monotonic()
+    end = manual_at + 0.65
+    while time.monotonic() < end:
+        probe.status_pub.publish(probe.status(LocalizationStatus.STATE_LOCALIZED))
+        probe.manual_cmd_pub.publish(Probe.cmd(linear=0.18, angular=0.10))
+        executor.spin_once(timeout_sec=0.01)
+    manual_peak = max((abs_motion(s) for s in probe.samples if s[0] >= manual_at), default=0.0)
+    if manual_peak < 0.07:
+        raise RuntimeError(f'manual source did not open after explicit handoff: peak={manual_peak:.4f}')
+
+    probe.mode('navigation')
+    switch_at = time.monotonic()
+    run_phase(executor, probe, 0.35, LocalizationStatus.STATE_LOCALIZED, cmd=None)
+    switch_samples = [s for s in probe.samples if s[0] >= switch_at + 0.08]
+    switch_peak = max((abs_motion(s) for s in switch_samples), default=0.0)
+    if switch_peak > EPS:
+        raise RuntimeError(f'manual command replayed after navigation handoff: peak={switch_peak:.6f}')
+
     print(
         'GUARD_ACCEPTANCE PASS '
         f'opened_peak={opened_peak:.3f} '
         f'lost_stop_latency_ms={stop_latency * 1000.0:.1f} '
         f'lost_peak_after_80ms={lost_peak_after_settle:.6f} '
         f'stale_replay_peak={stale_replay_peak:.6f} '
-        f'fresh_resume_peak={fresh_peak:.3f}',
+        f'fresh_resume_peak={fresh_peak:.3f} '
+        f'manual_peak={manual_peak:.3f} '
+        f'switch_replay_peak={switch_peak:.6f}',
         flush=True,
     )
 

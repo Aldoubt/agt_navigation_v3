@@ -6,6 +6,7 @@ import rclpy
 from agt_robot_interfaces.msg import LocalizationStatus
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
+from std_msgs.msg import String
 
 
 class CmdVelGuard(Node):
@@ -19,6 +20,9 @@ class CmdVelGuard(Node):
     def __init__(self) -> None:
         super().__init__('agt_cmd_vel_guard')
         self.declare_parameter('input_topic', '/cmd_vel_smoothed')
+        self.declare_parameter('manual_input_topic', '/agt/hmi/cmd_vel')
+        self.declare_parameter('control_mode_topic', '/agt/control/mode')
+        self.declare_parameter('default_control_mode', 'navigation')
         self.declare_parameter('output_topic', '/mux/cmd_vel')
         self.declare_parameter('publish_rate_hz', 50.0)
         self.declare_parameter('command_timeout_sec', 0.25)
@@ -34,16 +38,24 @@ class CmdVelGuard(Node):
         self.declare_parameter('max_angular_accel', 0.80)
 
         self.target = Twist()
+        self.manual_target = Twist()
         self.output = Twist()
         self.last_rx_ns = 0
+        self.last_manual_rx_ns = 0
         self.last_tick_ns = self.get_clock().now().nanoseconds
         self.last_localization_rx_ns = 0
         self.localization_status = None
         self._last_gate_reason = None
 
         input_topic = self.get_parameter('input_topic').value
+        manual_input_topic = self.get_parameter('manual_input_topic').value
+        control_mode_topic = self.get_parameter('control_mode_topic').value
+        default_mode = str(self.get_parameter('default_control_mode').value).strip().lower()
+        self.control_mode = default_mode if default_mode in ('navigation', 'manual') else 'navigation'
         output_topic = self.get_parameter('output_topic').value
         self.create_subscription(Twist, input_topic, self._on_cmd, 20)
+        self.create_subscription(Twist, manual_input_topic, self._on_manual_cmd, 20)
+        self.create_subscription(String, control_mode_topic, self._on_control_mode, 10)
         self.create_subscription(
             LocalizationStatus,
             str(self.get_parameter('localization_status_topic').value),
@@ -55,11 +67,14 @@ class CmdVelGuard(Node):
         rate = max(float(self.get_parameter('publish_rate_hz').value), 1.0)
         self.create_timer(1.0 / rate, self._tick)
         self.get_logger().info(
-            f'cmd_vel guard: {input_topic} -> {output_topic} @ {rate:.1f} Hz; '
+            f'cmd_vel guard: nav={input_topic}, manual={manual_input_topic} -> {output_topic} '
+            f'@ {rate:.1f} Hz; default mode={self.control_mode}; '
             'motion is fail-closed on LocalizationStatus'
         )
 
     def _on_cmd(self, msg: Twist) -> None:
+        if self.control_mode != 'navigation':
+            return
         now_ns = self.get_clock().now().nanoseconds
         localization_ok, _ = self._localization_allows_motion(now_ns)
         if not localization_ok:
@@ -72,6 +87,37 @@ class CmdVelGuard(Node):
         self.target = msg
         self.last_rx_ns = now_ns
 
+    def _on_manual_cmd(self, msg: Twist) -> None:
+        if self.control_mode != 'manual':
+            return
+        now_ns = self.get_clock().now().nanoseconds
+        localization_ok, _ = self._localization_allows_motion(now_ns)
+        if not localization_ok:
+            self.manual_target = Twist()
+            self.last_manual_rx_ns = 0
+            return
+        self.manual_target = msg
+        self.last_manual_rx_ns = now_ns
+
+    def _on_control_mode(self, msg: String) -> None:
+        requested = str(msg.data).strip().lower()
+        if requested not in ('navigation', 'manual'):
+            self.get_logger().warning(
+                f'ignoring unsupported control mode {requested!r}; expected navigation or manual')
+            return
+        if requested == self.control_mode:
+            return
+        # A source handoff is always a hard stop. Neither Nav2 nor the HMI may
+        # replay intent produced before the operator made the handoff.
+        self.control_mode = requested
+        self.target = Twist()
+        self.manual_target = Twist()
+        self.last_rx_ns = 0
+        self.last_manual_rx_ns = 0
+        self.output = Twist()
+        self.pub.publish(self.output)
+        self.get_logger().info(f'control mode changed to {self.control_mode}; fresh command required')
+
     def _on_localization_status(self, msg: LocalizationStatus) -> None:
         self.localization_status = msg
         self.last_localization_rx_ns = self.get_clock().now().nanoseconds
@@ -82,7 +128,9 @@ class CmdVelGuard(Node):
             # the cached upstream command as well so recovery requires a fresh
             # Nav2 command after localization becomes valid again.
             self.target = Twist()
+            self.manual_target = Twist()
             self.last_rx_ns = 0
+            self.last_manual_rx_ns = 0
             self.output = Twist()
             self.pub.publish(self.output)
 
@@ -140,7 +188,13 @@ class CmdVelGuard(Node):
         self.last_tick_ns = now_ns
 
         timeout = float(self.get_parameter('command_timeout_sec').value)
-        stale = self.last_rx_ns <= 0 or (now_ns - self.last_rx_ns) / 1e9 > timeout
+        if self.control_mode == 'manual':
+            active_target = self.manual_target
+            active_rx_ns = self.last_manual_rx_ns
+        else:
+            active_target = self.target
+            active_rx_ns = self.last_rx_ns
+        stale = active_rx_ns <= 0 or (now_ns - active_rx_ns) / 1e9 > timeout
 
         localization_ok, localization_reason = self._localization_allows_motion(now_ns)
         self._report_gate(localization_reason, localization_ok)
@@ -153,12 +207,12 @@ class CmdVelGuard(Node):
             return
 
         target_x = self._clamp(
-            float(self.target.linear.x),
+            float(active_target.linear.x),
             -float(self.get_parameter('max_reverse_x').value),
             float(self.get_parameter('max_linear_x').value),
         )
         target_w = self._clamp(
-            float(self.target.angular.z),
+            float(active_target.angular.z),
             -float(self.get_parameter('max_angular_z').value),
             float(self.get_parameter('max_angular_z').value),
         )

@@ -6,6 +6,7 @@ from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+import yaml
 
 
 def generate_launch_description():
@@ -31,10 +32,15 @@ def generate_launch_description():
         lio_src = Path(lio_config.perform(context))
         pgo_src = Path(pgo_config.perform(context))
         run_dir = Path(tempfile.mkdtemp(prefix='agt_mapping_'))
-        lio_text = lio_src.read_text().replace('/livox/lidar', lidar_topic.perform(context)).replace('/livox/imu', imu_topic.perform(context))
-        pgo_text = pgo_src.read_text().replace('/livox/lidar', lidar_topic.perform(context)).replace('/livox/imu', imu_topic.perform(context))
-        lio_path = run_dir / 'lio.yaml'; pgo_path = run_dir / 'pgo.yaml'
-        lio_path.write_text(lio_text); pgo_path.write_text(pgo_text)
+        lio_parameters = yaml.safe_load(lio_src.read_text())
+        if not isinstance(lio_parameters, dict):
+            raise RuntimeError(f'FAST-LIO2 config must be a YAML mapping: {lio_src}')
+        lio_parameters['lidar_topic'] = lidar_topic.perform(context)
+        lio_parameters['imu_topic'] = imu_topic.perform(context)
+        lio_path = run_dir / 'lio.yaml'
+        pgo_path = run_dir / 'pgo.yaml'
+        lio_path.write_text(yaml.safe_dump(lio_parameters, sort_keys=False))
+        pgo_path.write_text(pgo_src.read_text())
         use_sim_time_value = use_sim_time.perform(context).lower() == 'true'
         actions = [Node(package='fastlio2', namespace='fastlio2', executable='lio_node', name='lio_node', output='screen', parameters=[{'config_path': str(lio_path), 'use_sim_time': use_sim_time_value}])]
         if enable_pgo.perform(context).lower() == 'true':

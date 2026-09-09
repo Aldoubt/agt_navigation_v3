@@ -18,3 +18,9 @@ agt_map_manager:
     start_edit_service: /agt/map/edit/start
     publish_edit_service: /agt/map/edit/publish
     cancel_edit_service: /agt/map/edit/cancel
+    generate_action: /agt/map/generate
+    registry_file: /home/yangxuan/ros2_ws/agt_data/maps/map_registry.yaml
+    events_topic: /agt/map/events
+    validate_service: /agt/map/validate
+    activate_service: /agt/map/activate
+    discard_service: /agt/map/discard

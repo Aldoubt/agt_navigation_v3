@@ -36,3 +36,19 @@ def test_validate_nav_map_detects_dimension_mismatch(tmp_path: Path):
     write_pgm(tmp_path / 'obstacle.pgm', width=1, height=1, payload=b'\x00')
     errors = validate(tmp_path)
     assert any('dimensions' in error for error in errors)
+
+
+def test_validate_rejects_unknown_cells_made_free_by_threshold(tmp_path: Path):
+    (tmp_path / 'map.yaml').write_text(yaml.safe_dump({
+        'image': 'map.pgm',
+        'resolution': 0.1,
+        'origin': [0.0, 0.0, 0.0],
+        'negate': 0,
+        'occupied_thresh': 0.65,
+        'free_thresh': 0.25,
+    }), encoding='utf-8')
+    write_pgm(tmp_path / 'map.pgm', width=4, height=1, payload=bytes((205, 0, 254, 205)))
+    for name in ('elevation.pgm', 'slope.pgm', 'obstacle.pgm'):
+        write_pgm(tmp_path / name, width=4, height=1, payload=b'\xff\x00\xff\x00')
+
+    assert 'map.yaml free_thresh makes PGM value 205 free instead of unknown' in validate(tmp_path)

@@ -268,6 +268,83 @@ def convert(xyz, resolution, margin, min_points, max_step, max_slope_deg,
     }
 
 
+def generate_navigation_map(
+    pcd: Path,
+    output: Path,
+    *,
+    resolution: float = 0.10,
+    margin: float = 1.0,
+    min_points: int = 2,
+    max_step: float = 0.22,
+    max_slope_deg: float = 20.0,
+    trajectory_poses_path: Path | None = None,
+    trajectory_front_m: float = 0.40,
+    trajectory_rear_m: float = 0.72,
+    trajectory_half_width_m: float = 0.46,
+) -> dict:
+    """Generate one deterministic Nav2/terrain directory from a frozen PCD."""
+    if (resolution <= 0 or margin < 0 or min_points < 1
+            or trajectory_front_m < 0 or trajectory_rear_m < 0
+            or trajectory_half_width_m < 0):
+        raise ValueError('invalid grid parameters')
+    pcd = pcd.expanduser().resolve()
+    output = output.expanduser().resolve()
+    if not pcd.is_file():
+        raise FileNotFoundError(pcd)
+    trajectory_path = None
+    trajectory_poses = None
+    if trajectory_poses_path is not None:
+        trajectory_path = trajectory_poses_path.expanduser().resolve()
+        trajectory_poses = load_trajectory_poses(trajectory_path)
+
+    output.mkdir(parents=True, exist_ok=True)
+    layers = convert(
+        load_xyz(pcd), resolution, margin, min_points, max_step, max_slope_deg,
+        trajectory_poses=trajectory_poses,
+        trajectory_front_m=trajectory_front_m,
+        trajectory_rear_m=trajectory_rear_m,
+        trajectory_half_width_m=trajectory_half_width_m,
+    )
+    write_pgm(output / 'map.pgm', layers['occupancy'])
+    write_pgm(output / 'elevation.pgm', layers['elevation'])
+    write_pgm(output / 'slope.pgm', layers['slope'])
+    write_pgm(output / 'obstacle.pgm', layers['obstacle'])
+    map_yaml = {
+        'image': 'map.pgm',
+        'mode': 'trinary',
+        'resolution': float(resolution),
+        'origin': layers['origin'],
+        'negate': 0,
+        'occupied_thresh': 0.65,
+        # PGM value 205 denotes unknown. With negate=0 it maps to 50/255,
+        # so this threshold must remain below it for Nav2 to preserve unknown.
+        'free_thresh': 0.196,
+    }
+    (output / 'map.yaml').write_text(
+        yaml.safe_dump(map_yaml, sort_keys=False), encoding='utf-8')
+    metadata = {
+        'source_pcd': str(pcd),
+        'resolution': float(resolution),
+        'margin': float(margin),
+        'min_points': int(min_points),
+        'max_step': float(max_step),
+        'max_slope_deg': float(max_slope_deg),
+        'grid_shape': layers['shape'],
+        'valid_cells': layers['valid_cells'],
+        'occupied_cells': layers['occupied_cells'],
+        'trajectory_poses': str(trajectory_path) if trajectory_path else '',
+        'trajectory_pose_count': len(trajectory_poses) if trajectory_poses else 0,
+        'trajectory_front_m': float(trajectory_front_m),
+        'trajectory_rear_m': float(trajectory_rear_m),
+        'trajectory_half_width_m': float(trajectory_half_width_m),
+        'trajectory_cleared_cells': layers['trajectory_cleared_cells'],
+        'warning': 'Demo V1 thresholds are not final; verify slope/edge behavior on the real Bunker.',
+    }
+    (output / 'converter_metadata.yaml').write_text(
+        yaml.safe_dump(metadata, sort_keys=False), encoding='utf-8')
+    return metadata
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description='Convert FAST-LIO2 PCD map to Nav2 + terrain PGM layers.')
     parser.add_argument('pcd')
@@ -288,58 +365,24 @@ def main(argv=None):
     parser.add_argument('--trajectory-half-width-m', type=float, default=0.46,
                         help='body-frame swept-footprint half width')
     args = parser.parse_args(argv)
-    if (args.resolution <= 0 or args.margin < 0 or args.min_points < 1
-            or args.trajectory_front_m < 0 or args.trajectory_rear_m < 0
-            or args.trajectory_half_width_m < 0):
-        parser.error('invalid grid parameters')
-
     pcd = Path(args.pcd).expanduser().resolve()
     out = Path(args.output).expanduser().resolve()
-    out.mkdir(parents=True, exist_ok=True)
-    xyz = load_xyz(pcd)
-    trajectory_path = None
-    trajectory_poses = None
-    if args.trajectory_poses:
-        trajectory_path = Path(args.trajectory_poses).expanduser().resolve()
-        trajectory_poses = load_trajectory_poses(trajectory_path)
-    layers = convert(xyz, args.resolution, args.margin, args.min_points,
-                     args.max_step, args.max_slope_deg,
-                     trajectory_poses=trajectory_poses,
-                     trajectory_front_m=args.trajectory_front_m,
-                     trajectory_rear_m=args.trajectory_rear_m,
-                     trajectory_half_width_m=args.trajectory_half_width_m)
-    write_pgm(out / 'map.pgm', layers['occupancy'])
-    write_pgm(out / 'elevation.pgm', layers['elevation'])
-    write_pgm(out / 'slope.pgm', layers['slope'])
-    write_pgm(out / 'obstacle.pgm', layers['obstacle'])
-    map_yaml = {
-        'image': 'map.pgm',
-        'mode': 'trinary',
-        'resolution': float(args.resolution),
-        'origin': layers['origin'],
-        'negate': 0,
-        'occupied_thresh': 0.65,
-        'free_thresh': 0.25,
-    }
-    (out / 'map.yaml').write_text(yaml.safe_dump(map_yaml, sort_keys=False), encoding='utf-8')
-    metadata = {
-        'source_pcd': str(pcd),
-        'resolution': float(args.resolution),
-        'max_step': float(args.max_step),
-        'max_slope_deg': float(args.max_slope_deg),
-        'grid_shape': layers['shape'],
-        'valid_cells': layers['valid_cells'],
-        'occupied_cells': layers['occupied_cells'],
-        'trajectory_poses': str(trajectory_path) if trajectory_path else '',
-        'trajectory_pose_count': len(trajectory_poses) if trajectory_poses else 0,
-        'trajectory_front_m': float(args.trajectory_front_m),
-        'trajectory_rear_m': float(args.trajectory_rear_m),
-        'trajectory_half_width_m': float(args.trajectory_half_width_m),
-        'trajectory_cleared_cells': layers['trajectory_cleared_cells'],
-        'warning': 'Demo V1 thresholds are not final; verify slope/edge behavior on the real Bunker.',
-    }
-    (out / 'converter_metadata.yaml').write_text(
-        yaml.safe_dump(metadata, sort_keys=False), encoding='utf-8')
+    try:
+        generate_navigation_map(
+            pcd,
+            out,
+            resolution=args.resolution,
+            margin=args.margin,
+            min_points=args.min_points,
+            max_step=args.max_step,
+            max_slope_deg=args.max_slope_deg,
+            trajectory_poses_path=(Path(args.trajectory_poses) if args.trajectory_poses else None),
+            trajectory_front_m=args.trajectory_front_m,
+            trajectory_rear_m=args.trajectory_rear_m,
+            trajectory_half_width_m=args.trajectory_half_width_m,
+        )
+    except (OSError, ValueError) as exc:
+        parser.error(str(exc))
     print(f'Wrote Nav2 map package to {out}')
 
 

@@ -1,0 +1,14 @@
+string map_id
+string map_version
+string source_pcd
+string pipeline_config
+string relocalization_assets_dir
+string trajectory_poses
+string rtk_origin
+string preview
+---
+bool success
+string message
+agt_robot_interfaces/MapPackage package
+---
+string phase

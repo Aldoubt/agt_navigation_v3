@@ -47,6 +47,7 @@ def generate_launch_description():
     nav2_params_file = LaunchConfiguration('nav2_params_file')
     livox_bridge_params_file = LaunchConfiguration('livox_bridge_params_file')
     enable_rtk = LaunchConfiguration('enable_rtk')
+    enable_map_tracking = LaunchConfiguration('enable_map_tracking')
     launch_rviz = LaunchConfiguration('launch_rviz')
     rviz_config = LaunchConfiguration('rviz_config')
     lidar_topic = LaunchConfiguration('lidar_topic')
@@ -80,6 +81,9 @@ def generate_launch_description():
             'auto_relocalize', default_value='true',
             description='Automatically request stationary global relocalization after startup.'),
         DeclareLaunchArgument('enable_rtk', default_value='true'),
+        DeclareLaunchArgument(
+            'enable_map_tracking', default_value='false',
+            description='Enable low-rate local-map GICP correction after global localization.'),
         DeclareLaunchArgument('launch_rviz', default_value='true'),
         DeclareLaunchArgument('rviz_config', default_value=default_rviz),
         DeclareLaunchArgument(
@@ -122,6 +126,10 @@ def generate_launch_description():
         }),
         include('agt_localization_manager', 'localization_manager.launch.py', arguments={
             'use_sim_time': use_sim_time,
+        }),
+        include('agt_map_tracker', 'map_tracker.launch.py', condition=IfCondition(enable_map_tracking), arguments={
+            'global_map': global_map,
+            'scan_topic': '/agt/livox/points',
         }),
 
         # RTK remains record/diagnostic only and may be disabled without changing localization.

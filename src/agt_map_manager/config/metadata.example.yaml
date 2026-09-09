@@ -45,3 +45,21 @@ assets:
   preview:
     path: preview.png
     sha256: ""
+
+  generation_pipeline:
+    path: generation/pipeline.yaml
+    sha256: ""
+
+  quality_report:
+    path: quality/report.yaml
+    sha256: ""
+
+# New packages generated through generate_map_package also carry these two
+# immutable provenance assets. Legacy packages remain readable without them.
+generation:
+  pipeline_asset: generation_pipeline
+  source_pcd_sha256: ""
+
+quality:
+  report_asset: quality_report
+  status: pass

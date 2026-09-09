@@ -7,3 +7,7 @@ string navigation_map_yaml
 string localization_map_pcd
 string relocalization_assets_path
 string rtk_origin_yaml
+string status
+bool active
+string created_time
+string package_hash

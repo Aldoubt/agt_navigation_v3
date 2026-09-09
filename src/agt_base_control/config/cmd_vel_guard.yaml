@@ -1,7 +1,11 @@
 agt_cmd_vel_guard:
   ros__parameters:
-    # Humble nav2_bringup remaps velocity_smoother output cmd_vel_smoothed -> /cmd_vel.
+    # Nav2 owns motion by default. Qt HMI publishes manual commands to a
+    # separate topic and must explicitly request manual mode before they pass.
     input_topic: /cmd_vel
+    manual_input_topic: /agt/hmi/cmd_vel
+    control_mode_topic: /agt/control/mode
+    default_control_mode: navigation
     output_topic: /mux/cmd_vel
     publish_rate_hz: 50.0
     command_timeout_sec: 0.25
