@@ -20,3 +20,14 @@ whole-workspace PASS can be asserted.
 - `colcon build --symlink-install --packages-select agt_batch_lio_adapter agt_fastlio_adapter`: PASS (2/2).
 - Launch parse, rosbag, simulation and real robot: not run. The package-name,
   executable-name, config and installed-launch contracts are intentionally unchanged.
+
+## Phase 4 localization relocation
+
+- `colcon list --names-only`: PASS for all five relocated localization packages.
+- Targeted build: `agt_localization_manager`, `agt_map_tracker`, and
+  `agt_relocalization_benchmark` PASS. `agt_global_relocalization_native`
+  configuration is BLOCKED by missing external `small_gicpConfig.cmake`; its
+  dependent Python relocalization package was not processed.
+- The five stale CMake build-cache directories were moved recoverably to a
+  temporary directory before reconfiguration; no source, map or install data
+  was deleted.
