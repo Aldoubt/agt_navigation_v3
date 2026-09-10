@@ -31,3 +31,8 @@ whole-workspace PASS can be asserted.
 - The five stale CMake build-cache directories were moved recoverably to a
   temporary directory before reconfiguration; no source, map or install data
   was deleted.
+- `ros2 launch agt_batch_lio_adapter batch_lio_adapter.launch.py --show-args`:
+  PASS. `ros2 launch agt_localization_manager localization_manager.launch.py
+  --show-args`: PASS.
+- `pytest navigation/localization/agt_localization_manager/test/test_correction_math.py -q`:
+  PASS (2 tests). Rosbag, simulation and real-robot checks remain unrun.
