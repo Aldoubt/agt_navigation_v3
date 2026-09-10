@@ -13,3 +13,10 @@
 This is not a claim of field validation. The external build-artifact collision
 must be repaired by its owner or an explicitly authorized clean build before a
 whole-workspace PASS can be asserted.
+
+## Phase 3 state-estimation relocation
+
+- `colcon list --names-only`: PASS for both relocated packages.
+- `colcon build --symlink-install --packages-select agt_batch_lio_adapter agt_fastlio_adapter`: PASS (2/2).
+- Launch parse, rosbag, simulation and real robot: not run. The package-name,
+  executable-name, config and installed-launch contracts are intentionally unchanged.
