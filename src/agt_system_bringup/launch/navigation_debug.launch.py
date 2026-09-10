@@ -30,9 +30,12 @@ def _include(package: str, launch_file: str, arguments=None):
 def generate_launch_description():
     debug_rviz = Path(get_package_share_directory('agt_demo_task')) / 'config' / 'navigation_debug.rviz'
     return LaunchDescription([
-        DeclareLaunchArgument('map', default_value=str(DEFAULT_PACKAGE_ROOT / 'navigation' / 'map.yaml')),
         DeclareLaunchArgument(
-            'global_map', default_value=str(DEFAULT_PACKAGE_ROOT / 'localization' / 'global_map.pcd')),
+            'navigation_map', default_value=str(DEFAULT_PACKAGE_ROOT / 'navigation' / 'map.yaml'),
+            description='Explicit Nav2 map.yaml for debug; no Map Manager validation or activation.'),
+        DeclareLaunchArgument(
+            'localization_map', default_value=str(DEFAULT_PACKAGE_ROOT / 'localization' / 'global_map.pcd'),
+            description='Explicit localization PCD for debug; no Map Manager validation or activation.'),
         DeclareLaunchArgument(
             'relocalization_assets', default_value=str(DEFAULT_PACKAGE_ROOT / 'localization' / 'relocalization')),
         DeclareLaunchArgument('map_id', default_value='navigation_debug'),
@@ -61,8 +64,8 @@ def generate_launch_description():
         # This composes the production localization/Nav2 nodes with explicit
         # assets, without the product MapManager active-map resolution path.
         _include('agt_system_bringup', 'rviz_field_demo.launch.py', {
-            'map': LaunchConfiguration('map'),
-            'global_map': LaunchConfiguration('global_map'),
+            'map': LaunchConfiguration('navigation_map'),
+            'global_map': LaunchConfiguration('localization_map'),
             'relocalization_assets': LaunchConfiguration('relocalization_assets'),
             'map_id': LaunchConfiguration('map_id'),
             'use_sim_time': LaunchConfiguration('use_sim_time'),
