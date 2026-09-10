@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BRIDGE="${SCRIPT_DIR}/../src/agt_livox_tools/scripts/convert_livox_bag_format.sh"
+BRIDGE="${SCRIPT_DIR}/../sensor/agt_livox_tools/scripts/convert_livox_bag_format.sh"
 INPUT=""; OUTPUT=""; MODE=""; SOURCE_TOPIC=""; TARGET_TOPIC=""; EXTRA=()
 usage() { echo "Usage: $0 --input BAG --output BAG --mode custom_to_pc2|pc2_to_custom [options]"; }
 while [[ $# -gt 0 ]]; do

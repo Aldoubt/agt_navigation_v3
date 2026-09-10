@@ -56,8 +56,8 @@ def generate_launch_description():
         DeclareLaunchArgument('use_sim_time', default_value='false'),
         DeclareLaunchArgument('launch_rviz', default_value='true'),
         DeclareLaunchArgument(
-            'enable_octomap_navigation', default_value='true',
-            description='Start the default O1-H2 OctoMap navigation-map branch after FAST-LIO2.'),
+            'enable_octomap_navigation', default_value='false',
+            description='Optionally start the O1-H2 OctoMap navigation-map branch after FAST-LIO2.'),
         DeclareLaunchArgument(
             'filter_statistics',
             default_value=str(Path.home() / '.ros' / 'agt_octomap' / 'rear_filter_statistics.yaml'),
@@ -65,7 +65,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'lio_config',
             default_value=str(agt_share / 'config' / 'fastlio2_octomap_baseline.yaml'),
-            description='Default fixed FAST-LIO2 YAML for the O1-H2 OctoMap navigation baseline.',
+            description='Default fixed FAST-LIO2 YAML for the PGO mapping and relocalization-map baseline.',
         ),
         DeclareLaunchArgument(
             'pgo_config',

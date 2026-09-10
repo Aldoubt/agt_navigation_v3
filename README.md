@@ -325,7 +325,7 @@ Pinned third party
 Gazebo 使用的 `ros2_livox_simulation` 已作为 MIT vendored package 放在：
 
 ```text
-src/ros2_livox_simulation
+sensor/ros2_livox_simulation
 ```
 
 因此新系统不需要手工复制工控机上的仿真插件目录。
@@ -432,7 +432,7 @@ time_diff_lidar_to_imu: 0.0
 配置：
 
 ```text
-src/agt_mapping_bringup/config/batch_lio_mid360.yaml
+mapping/agt_mapping_bringup/config/batch_lio_mid360.yaml
 ```
 
 静止测试：
@@ -847,7 +847,7 @@ ros2 run agt_map_manager generate_map_package \
   --map-version v001 \
   --source-pcd "$MAPRUN/map.pcd" \
   --pipeline-config \
-  /home/yangxuan/ros2_ws/src/agt_navigation_v3/src/agt_map_manager/config/map_pipeline.example.yaml \
+  /home/yangxuan/ros2_ws/src/agt_navigation_v3/map_data_manager/agt_map_manager/config/map_pipeline.example.yaml \
   --relocalization-assets-dir "$MAPRUN/relocalization" \
   --trajectory-poses "$MAPRUN/poses.txt"
 
@@ -955,8 +955,8 @@ source install/setup.bash
 
 DEBUG_MAP=/home/yangxuan/ros2_ws/agt_data/debug_mapping/current
 ros2 launch agt_system_bringup navigation_debug.launch.py \
-  map:=$DEBUG_MAP/navigation/map.yaml \
-  global_map:=$DEBUG_MAP/localization/global_map.pcd \
+  navigation_map:=$DEBUG_MAP/navigation/map.yaml \
+  localization_map:=$DEBUG_MAP/localization/global_map.pcd \
   relocalization_assets:=$DEBUG_MAP/relocalization \
   map_id:=debug_overwrite
 ```

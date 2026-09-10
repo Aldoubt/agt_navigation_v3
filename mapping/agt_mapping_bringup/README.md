@@ -1,7 +1,13 @@
-# OctoMap navigation-map baseline
+# FAST-LIO2 + PGO test mapping baseline
 
-`octomap_navigation_baseline.launch.py` is the default V1 navigation-map
-generator. It keeps the mapping and localization assets separate:
+`mapping_mode.launch.py` is the default test-stage mapping entry point. It
+runs one FAST-LIO2 front end and PGO, producing the complete optimized PCD and
+keyframe/trajectory data needed to build a relocalization map package along the
+fixed test route. It does not activate a map or publish it as the active
+product map.
+
+`octomap_navigation_baseline.launch.py` remains an optional navigation-grid
+generation branch. It keeps the mapping and localization assets separate:
 
 ```text
 MID360 CustomMsg + IMU → FAST-LIO2 → global_map.pcd (localization, untouched)
@@ -36,12 +42,14 @@ does not expand that separate incoming-point limit.
 source /opt/ros/humble/setup.bash
 source ~/ros2_ws/install/setup.bash
 
-ros2 launch agt_mapping_bringup octomap_navigation_baseline.launch.py
+ros2 launch agt_mapping_bringup mapping_mode.launch.py
 ```
 
-When the mapping run ends, stop the launch cleanly. The filter writes cumulative
-point accounting to `~/.ros/agt_octomap/rear_filter_statistics.yaml`. Use a
-different absolute path through `filter_statistics:=...` for each run.
+For the optional OctoMap grid branch, use
+`octomap_navigation_baseline.launch.py` or pass
+`enable_octomap_navigation:=true`. In that mode the rear filter writes
+cumulative point accounting to `~/.ros/agt_octomap/rear_filter_statistics.yaml`.
+Use a different absolute path through `filter_statistics:=...` for each run.
 
 ## Save and package
 

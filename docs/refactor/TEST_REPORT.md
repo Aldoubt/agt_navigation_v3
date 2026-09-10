@@ -36,3 +36,26 @@ whole-workspace PASS can be asserted.
   --show-args`: PASS.
 - `pytest navigation/localization/agt_localization_manager/test/test_correction_math.py -q`:
   PASS (2 tests). Rosbag, simulation and real-robot checks remain unrun.
+
+## Functional-domain completion (2026-09-10)
+
+- `colcon list --names-only`: PASS; all 27 registered AGT packages are
+  discoverable from functional-domain paths.
+- `CMAKE_PREFIX_PATH=/home/yangxuan/ros2_ws/.agt_native:\$CMAKE_PREFIX_PATH
+  colcon build --symlink-install --cmake-clean-cache --packages-select <all 27 AGT packages>`:
+  PASS. This reconfigured each relocated package and retained existing source
+  and map data.
+- Launch argument parsing: PASS for
+  `agt_mapping_bringup/mapping_mode.launch.py`,
+  `agt_system_bringup/navigation_debug.launch.py`,
+  `agt_system_bringup/simulation_debug.launch.py`, and
+  `agt_nav2_bringup/navigation.launch.py`.
+- Software regression checks: PASS; `colcon test` reported 39 tests with
+  zero errors/failures for `agt_base_control`, `agt_map_converter`,
+  `agt_map_manager` and `agt_navigation_runtime`. The two directly
+  discoverable pytest modules reported 6 passed.
+- `guard_fail_closed_acceptance.py`: PASS. It observed a 5.8 ms
+  LOST-to-stop latency and no stale command replay after mode changes.
+- This is a build and composition check only. Live LiDAR, fixed-route mapping,
+  rosbag replay, real-robot TF, relocalization and Nav2 motion remain
+  separately required runtime validation.
