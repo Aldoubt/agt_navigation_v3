@@ -10,6 +10,7 @@ from pathlib import Path
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
@@ -50,6 +51,12 @@ def generate_launch_description():
             default_value='/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0',
         ),
         DeclareLaunchArgument('capture_output_dir', default_value='~/.ros/agt_navigation_debug/captures'),
+        DeclareLaunchArgument(
+            'enable_camera', default_value='false',
+            description='Start the optional camera capability. Keep false for navigation-only debugging.'),
+        DeclareLaunchArgument(
+            'enable_demo_task', default_value='false',
+            description='Start the optional Nav2-success-to-capture demo task.'),
 
         # The sensor session owns robot_description, MID360, CAN, RTK, and C1.
         _include('agt_system_bringup', 'sensor_session.launch.py', {
@@ -80,6 +87,7 @@ def generate_launch_description():
             executable='camera_capture_service',
             name='camera_capture_service',
             output='screen',
+            condition=IfCondition(LaunchConfiguration('enable_camera')),
             parameters=[{
                 'output_dir': LaunchConfiguration('capture_output_dir'),
             }],
@@ -89,5 +97,6 @@ def generate_launch_description():
             executable='navigate_capture_task',
             name='navigate_capture_task',
             output='screen',
+            condition=IfCondition(LaunchConfiguration('enable_demo_task')),
         ),
     ])
