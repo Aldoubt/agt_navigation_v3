@@ -30,6 +30,7 @@ def _include(package: str, launch_file: str, arguments=None):
 
 def generate_launch_description():
     debug_rviz = Path(get_package_share_directory('agt_demo_task')) / 'config' / 'navigation_debug.rviz'
+    default_nav2_params = Path(get_package_share_directory('agt_nav2_bringup')) / 'config' / 'nav2_params.yaml'
     return LaunchDescription([
         DeclareLaunchArgument(
             'navigation_map', default_value=str(DEFAULT_PACKAGE_ROOT / 'navigation' / 'map.yaml'),
@@ -40,6 +41,10 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'relocalization_assets', default_value=str(DEFAULT_PACKAGE_ROOT / 'localization' / 'relocalization')),
         DeclareLaunchArgument('map_id', default_value='navigation_debug'),
+        DeclareLaunchArgument('nav2_params_file', default_value=str(default_nav2_params)),
+        DeclareLaunchArgument(
+            'relocalization_executable', default_value='global_relocalization',
+            description='global_relocalization or manual_seed_relocalization.'),
         DeclareLaunchArgument('use_sim_time', default_value='false'),
         DeclareLaunchArgument('auto_relocalize', default_value='true'),
         DeclareLaunchArgument('enable_rtk', default_value='true'),
@@ -77,6 +82,8 @@ def generate_launch_description():
             'map_id': LaunchConfiguration('map_id'),
             'use_sim_time': LaunchConfiguration('use_sim_time'),
             'auto_relocalize': LaunchConfiguration('auto_relocalize'),
+            'relocalization_executable': LaunchConfiguration('relocalization_executable'),
+            'nav2_params_file': LaunchConfiguration('nav2_params_file'),
             'enable_rtk': LaunchConfiguration('enable_rtk'),
             'enable_map_tracking': LaunchConfiguration('enable_map_tracking'),
             'launch_rviz': 'true',
