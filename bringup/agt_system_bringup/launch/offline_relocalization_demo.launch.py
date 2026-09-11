@@ -23,6 +23,10 @@ def generate_launch_description():
         DeclareLaunchArgument('global_map', description='Path to global_map.pcd'),
         DeclareLaunchArgument('use_sim_time', default_value='true'),
         DeclareLaunchArgument('launch_rviz', default_value='false'),
+        DeclareLaunchArgument('auto_relocalize', default_value='true'),
+        DeclareLaunchArgument(
+            'relocalization_executable', default_value='global_relocalization',
+            description='global_relocalization or manual_seed_relocalization.'),
         DeclareLaunchArgument('relocalization_assets', default_value=''),
         DeclareLaunchArgument('lidar_topic', default_value='/agt/sensors/lidar/custom'),
         DeclareLaunchArgument('imu_topic', default_value='/agt/sensors/imu/data'),
@@ -46,7 +50,8 @@ def generate_launch_description():
                  'use_sim_time': True, 'mode': 'custom_to_pointcloud2',
                  'input_topic': bag_lidar, 'output_topic': '/agt/relocalization/input_cloud'}]),
         include('agt_global_relocalization', 'global_relocalization.launch.py', {
-            'use_sim_time': 'true', 'auto_request': 'true',
+            'use_sim_time': 'true', 'auto_request': LaunchConfiguration('auto_relocalize'),
+            'relocalization_executable': LaunchConfiguration('relocalization_executable'),
             'global_map': map_pcd, 'scan_topic': '/agt/relocalization/input_cloud',
             'follow_map_manager': 'false',
             'relocalization_assets': LaunchConfiguration('relocalization_assets')}),
