@@ -1,0 +1,16 @@
+# Field-acceptance overlay for the existing Nav2 baseline.
+# Merge with navigation/nav2/agt_nav2_bringup/config/nav2_params.yaml at launch time.
+controller_server:
+  ros__parameters:
+    progress_checker:
+      required_movement_radius: 0.05
+      required_movement_angle: 0.05
+      movement_time_allowance: 15.0
+    general_goal_checker:
+      xy_goal_tolerance: 0.08
+      yaw_goal_tolerance: 0.0872665
+
+planner_server:
+  ros__parameters:
+    GridBased:
+      tolerance: 0.05
