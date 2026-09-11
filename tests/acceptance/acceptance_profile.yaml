@@ -1,0 +1,92 @@
+release: field_acceptance_v1
+
+modes:
+  offline_replay:
+    hardware_output_enabled: false
+    allow_manual_pose: true
+    use_sim_time: true
+  field_debug:
+    hardware_output_enabled: true
+    allow_manual_pose: true
+    use_sim_time: false
+  field_acceptance:
+    hardware_output_enabled: true
+    allow_manual_pose: true
+    use_sim_time: false
+
+map:
+  localization_pcd: ""
+  navigation_yaml: ""
+  navigation_pgm: ""
+  allow_manual_pgm_edit: true
+  rebuild_manifest_after_edit: true
+  allow_global_hash_bypass: false
+
+localization:
+  mode: manual_seed_gicp
+  manual_pose_topic: /initialpose
+  refined_pose_topic: /agt/relocalization/pose
+  local_odom_topic: /agt/odometry/local
+  start_pose_file: tests/acceptance/config/start_poses.yaml
+  require_localized_before_motion: true
+
+navigation_accuracy:
+  trials_per_target: 5
+  targets:
+    - id: target_5m
+      nominal_distance_m: 5.0
+      max_mean_physical_error_m: 0.12
+    - id: target_7m
+      nominal_distance_m: 7.0
+      max_mean_physical_error_m: 0.15
+    - id: target_10m
+      nominal_distance_m: 10.0
+      max_mean_physical_error_m: 0.20
+  nav2_overlay:
+    xy_goal_tolerance_m: 0.08
+    yaw_goal_tolerance_rad: 0.0872665
+    planner_tolerance_m: 0.05
+    progress_required_movement_radius_m: 0.05
+    progress_required_movement_angle_rad: 0.05
+    progress_movement_time_allowance_s: 15.0
+  measured_stop:
+    linear_speed_max_mps: 0.03
+    angular_speed_max_radps: 0.03
+    hold_time_s: 1.0
+
+mission:
+  mode: navigate_capture_return
+  waypoint_file: tests/acceptance/config/waypoints.yaml
+  capture_mode: single
+  capture_service: /capability/camera/capture
+  return_home: true
+  return_home_source: mission_start_pose
+  record_physical_error: true
+
+speed:
+  physical_interval_m: 30.0
+  trials: 2
+  min_average_speed_mps: 1.0
+
+slope:
+  min_angle_deg: 30.0
+  loaded: true
+
+endurance:
+  min_duration_hours: 3.0
+  commanded_speed_mps: 1.0
+
+vision:
+  metric: map50
+  iou_threshold: 0.5
+  minimum: 0.80
+
+evidence:
+  output_root: acceptance_runs
+  record_topics:
+    - /agt/odometry/local
+    - /wheel/odom
+    - /agt/localization/status
+    - /cmd_vel
+    - /mux/cmd_vel
+    - /bunker_status
