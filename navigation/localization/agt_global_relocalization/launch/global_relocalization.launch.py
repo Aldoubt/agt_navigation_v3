@@ -15,6 +15,9 @@ def generate_launch_description():
 
     return LaunchDescription([
         DeclareLaunchArgument('use_sim_time', default_value='false'),
+        DeclareLaunchArgument(
+            'relocalization_executable', default_value='global_relocalization',
+            description='global_relocalization or manual_seed_relocalization.'),
         DeclareLaunchArgument('auto_request', default_value='false'),
         DeclareLaunchArgument(
             'global_map', default_value='',
@@ -34,7 +37,7 @@ def generate_launch_description():
 
         Node(
             package='agt_global_relocalization',
-            executable='global_relocalization',
+            executable=LaunchConfiguration('relocalization_executable'),
             name='agt_global_relocalization',
             output='screen',
             parameters=[
