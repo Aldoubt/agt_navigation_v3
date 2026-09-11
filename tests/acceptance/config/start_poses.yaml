@@ -1,0 +1,11 @@
+# Replace these placeholders with surveyed/verified test-field poses.
+# Coordinates are in the active acceptance map frame.
+start_poses:
+  acceptance_start:
+    frame_id: map
+    x: 0.0
+    y: 0.0
+    yaw_rad: 0.0
+    covariance:
+      position_std_m: 0.20
+      yaw_std_deg: 10.0
