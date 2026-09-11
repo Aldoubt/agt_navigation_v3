@@ -17,6 +17,7 @@ setup(
     ],
     install_requires=['setuptools', 'PyYAML'],
     zip_safe=True,
+    tests_require=['pytest'],
     maintainer='AGT',
     maintainer_email='contact@aldoubt.com',
     description='Trigger a camera capture after RViz NavigateToPose success.',
