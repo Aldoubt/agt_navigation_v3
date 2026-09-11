@@ -2,13 +2,18 @@
 <package format="3">
   <name>agt_demo_task</name>
   <version>0.1.0</version>
-  <description>RViz-driven NavigateToPose completion capture for navigation debugging.</description>
+  <description>RViz navigation debug capture and field-acceptance patrol mission runtime.</description>
   <maintainer email="contact@aldoubt.com">AGT</maintainer>
   <license>Apache-2.0</license>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>action_msgs</exec_depend>
   <exec_depend>nav2_msgs</exec_depend>
   <exec_depend>std_msgs</exec_depend>
+  <exec_depend>std_srvs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
   <exec_depend>visualization_msgs</exec_depend>
   <exec_depend>agt_robot_interfaces</exec_depend>
   <exec_depend>nav2_rviz_plugins</exec_depend>
