@@ -10,9 +10,12 @@ setup(
     data_files=[
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name + '/config', ['config/navigation_debug.rviz']),
+        ('share/' + package_name + '/config', [
+            'config/navigation_debug.rviz',
+            'config/acceptance_waypoints.yaml',
+        ]),
     ],
-    install_requires=['setuptools'],
+    install_requires=['setuptools', 'PyYAML'],
     zip_safe=True,
     maintainer='AGT',
     maintainer_email='contact@aldoubt.com',
@@ -21,6 +24,7 @@ setup(
     entry_points={
         'console_scripts': [
             'navigate_capture_task = agt_demo_task.navigate_capture_task:main',
+            'acceptance_patrol_task = agt_demo_task.acceptance_patrol_task:main',
         ],
     },
 )
