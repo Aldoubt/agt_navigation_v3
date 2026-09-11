@@ -1,0 +1,32 @@
+# Replace placeholder coordinates after marking the physical 5 m, 7 m and 10 m targets.
+# The physical measurement from the marked target to the stopped robot is the scored ground truth.
+home:
+  frame_id: map
+  x: 0.0
+  y: 0.0
+  yaw_rad: 0.0
+
+waypoints:
+  - id: target_5m
+    frame_id: map
+    x: 5.0
+    y: 0.0
+    yaw_rad: 0.0
+    capture: true
+    scored: true
+
+  - id: target_7m
+    frame_id: map
+    x: 7.0
+    y: 0.0
+    yaw_rad: 0.0
+    capture: true
+    scored: true
+
+  - id: target_10m
+    frame_id: map
+    x: 10.0
+    y: 0.0
+    yaw_rad: 0.0
+    capture: true
+    scored: true
