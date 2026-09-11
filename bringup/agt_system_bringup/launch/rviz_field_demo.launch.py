@@ -44,6 +44,7 @@ def generate_launch_description():
     mission_dir = LaunchConfiguration('mission_dir')
     use_sim_time = LaunchConfiguration('use_sim_time')
     auto_relocalize = LaunchConfiguration('auto_relocalize')
+    relocalization_executable = LaunchConfiguration('relocalization_executable')
     nav2_params_file = LaunchConfiguration('nav2_params_file')
     livox_bridge_params_file = LaunchConfiguration('livox_bridge_params_file')
     enable_rtk = LaunchConfiguration('enable_rtk')
@@ -80,6 +81,9 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'auto_relocalize', default_value='true',
             description='Automatically request stationary global relocalization after startup.'),
+        DeclareLaunchArgument(
+            'relocalization_executable', default_value='global_relocalization',
+            description='Select global BBS+GICP or manual-seed GICP relocalization executable.'),
         DeclareLaunchArgument('enable_rtk', default_value='true'),
         DeclareLaunchArgument(
             'enable_map_tracking', default_value='false',
@@ -122,6 +126,7 @@ def generate_launch_description():
             'follow_map_manager': 'false',
             'scan_topic': '/agt/livox/points',
             'auto_request': auto_relocalize,
+            'relocalization_executable': relocalization_executable,
             'use_sim_time': use_sim_time,
         }),
         include('agt_localization_manager', 'localization_manager.launch.py', arguments={
