@@ -143,3 +143,109 @@ Nav2 closed-loop controller behavior also requires a simulated/mocked moving bas
 ## Release rule
 
 Only bug fixes, acceptance tooling, parameter overlays, logging, hardware adaptation, and safety-gate changes are allowed on this branch. After all official acceptance items pass, merge this branch to `main` and tag the field-acceptance release.
+
+
+## Current implementation entry points
+
+### 1. Reproducible map cleanup
+
+Generate the initial Nav2 map from the cleaned/frozen PCD:
+
+```bash
+ros2 run agt_map_converter pcd_to_nav_map \
+  /path/to/global_map.cleaned.pcd \
+  --output /path/to/acceptance_map/navigation \
+  --resolution 0.10 \
+  --max-step 0.22 \
+  --max-slope-deg 20.0
+
+ros2 run agt_map_converter validate_nav_map \
+  /path/to/acceptance_map/navigation
+```
+
+For a manual occupancy correction, write a patch YAML in map-frame meters:
+
+```yaml
+edits:
+  - mode: free
+    note: remove temporary parked vehicle
+    polygon_m:
+      - [12.1, 3.2]
+      - [14.0, 3.2]
+      - [14.0, 4.8]
+      - [12.1, 4.8]
+```
+
+Then create a new edited map directory instead of overwriting the source:
+
+```bash
+ros2 run agt_map_converter patch_nav_map \
+  /path/to/acceptance_map/navigation \
+  /path/to/remove_vehicle.yaml \
+  --output /path/to/acceptance_map/navigation-edited
+```
+
+The tool edits `map.pgm` (and `obstacle.pgm` when present), records the patch in
+`converter_metadata.yaml`, and runs map validation. The patch YAML is the audit
+record of the manual edit.
+
+### 2. Offline rosbag pre-acceptance
+
+```bash
+ros2 launch agt_system_bringup acceptance_offline_replay.launch.py \
+  bag:=/path/to/test_field_bag \
+  navigation_map:=/path/to/navigation/map.yaml \
+  localization_map:=/path/to/global_map.cleaned.pcd \
+  relocalization_assets:=/path/to/relocalization
+```
+
+The offline entry point starts no Bunker/CAN/camera hardware driver. In RViz use
+**2D Pose Estimate** to publish `/initialpose`; the acceptance relocalizer crops
+a local submap and runs `map_gicp_tracker` (small_gicp) before publishing the
+validated pose to `/agt/relocalization/pose`.
+
+### 3. Field acceptance
+
+```bash
+ros2 launch agt_system_bringup acceptance_field.launch.py \
+  navigation_map:=/path/to/navigation/map.yaml \
+  localization_map:=/path/to/global_map.cleaned.pcd \
+  relocalization_assets:=/path/to/relocalization \
+  waypoint_file:=/path/to/field_waypoints.yaml
+```
+
+After sensor/LIO readiness:
+
+1. In RViz set the approximate pose with **2D Pose Estimate**.
+2. Wait for `/agt/localization/status` to report a valid localized state and
+   visually confirm `map -> odom -> base_link`.
+3. Start the acceptance mission:
+
+```bash
+ros2 service call /agt/acceptance/start std_srvs/srv/Trigger "{}"
+```
+
+Cancel at any time with:
+
+```bash
+ros2 service call /agt/acceptance/cancel std_srvs/srv/Trigger "{}"
+```
+
+The mission executes:
+
+```text
+target -> measured stop -> camera capture -> next target -> ... -> return home
+```
+
+and writes JSONL evidence under `~/.ros/agt_acceptance/runs`.
+
+### 4. Acceptance Nav2 profile
+
+Formal field acceptance uses the complete installed parameter file:
+
+```text
+agt_nav2_bringup/config/nav2_acceptance_params.yaml
+```
+
+It is a full copy of the normal baseline with only terminal-accuracy settings
+tightened. Do not pass a partial YAML overlay directly to Nav2.
