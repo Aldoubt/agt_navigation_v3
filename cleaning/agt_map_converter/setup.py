@@ -11,6 +11,7 @@ setup(
     ],
     install_requires=['setuptools', 'numpy', 'PyYAML'],
     zip_safe=True,
+    tests_require=['pytest'],
     maintainer='AGT',
     maintainer_email='contact@aldoubt.com',
     description='Convert PCD maps into Nav2 occupancy and terrain layers.',
