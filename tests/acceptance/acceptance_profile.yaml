@@ -31,6 +31,7 @@ localization:
   require_localized_before_motion: true
 
 navigation_accuracy:
+  nav2_params_file: navigation/nav2/agt_nav2_bringup/config/nav2_acceptance_params.yaml
   trials_per_target: 5
   targets:
     - id: target_5m
