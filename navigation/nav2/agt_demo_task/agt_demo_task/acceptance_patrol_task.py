@@ -29,6 +29,13 @@ def _quat_from_yaw(yaw: float):
     return 0.0, 0.0, math.sin(yaw * 0.5), math.cos(yaw * 0.5)
 
 
+def _yaw_from_quat(q) -> float:
+    return math.atan2(
+        2.0 * (q.w * q.z + q.x * q.y),
+        1.0 - 2.0 * (q.y * q.y + q.z * q.z),
+    )
+
+
 class AcceptancePatrolTask(Node):
     def __init__(self):
         super().__init__('acceptance_patrol_task')
@@ -190,7 +197,14 @@ class AcceptancePatrolTask(Node):
         goal.pose = pose
         future = self._action.send_goal_async(goal)
         future.add_done_callback(lambda f, target=label: self._on_goal_response(f, target))
-        self._publish('NAVIGATING', f'navigating to {label}', target=label)
+        self._publish(
+            'NAVIGATING',
+            f'navigating to {label}',
+            target=label,
+            goal_x=float(pose.pose.position.x),
+            goal_y=float(pose.pose.position.y),
+            goal_yaw_rad=_yaw_from_quat(pose.pose.orientation),
+        )
 
     def _send_current_waypoint(self):
         if self._index >= len(self._waypoints):
@@ -251,12 +265,29 @@ class AcceptancePatrolTask(Node):
     def _on_measured_stop(self, linear, angular):
         item = self._waypoints[self._index]
         label = str(item.get('id', f'wp_{self._index}'))
+        final_pose = {}
+        try:
+            tf = self._tf_buffer.lookup_transform(
+                str(self.get_parameter('map_frame').value),
+                str(self.get_parameter('base_frame').value),
+                Time(),
+                timeout=Duration(seconds=float(self.get_parameter('tf_timeout_sec').value)),
+            )
+            final_pose = {
+                'final_x': float(tf.transform.translation.x),
+                'final_y': float(tf.transform.translation.y),
+                'final_z': float(tf.transform.translation.z),
+                'final_yaw_rad': _yaw_from_quat(tf.transform.rotation),
+            }
+        except TransformException as exc:
+            final_pose = {'final_pose_error': str(exc)}
         self._publish(
             'STOPPED',
             f'measured stop confirmed at {label}',
             target=label,
             linear_speed_mps=linear,
             angular_speed_radps=angular,
+            **final_pose,
         )
         if not bool(item.get('capture', True)):
             self._advance()
