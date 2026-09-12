@@ -13,11 +13,23 @@ agt_global_relocalization:
     follow_map_manager: true
     map_status_topic: /agt/map/status
 
-    # Convert raw MID360 PointCloud2 into base_link using the measured/static URDF TF
-    # before BBS. This removes the intentional LiDAR mounting tilt. V1 requires the
-    # robot to be stationary while the cached scans are collected; multi-frame odom
-    # deskew can be added later if moving relocalization is required.
+    # Compatibility-only timestamped TF target for relocalization_query_frame_mode=base_link.
     query_frame: base_link
+    # Formal PGO map contract: global_map.pcd and formal poses are built from
+    # body-frame clouds (T_map_body). mapping_body applies mapping-era
+    # T_body_livox and native refinement yields T_map_body, which is converted
+    # exactly once to T_map_base before publication. base_link remains a
+    # deprecated compatibility mode. body_aligned remains a deprecated alias.
+    # Candidate BBS shares the formal mapping_body contract.  Its native
+    # coarse/refined result is T_map_body and the wrapper converts it exactly
+    # once to T_map_base before publishing.  base_link is deprecated
+    # compatibility only and must be selected explicitly for both parameters.
+    relocalization_query_frame_mode: mapping_body
+    mapping_body_livox_translation: [-0.011, -0.02329, 0.04412]
+    mapping_body_livox_quaternion_xyzw: [0.0, 0.0, 0.0, 1.0]
+    body_to_base_translation: [-0.16403417, 0.02439982, -0.49511119]
+    body_to_base_quaternion_xyzw: [0.000477000, -0.100267018, -0.001592000, 0.994959177]
+    bbs_query_frame_mode: mapping_body
     tf_timeout_sec: 0.10
     require_stationary: true
     local_odom_topic: /agt/odometry/local
@@ -41,6 +53,7 @@ agt_global_relocalization:
       --candidate-top-k 2 --descriptor-prefilter 40
       --candidate-xy-radius 4.0 --candidate-z-radius 2.0
       --candidate-yaw-range-deg 0.0 --roll-pitch-range-deg 0.0
+      --bbs-query-frame-mode {bbs_query_frame_mode}
       --base-from-body-tx 0.25960014 --base-from-body-ty -0.02326770 --base-from-body-tz 0.45244230
       --base-from-body-qx -0.000477000 --base-from-body-qy 0.100267018
       --base-from-body-qz 0.001592000 --base-from-body-qw 0.994959177

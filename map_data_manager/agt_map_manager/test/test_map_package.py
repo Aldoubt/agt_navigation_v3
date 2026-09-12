@@ -2,6 +2,7 @@ import hashlib
 from pathlib import Path
 
 import yaml
+import pytest
 
 from agt_map_manager.map_package import discover_packages, sha256_tree, validate_package
 
@@ -56,6 +57,44 @@ def test_valid_package(tmp_path):
     assert info.valid
     assert info.map_id == 'site_a'
     assert info.map_version == 'v1'
+
+
+def test_formal_pgo_relocalization_contract_is_validated(tmp_path):
+    _, metadata, _, _ = _write_package(tmp_path)
+    data = yaml.safe_load(metadata.read_text(encoding='utf-8'))
+    data['relocalization_contract'] = {
+        'formal_pose_semantics': 'T_map_body',
+        'map_cloud_frame': 'body',
+        'query_frame_mode': 'mapping_body',
+        'query_frame': 'body',
+    }
+    metadata.write_text(yaml.safe_dump(data, sort_keys=False), encoding='utf-8')
+    assert validate_package(metadata).valid
+
+
+@pytest.mark.parametrize('field,value,reason', [
+    ('formal_pose_semantics', 'T_map_base',
+     'relocalization_contract_pose_semantics_must_be_T_map_body'),
+    ('query_frame_mode', 'base_link',
+     'relocalization_contract_query_frame_mode_must_be_mapping_body'),
+    ('query_frame', 'base_link',
+     'relocalization_contract_query_frame_must_be_body'),
+])
+def test_formal_pgo_relocalization_contract_rejects_frame_mismatch(
+        tmp_path, field, value, reason):
+    _, metadata, _, _ = _write_package(tmp_path)
+    data = yaml.safe_load(metadata.read_text(encoding='utf-8'))
+    data['relocalization_contract'] = {
+        'formal_pose_semantics': 'T_map_body',
+        'map_cloud_frame': 'body',
+        'query_frame_mode': 'mapping_body',
+        'query_frame': 'body',
+    }
+    data['relocalization_contract'][field] = value
+    metadata.write_text(yaml.safe_dump(data, sort_keys=False), encoding='utf-8')
+    info = validate_package(metadata)
+    assert not info.valid
+    assert info.reason == reason
 
 
 def test_valid_relocalization_assets_directory(tmp_path):

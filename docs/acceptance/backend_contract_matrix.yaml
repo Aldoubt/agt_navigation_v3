@@ -1,0 +1,42 @@
+schema_version: 1
+title: P2.21 global localization frame-contract freeze
+formal_map_package:
+  formal_pose_semantics: T_map_body
+  localization_cloud_semantics: mapping_body
+  runtime_navigation_anchor: T_map_base_link
+  publication_boundary: T_map_base_link = T_map_body * T_body_base_link
+backends:
+  manual_seed_relocalization:
+    default_query_frame_mode: mapping_body
+    query_cloud: T_body_livox(raw_livox_cloud)
+    gicp_input_pose: T_map_body
+    gicp_result_pose: T_map_body
+    published_pose: T_map_base_link
+    body_to_base_conversion_count: 1
+    compatibility_mode: base_link
+    mixed_mode_allowed: false
+  candidate_bbs_gicp_localizer:
+    default_query_frame_mode: mapping_body
+    query_cloud: T_body_livox(raw_livox_cloud)
+    coarse_candidate_pose: T_map_body
+    refined_pose: T_map_body
+    published_pose: T_map_base_link
+    body_to_base_conversion_count: 1
+    compatibility_mode: base_link
+    mixed_mode_allowed: false
+  global_relocalization_wrapper:
+    default_relocalization_query_frame_mode: mapping_body
+    default_bbs_query_frame_mode: mapping_body
+    enforcement: relocalization_query_frame_mode must equal bbs_query_frame_mode
+    localization_manager_input: T_map_base_link
+    map_odom_tf_authority: agt_localization_manager_only
+deprecated_compatibility:
+  base_link:
+    status: deprecated
+    invocation: relocalization_query_frame_mode:=base_link bbs_query_frame_mode:=base_link
+    warning: formal PGO body-cloud maps must migrate to mapping_body
+acceptance_regressions:
+  - manual_seed_mapping_body_se3_boundary
+  - candidate_bbs_mapping_body_default
+  - mixed_query_candidate_modes_rejected_before_backend
+  - no_duplicate_body_to_base_conversion

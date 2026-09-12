@@ -1,5 +1,23 @@
-from agt_operator_console.replay_audit import FAIL, PASS, WARN, ReplayMetrics
+from agt_operator_console.replay_audit import DISABLED, FAIL, PASS, WARN, ReplayMetrics
 from agt_operator_console import replay_audit
+
+
+def test_formal_map_contract_requires_mapping_body_query_mode():
+    package = {'relocalization_contract': {
+        'formal_pose_semantics': 'T_map_body',
+        'map_cloud_frame': 'body',
+        'query_frame_mode': 'mapping_body',
+        'query_frame': 'body',
+    }}
+    assert replay_audit._inspect_relocalization_contract(package, 'mapping_body') == ('MATCH', '')
+    status, reason = replay_audit._inspect_relocalization_contract(package, 'base_link')
+    assert status == 'MISMATCH'
+    assert 'requires mapping_body' in reason
+
+
+def test_immutable_legacy_map_contract_is_reported_not_rejected():
+    assert replay_audit._inspect_relocalization_contract({}, 'mapping_body') == (
+        'LEGACY_UNDECLARED', '')
 
 
 def _lio(metrics, delays):
@@ -59,6 +77,32 @@ def test_tracker_occasional_hold_is_warning_but_recovery_is_fail():
     assert metrics._tracker_summary()[0] == WARN
     metrics.observe_tracker({'state': 'RECOVERY_REQUIRED'})
     assert metrics._tracker_summary()[0] == FAIL
+
+
+def test_disabled_tracker_is_not_applicable_not_warning():
+    assert ReplayMetrics(tracker_expected=False)._tracker_summary()[0] == DISABLED
+
+
+def test_manual_seed_diagnostics_and_runtime_tf_are_deterministic():
+    metrics = ReplayMetrics()
+    metrics.observe_manual_status({'state': 'MANUAL_SEED_REJECTED', 'detail': 'no scan'})
+    assert metrics.manual['manual_seed_received'] is True
+    metrics.observe_manual_status({'state': 'MANUAL_GICP_REFINING', 'detail': 'refining'})
+    metrics.observe_manual_status({'state': 'MANUAL_GICP_ACCEPTED', 'detail': 'accepted',
+                                   'fitness': 0.12, 'overlap': 0.8})
+    metrics.observe_relocalization_pose()
+    metrics.advance_clock(10.0)
+    metrics.observe_tf_check('tf_odom_base')
+    metrics.observe_tf('tf_odom_base', 10.0)
+    metrics.finish_runtime_observations()
+    assert metrics.manual['manual_seed_received'] is True
+    assert metrics.manual['manual_seed_rejected_count'] == 1
+    assert metrics.manual['manual_gicp_attempts'] == 1
+    assert metrics.manual['manual_gicp_accepted'] is True
+    assert metrics.manual['last_fitness'] == 0.12
+    assert metrics.manual['relocalization_pose_published'] is True
+    assert metrics.nav['tf_odom_base_runtime']['ever_seen'] is True
+    assert metrics.nav['tf_odom_base_runtime']['availability'] == 1.0
 
 
 def test_final_summary_is_deterministic():

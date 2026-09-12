@@ -13,5 +13,6 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    entry_points={'console_scripts': ['map_tracker = agt_map_tracker.map_tracker:main']},
+    entry_points={'console_scripts': ['map_tracker = agt_map_tracker.map_tracker:main',
+                                     'map_tracker_artifact_analyzer = agt_map_tracker.artifact_analyzer:main']},
 )

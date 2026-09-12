@@ -217,6 +217,15 @@ def build_package(
             'frame_id': 'map',
             'created_utc': datetime.now(timezone.utc).isoformat(),
             'generator': 'agt_map_manager/create_map_package',
+            # Formal PGO map contract.  The localization PCD and formal poses
+            # are map/body products; runtime must prepare a body-frame query
+            # with the same mapping-era sensor extrinsic.
+            'relocalization_contract': {
+                'formal_pose_semantics': 'T_map_body',
+                'map_cloud_frame': 'body',
+                'query_frame_mode': 'mapping_body',
+                'query_frame': 'body',
+            },
             'assets': assets,
         }
         if generation is not None:

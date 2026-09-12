@@ -12,7 +12,7 @@ localization missing / invalid
 stop robot and wait for stable local LIO
         |
         v
-build base_link query
+build mapping_body query
         |
         v
 AGT Polar Context place retrieval
@@ -85,10 +85,13 @@ candidates provide both a map region and a dominant yaw estimate.
 
 ## Frame convention
 
-Mapping patches are stored in FAST-LIO `body` coordinates, while runtime
-relocalization queries are built in robot `base_link` coordinates. The backend
-therefore converts each saved `T_map_body` candidate into `T_map_base` using the
-same calibrated MID360/body/base extrinsic used by the Batch-LIO adapter.
+Mapping patches and formal PGO poses are stored in FAST-LIO `body`
+coordinates.  The formal runtime path therefore builds a `mapping_body` query
+using the mapping-era `T_body_livox` transform.  Candidate BBS and GICP both
+operate on `T_map_body`; the wrapper converts the final result once to
+`T_map_base` before publishing it to LocalizationManager.  The historical
+`base_link` query/candidate path remains a deprecated compatibility mode and
+must be requested explicitly for both query-mode parameters.
 
 Current `T_base_body`:
 

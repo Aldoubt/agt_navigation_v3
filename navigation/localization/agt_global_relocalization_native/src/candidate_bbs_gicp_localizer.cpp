@@ -45,6 +45,9 @@ struct Options {
   double local_map_half_height{8.0};
   std::size_t min_local_map_points{800};
   int threads{8};
+  // Formal PGO pose and cloud contract.  base_link is accepted only as an
+  // explicit compatibility selection by the wrapper/CLI.
+  std::string bbs_query_frame_mode{"mapping_body"};
   // T_base_body maps FAST-LIO / Batch-LIO IMU-body coordinates into robot base_link.
   // It is composed from the measured base_link->lidar_link mount and the pinned
   // MID360 LiDAR/IMU extrinsic (Batch-LIO: p_body = R * p_lidar + t).
@@ -101,6 +104,7 @@ bool parse(int argc, char** argv, Options& o) {
     else if (a == "--local-map-radius-xy") o.local_map_radius_xy = std::stod(next());
     else if (a == "--local-map-half-height") o.local_map_half_height = std::stod(next());
     else if (a == "--min-local-map-points") o.min_local_map_points = std::stoul(next());
+    else if (a == "--bbs-query-frame-mode") o.bbs_query_frame_mode = next();
     else if (a == "--base-from-body-tx") o.base_from_body_t.x() = std::stod(next());
     else if (a == "--base-from-body-ty") o.base_from_body_t.y() = std::stod(next());
     else if (a == "--base-from-body-tz") o.base_from_body_t.z() = std::stod(next());
@@ -235,6 +239,15 @@ int main(int argc, char** argv) {
         o.candidate_xy_radius <= 0.0 || o.candidate_z_radius <= 0.0) {
       throw std::runtime_error("invalid candidate-search settings");
     }
+    if (o.bbs_query_frame_mode != "base_link" &&
+        o.bbs_query_frame_mode != "mapping_body") {
+      throw std::runtime_error(
+        "--bbs-query-frame-mode must be base_link or mapping_body");
+    }
+    if (o.bbs_query_frame_mode == "base_link") {
+      std::cerr << "WARN: --bbs-query-frame-mode=base_link is deprecated for "
+                << "formal PGO body-cloud map packages; use mapping_body\n";
+    }
 
     const fs::path assets(o.assets_dir);
     const fs::path db_path = assets / "polar_context.db";
@@ -247,20 +260,22 @@ int main(int argc, char** argv) {
     auto db_entries =
       agt_relocalization::load_polar_context_db(db_path.string(), descriptor_params);
 
-    // poses.txt stores T_map_body, while live relocalization queries are in base_link.
-    // Convert each candidate seed to T_map_base using the calibrated T_base_body.
-    Eigen::Isometry3d T_base_body = Eigen::Isometry3d::Identity();
-    const Eigen::Quaterniond q_base_body = o.base_from_body_q.normalized();
-    T_base_body.linear() = q_base_body.toRotationMatrix();
-    T_base_body.translation() = o.base_from_body_t;
-    const Eigen::Isometry3d T_body_base = T_base_body.inverse();
-    for (auto& entry : db_entries) {
-      Eigen::Isometry3d T_map_body = Eigen::Isometry3d::Identity();
-      T_map_body.linear() = entry.orientation.normalized().toRotationMatrix();
-      T_map_body.translation() = entry.translation;
-      const Eigen::Isometry3d T_map_base = T_map_body * T_body_base;
-      entry.translation = T_map_base.translation();
-      entry.orientation = Eigen::Quaterniond(T_map_base.rotation()).normalized();
+    if (o.bbs_query_frame_mode == "base_link") {
+      // Compatibility path: convert formal T_map_body candidates exactly once
+      // because the source query cloud is in base_link.
+      Eigen::Isometry3d T_base_body = Eigen::Isometry3d::Identity();
+      const Eigen::Quaterniond q_base_body = o.base_from_body_q.normalized();
+      T_base_body.linear() = q_base_body.toRotationMatrix();
+      T_base_body.translation() = o.base_from_body_t;
+      const Eigen::Isometry3d T_body_base = T_base_body.inverse();
+      for (auto& entry : db_entries) {
+        Eigen::Isometry3d T_map_body = Eigen::Isometry3d::Identity();
+        T_map_body.linear() = entry.orientation.normalized().toRotationMatrix();
+        T_map_body.translation() = entry.translation;
+        const Eigen::Isometry3d T_map_base = T_map_body * T_body_base;
+        entry.translation = T_map_base.translation();
+        entry.orientation = Eigen::Quaterniond(T_map_base.rotation()).normalized();
+      }
     }
 
     std::string map_for_runtime = o.map;
@@ -410,6 +425,7 @@ int main(int argc, char** argv) {
       0.0, 1.0);
 
     std::cout << "{\"success\":true"
+              << ",\"bbs_query_frame_mode\":\"" << o.bbs_query_frame_mode << "\""
               << ",\"x\":" << T.translation().x()
               << ",\"y\":" << T.translation().y()
               << ",\"z\":" << T.translation().z()

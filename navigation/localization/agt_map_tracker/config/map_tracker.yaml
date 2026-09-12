@@ -35,3 +35,7 @@ agt_map_tracker:
     # threshold; enabling it turns severe geometry degeneracy into HOLD/RECOVERY.
     reject_degenerate_hessian: false
     max_hessian_condition_number: 1.0e10
+    apply_correction: true
+    save_debug_cloud: false
+    debug_directory: ~/.ros/agt_map_tracker_debug
+    max_debug_failure_samples: 20

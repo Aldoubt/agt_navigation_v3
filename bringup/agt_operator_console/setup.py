@@ -23,6 +23,8 @@ setup(
         'console_scripts': [
             'operator_console = agt_operator_console.operator_console:main',
             'replay_audit = agt_operator_console.replay_audit:main',
+            'deterministic_seed_injector = agt_operator_console.deterministic_seed_injector:main',
+            'pose_chain_recorder = agt_operator_console.pose_chain_recorder:main',
         ],
     },
 )

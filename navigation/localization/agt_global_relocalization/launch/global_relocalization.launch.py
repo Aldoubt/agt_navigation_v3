@@ -20,6 +20,12 @@ def generate_launch_description():
             description='global_relocalization or manual_seed_relocalization.'),
         DeclareLaunchArgument('auto_request', default_value='false'),
         DeclareLaunchArgument(
+            'relocalization_query_frame_mode', default_value='mapping_body',
+            description='Formal PGO map mode mapping_body; deprecated compatibility base_link or body_aligned alias.'),
+        DeclareLaunchArgument(
+            'bbs_query_frame_mode', default_value='mapping_body',
+            description='Formal PGO candidate-BBS mode mapping_body; base_link is deprecated compatibility.'),
+        DeclareLaunchArgument(
             'global_map', default_value='',
             description='Fallback global PCD path when Map Manager is not supplying an active map.'),
         DeclareLaunchArgument(
@@ -29,6 +35,14 @@ def generate_launch_description():
             'follow_map_manager', default_value='true',
             description='Follow /agt/map/status for active PCD and BBS assets.'),
         DeclareLaunchArgument('sdk_timeout_sec', default_value='18.0'),
+        DeclareLaunchArgument(
+            'gicp_constraint_mode', default_value='full_se3',
+            description='Manual-seed experiment: full_se3, gravity_constrained, or gravity_prior.'),
+        DeclareLaunchArgument('max_roll_delta_deg', default_value='10.0'),
+        DeclareLaunchArgument('max_pitch_delta_deg', default_value='10.0'),
+        DeclareLaunchArgument(
+            'cloud_contract_capture_dir', default_value='',
+            description='Optional P2.15 diagnostic artifact directory; empty disables capture.'),
         DeclareLaunchArgument('local_map_radius_xy', default_value='35.0'),
         DeclareLaunchArgument('local_map_half_height', default_value='8.0'),
         DeclareLaunchArgument(
@@ -56,6 +70,15 @@ def generate_launch_description():
                     'scan_topic': LaunchConfiguration('scan_topic'),
                     'use_sim_time': ParameterValue(LaunchConfiguration('use_sim_time'), value_type=bool),
                     'auto_request': ParameterValue(LaunchConfiguration('auto_request'), value_type=bool),
+                    'relocalization_query_frame_mode': LaunchConfiguration(
+                        'relocalization_query_frame_mode'),
+                    'bbs_query_frame_mode': LaunchConfiguration('bbs_query_frame_mode'),
+                    'gicp_constraint_mode': LaunchConfiguration('gicp_constraint_mode'),
+                    'max_roll_delta_deg': ParameterValue(
+                        LaunchConfiguration('max_roll_delta_deg'), value_type=float),
+                    'max_pitch_delta_deg': ParameterValue(
+                        LaunchConfiguration('max_pitch_delta_deg'), value_type=float),
+                    'cloud_contract_capture_dir': LaunchConfiguration('cloud_contract_capture_dir'),
                 },
             ],
         ),

@@ -25,11 +25,21 @@ def generate_launch_description():
         DeclareLaunchArgument('launch_rviz', default_value='false'),
         DeclareLaunchArgument('auto_relocalize', default_value='true'),
         DeclareLaunchArgument(
+            'relocalization_query_frame_mode', default_value='mapping_body',
+            description='Formal PGO map mode mapping_body; base_link is deprecated compatibility.'),
+        DeclareLaunchArgument(
+            'bbs_query_frame_mode', default_value='mapping_body',
+            description='Formal PGO candidate-BBS mode mapping_body; base_link is deprecated compatibility.'),
+        DeclareLaunchArgument(
             'relocalization_executable', default_value='global_relocalization',
             description='global_relocalization or manual_seed_relocalization.'),
         DeclareLaunchArgument('relocalization_assets', default_value=''),
         DeclareLaunchArgument('lidar_topic', default_value='/agt/sensors/lidar/custom'),
         DeclareLaunchArgument('imu_topic', default_value='/agt/sensors/imu/data'),
+        DeclareLaunchArgument('gicp_constraint_mode', default_value='full_se3'),
+        DeclareLaunchArgument('max_roll_delta_deg', default_value='10.0'),
+        DeclareLaunchArgument('max_pitch_delta_deg', default_value='10.0'),
+        DeclareLaunchArgument('cloud_contract_capture_dir', default_value=''),
         # A single static map publisher. This node has no TF authority.
         Node(package='pcl_ros', executable='pcd_to_pointcloud', name='offline_global_map',
              output='screen', arguments=[],
@@ -54,7 +64,14 @@ def generate_launch_description():
             'relocalization_executable': LaunchConfiguration('relocalization_executable'),
             'global_map': map_pcd, 'scan_topic': '/agt/relocalization/input_cloud',
             'follow_map_manager': 'false',
-            'relocalization_assets': LaunchConfiguration('relocalization_assets')}),
+            'relocalization_query_frame_mode': LaunchConfiguration(
+                'relocalization_query_frame_mode'),
+            'bbs_query_frame_mode': LaunchConfiguration('bbs_query_frame_mode'),
+            'relocalization_assets': LaunchConfiguration('relocalization_assets'),
+            'gicp_constraint_mode': LaunchConfiguration('gicp_constraint_mode'),
+            'max_roll_delta_deg': LaunchConfiguration('max_roll_delta_deg'),
+            'max_pitch_delta_deg': LaunchConfiguration('max_pitch_delta_deg'),
+            'cloud_contract_capture_dir': LaunchConfiguration('cloud_contract_capture_dir')}),
         include('agt_localization_manager', 'localization_manager.launch.py',
                 {'use_sim_time': 'true', 'debug_identity_map_odom': 'false'}),
         Node(package='rviz2', executable='rviz2', name='offline_relocalization_rviz',

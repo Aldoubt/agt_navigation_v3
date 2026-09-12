@@ -23,6 +23,8 @@ KNOWN_ASSETS = (
     'quality_report',
 )
 DIRECTORY_ASSETS = {'relocalization_assets'}
+FORMAL_PGO_POSE_SEMANTICS = 'T_map_body'
+FORMAL_PGO_QUERY_MODE = 'mapping_body'
 
 
 @dataclass(frozen=True)
@@ -195,6 +197,29 @@ def _validate_provenance_sections(data: Dict, assets: Dict[str, Asset]) -> str:
     return ''
 
 
+def _validate_relocalization_contract(data: Dict) -> str:
+    """Validate the explicit frame contract of newly produced formal PGO maps.
+
+    schema_version=1 packages existed before the contract was recorded.  Those
+    immutable legacy packages remain readable, but any package that declares a
+    contract must declare the complete, internally consistent PGO/body model.
+    """
+    contract = data.get('relocalization_contract')
+    if contract is None:
+        return ''
+    if not isinstance(contract, dict):
+        return 'relocalization_contract_must_be_mapping'
+    if contract.get('formal_pose_semantics') != FORMAL_PGO_POSE_SEMANTICS:
+        return 'relocalization_contract_pose_semantics_must_be_T_map_body'
+    if contract.get('map_cloud_frame') != 'body':
+        return 'relocalization_contract_map_cloud_frame_must_be_body'
+    if contract.get('query_frame_mode') != FORMAL_PGO_QUERY_MODE:
+        return 'relocalization_contract_query_frame_mode_must_be_mapping_body'
+    if contract.get('query_frame') != 'body':
+        return 'relocalization_contract_query_frame_must_be_body'
+    return ''
+
+
 def validate_package(metadata_path: Path, verify_hashes: bool = True) -> PackageInfo:
     metadata_path = metadata_path.expanduser().resolve()
     package_path = metadata_path.parent.resolve()
@@ -313,6 +338,12 @@ def validate_package(metadata_path: Path, verify_hashes: bool = True) -> Package
     if provenance_error:
         return _invalid(
             metadata_path, package_path, provenance_error,
+            map_id, map_version, frame_id, assets)
+
+    contract_error = _validate_relocalization_contract(data)
+    if contract_error:
+        return _invalid(
+            metadata_path, package_path, contract_error,
             map_id, map_version, frame_id, assets)
 
     return PackageInfo(
