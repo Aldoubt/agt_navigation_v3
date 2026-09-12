@@ -440,8 +440,6 @@ class LocalizationManager(Node):
             self._state = LocalizationStatus.STATE_WAIT_LOCAL_ODOM
             self._reason = 'waiting_local_odom'
             return
-        if self._state == LocalizationStatus.STATE_RELOCALIZING:
-            return
         if self._correction_current is None:
             if self._state != LocalizationStatus.STATE_RELOCALIZING:
                 self._state = LocalizationStatus.STATE_WAIT_GLOBAL
@@ -450,6 +448,8 @@ class LocalizationManager(Node):
         if age > lost:
             self._state = LocalizationStatus.STATE_LOST
             self._reason = f'local_odom_lost:{age:.2f}s'
+        elif self._state == LocalizationStatus.STATE_RELOCALIZING:
+            return
         elif age > timeout:
             self._state = LocalizationStatus.STATE_DEGRADED
             self._reason = f'local_odom_stale:{age:.2f}s'
