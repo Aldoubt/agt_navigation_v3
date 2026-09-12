@@ -11,11 +11,13 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('global_map', default_value=''),
         DeclareLaunchArgument('scan_topic', default_value='/agt/livox/points'),
+        DeclareLaunchArgument('use_sim_time', default_value='false'),
         Node(
             package='agt_map_tracker', executable='map_tracker',
             name='agt_map_tracker', output='screen',
             parameters=[str(share / 'config' / 'map_tracker.yaml'), {
                 'global_map': LaunchConfiguration('global_map'),
                 'scan_topic': LaunchConfiguration('scan_topic'),
+                'use_sim_time': LaunchConfiguration('use_sim_time'),
             }]),
     ])
