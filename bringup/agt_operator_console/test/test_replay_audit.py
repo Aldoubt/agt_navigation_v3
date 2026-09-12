@@ -1,4 +1,5 @@
 from agt_operator_console.replay_audit import FAIL, PASS, WARN, ReplayMetrics
+from agt_operator_console import replay_audit
 
 
 def _lio(metrics, delays):
@@ -74,3 +75,9 @@ def test_final_summary_is_deterministic():
         })
         return metrics.summary(PASS, {'map_id': 'fixed'}, [])
     assert build() == build()
+
+
+def test_clock_subscription_uses_best_effort_clock_qos_profile():
+    source = open(replay_audit.__file__, encoding='utf-8').read()
+    assert 'reliability=ReliabilityPolicy.BEST_EFFORT' in source
+    assert "self.create_subscription(ClockMessage, '/clock', self._on_clock, CLOCK_QOS)" in source

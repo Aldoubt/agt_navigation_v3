@@ -19,6 +19,7 @@ from lifecycle_msgs.srv import GetState
 from nav_msgs.msg import Odometry
 from rclpy.clock import Clock, ClockType
 from rclpy.node import Node
+from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from rosgraph_msgs.msg import Clock as ClockMessage
 from std_msgs.msg import String
 from tf2_ros import Buffer, TransformException, TransformListener
@@ -28,6 +29,9 @@ from agt_robot_interfaces.msg import LocalizationStatus
 
 
 PASS, WARN, FAIL = 'PASS', 'WARN', 'FAIL'
+CLOCK_QOS = QoSProfile(
+    history=HistoryPolicy.KEEP_LAST, depth=1,
+    reliability=ReliabilityPolicy.BEST_EFFORT)
 
 
 def _percentile(values: list[float], percentile: float) -> float | None:
@@ -326,7 +330,9 @@ class ReplayAuditNode(Node):
         self._lifecycle = {name: self.create_client(GetState, f'/{name}/get_state')
                            for name in ('map_server', 'planner_server')}
         self._lifecycle_pending = set()
-        self.create_subscription(ClockMessage, '/clock', self._on_clock, 100)
+        # rosbag2 /clock is normally best-effort.  The default reliable QoS
+        # would silently receive no replay time and invalidate latency data.
+        self.create_subscription(ClockMessage, '/clock', self._on_clock, CLOCK_QOS)
         self.create_subscription(Odometry, '/agt/odometry/local', self._on_odom, 100)
         self.create_subscription(LocalizationStatus, '/agt/localization/status', self._on_localization, 50)
         self.create_subscription(String, '/agt/map_tracking/status', self._on_tracker, 50)
