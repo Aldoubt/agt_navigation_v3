@@ -1,12 +1,14 @@
 #include <algorithm>
 #include <cmath>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
 #include <Eigen/Core>
 #include <Eigen/Geometry>
+#include <Eigen/Eigenvalues>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_cloud.h>
@@ -125,12 +127,39 @@ int main(int argc, char** argv) {
     const double overlap = std::clamp(static_cast<double>(result.num_inliers) /
                                       static_cast<double>(scan_points.size()), 0.0, 1.0);
     const double fitness = result.error / static_cast<double>(std::max<std::size_t>(1, result.num_inliers));
+    // Record local observability rather than treating convergence as proof that
+    // the pose is correct. The raw 6-DoF Hessian mixes rotational/translational
+    // units, so this is a diagnostic signal first; field rejection stays
+    // configurable in agt_map_tracker after replay distributions are measured.
+    const Eigen::Matrix<double, 6, 6> hessian =
+      0.5 * (result.H.template cast<double>() + result.H.transpose().template cast<double>());
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double, 6, 6>> eig(hessian);
+    Eigen::Matrix<double, 6, 1> hessian_eigenvalues =
+      Eigen::Matrix<double, 6, 1>::Constant(std::numeric_limits<double>::quiet_NaN());
+    double hessian_condition_number = std::numeric_limits<double>::infinity();
+    bool hessian_degenerate = true;
+    if (eig.info() == Eigen::Success) {
+      hessian_eigenvalues = eig.eigenvalues();
+      const double min_eig = hessian_eigenvalues.minCoeff();
+      const double max_eig = hessian_eigenvalues.maxCoeff();
+      if (std::isfinite(min_eig) && std::isfinite(max_eig) && min_eig > 1.0e-12) {
+        hessian_condition_number = max_eig / min_eig;
+        hessian_degenerate =
+          !std::isfinite(hessian_condition_number) || hessian_condition_number > 1.0e10;
+      }
+    }
     std::cout << "{\"success\":true"
               << ",\"x\":" << pose.translation().x() << ",\"y\":" << pose.translation().y()
               << ",\"z\":" << pose.translation().z()
               << ",\"qx\":" << q.x() << ",\"qy\":" << q.y()
               << ",\"qz\":" << q.z() << ",\"qw\":" << q.w()
               << ",\"fitness\":" << fitness << ",\"overlap\":" << overlap
+              << ",\"hessian_eigenvalues\":["
+              << hessian_eigenvalues(0) << "," << hessian_eigenvalues(1) << ","
+              << hessian_eigenvalues(2) << "," << hessian_eigenvalues(3) << ","
+              << hessian_eigenvalues(4) << "," << hessian_eigenvalues(5) << "]"
+              << ",\"hessian_condition_number\":" << hessian_condition_number
+              << ",\"hessian_degenerate\":" << (hessian_degenerate ? "true" : "false")
               << ",\"map_points\":" << local.size() << ",\"query_points\":" << scan_points.size()
               << "}" << std::endl;
     return 0;
