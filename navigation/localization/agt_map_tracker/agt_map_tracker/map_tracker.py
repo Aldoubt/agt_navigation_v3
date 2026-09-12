@@ -96,6 +96,9 @@ class MapTracker(Node):
             'max_translation_innovation_m': 0.50,
             'max_yaw_innovation_deg': 5.0, 'odom_match_max_skew_sec': 0.10,
             'tf_timeout_sec': 0.10, 'native_timeout_sec': 8.0,
+            'degraded_after_rejects': 2, 'recovery_after_rejects': 4,
+            'reject_degenerate_hessian': False,
+            'max_hessian_condition_number': 1.0e10,
         }.items():
             self.declare_parameter(name, default)
         self._odom = deque(maxlen=6000)
@@ -103,6 +106,7 @@ class MapTracker(Node):
         self._localized = False
         self._correction_valid = False
         self._last_run_ns = 0
+        self._consecutive_rejects = 0
         self._tf = Buffer()
         self._listener = TransformListener(self._tf, self)
         self._pose_pub = self.create_publisher(PoseWithCovarianceStamped, self.get_parameter('output_pose_topic').value, 10)
@@ -172,6 +176,27 @@ class MapTracker(Node):
             for p in points:
                 f.write(f'{p[0]:.6f} {p[1]:.6f} {p[2]:.6f}\n')
 
+    def _record_reject(self, reason, **fields):
+        self._consecutive_rejects += 1
+        degraded_after = max(1, int(self.get_parameter('degraded_after_rejects').value))
+        recovery_after = max(degraded_after + 1, int(self.get_parameter('recovery_after_rejects').value))
+        if self._consecutive_rejects >= recovery_after:
+            state = 'RECOVERY_REQUIRED'
+        elif self._consecutive_rejects >= degraded_after:
+            state = 'DEGRADED'
+        else:
+            state = 'HOLD'
+        self._publish_status(
+            state,
+            reason=reason,
+            consecutive_rejects=self._consecutive_rejects,
+            **fields,
+        )
+
+    def _record_accept(self, **fields):
+        self._consecutive_rejects = 0
+        self._publish_status('TRACKING_OK', consecutive_rejects=0, **fields)
+
     def _track(self):
         if not (self._localized and self._correction_valid):
             self._publish_status('WAIT_LOCALIZED', reason='manager_not_localized')
@@ -189,7 +214,7 @@ class MapTracker(Node):
         query = np.concatenate(query, axis=0)
         query = self._voxel(query, float(self.get_parameter('query_voxel_leaf_m').value))
         if len(query) < int(self.get_parameter('min_query_points').value):
-            self._publish_status('REJECTED', reason='min_query_points', query_points=len(query))
+            self._record_reject('min_query_points', query_points=len(query))
             return
         try:
             map_odom = transform_matrix(self._tf.lookup_transform(
@@ -202,7 +227,7 @@ class MapTracker(Node):
         p, q = matrix_pose(predicted)
         map_path = str(self.get_parameter('global_map').value)
         if not map_path or not os.path.isfile(map_path):
-            self._publish_status('REJECTED', reason='global_map_missing')
+            self._record_reject('global_map_missing')
             return
         with tempfile.TemporaryDirectory(prefix='agt_map_tracker_') as work:
             scan_path = Path(work) / 'query.pcd'
@@ -217,15 +242,29 @@ class MapTracker(Node):
                                         timeout=float(self.get_parameter('native_timeout_sec').value))
                 data = json.loads(result.stdout.strip().splitlines()[-1])
             except (OSError, subprocess.SubprocessError, ValueError, IndexError) as exc:
-                self._publish_status('REJECTED', reason=f'native_tracker:{exc}')
+                self._record_reject(f'native_tracker:{exc}')
                 return
         if not data.get('success'):
-            self._publish_status('REJECTED', reason=str(data.get('message', 'gicp_failed')))
+            self._record_reject(str(data.get('message', 'gicp_failed')))
             return
         fitness = float(data.get('fitness', math.inf))
         overlap = float(data.get('overlap', 0.0))
+        hessian_condition = float(data.get('hessian_condition_number', math.inf))
+        hessian_degenerate = bool(data.get('hessian_degenerate', False))
+        if (bool(self.get_parameter('reject_degenerate_hessian').value)
+                and (hessian_degenerate
+                     or hessian_condition > float(
+                         self.get_parameter('max_hessian_condition_number').value))):
+            self._record_reject(
+                'degenerate_geometry',
+                fitness=fitness,
+                overlap=overlap,
+                hessian_condition_number=hessian_condition,
+                hessian_degenerate=hessian_degenerate,
+            )
+            return
         if fitness > float(self.get_parameter('max_fitness').value) or overlap < float(self.get_parameter('min_overlap').value):
-            self._publish_status('REJECTED', reason='quality_gate', fitness=fitness, overlap=overlap)
+            self._record_reject('quality_gate', fitness=fitness, overlap=overlap)
             return
         measured = np.eye(4)
         measured[:3, :3] = quat_matrix((float(data['qx']), float(data['qy']), float(data['qz']), float(data['qw'])))
@@ -236,9 +275,9 @@ class MapTracker(Node):
         yaw_innovation = abs((yaw_of(measured) - yaw_of(predicted) + math.pi) % (2.0 * math.pi) - math.pi)
         if (translation_innovation > float(self.get_parameter('max_translation_innovation_m').value)
                 or yaw_innovation > math.radians(float(self.get_parameter('max_yaw_innovation_deg').value))):
-            self._publish_status('TRACKING_SUSPECT', reason='innovation_gate', fitness=fitness,
-                                 overlap=overlap, translation_innovation_m=translation_innovation,
-                                 yaw_innovation_deg=math.degrees(yaw_innovation))
+            self._record_reject('innovation_gate', fitness=fitness,
+                                overlap=overlap, translation_innovation_m=translation_innovation,
+                                yaw_innovation_deg=math.degrees(yaw_innovation))
             return
         pose_msg = PoseWithCovarianceStamped()
         pose_msg.header.frame_id = self.get_parameter('map_frame').value
@@ -251,10 +290,16 @@ class MapTracker(Node):
         pose_msg.pose.covariance[14] = max(0.01, fitness)
         pose_msg.pose.covariance[35] = max(0.001, fitness / max(overlap, 0.01))
         self._pose_pub.publish(pose_msg)
-        self._publish_status('ACCEPTED', fitness=fitness, overlap=overlap,
-                             query_points=len(query), map_points=int(data.get('map_points', 0)),
-                             translation_innovation_m=translation_innovation,
-                             yaw_innovation_deg=math.degrees(yaw_innovation))
+        self._record_accept(
+            fitness=fitness,
+            overlap=overlap,
+            query_points=len(query),
+            map_points=int(data.get('map_points', 0)),
+            translation_innovation_m=translation_innovation,
+            yaw_innovation_deg=math.degrees(yaw_innovation),
+            hessian_condition_number=float(data.get('hessian_condition_number', math.inf)),
+            hessian_degenerate=bool(data.get('hessian_degenerate', False)),
+        )
 
     @staticmethod
     def _voxel(points, leaf):
