@@ -24,3 +24,14 @@ agt_map_tracker:
     odom_match_max_skew_sec: 0.10
     tf_timeout_sec: 0.10
     native_timeout_sec: 8.0
+
+    # Failure hysteresis: one bad registration holds the current map->odom.
+    # Repeated failures degrade the tracker and eventually request recovery.
+    degraded_after_rejects: 2
+    recovery_after_rejects: 4
+
+    # Hessian observability is recorded during the first offline tuning pass.
+    # Keep rejection disabled until replay distributions define a field-safe
+    # threshold; enabling it turns severe geometry degeneracy into HOLD/RECOVERY.
+    reject_degenerate_hessian: false
+    max_hessian_condition_number: 1.0e10
