@@ -22,6 +22,7 @@ setup(
     entry_points={
         'console_scripts': [
             'operator_console = agt_operator_console.operator_console:main',
+            'replay_audit = agt_operator_console.replay_audit:main',
         ],
     },
 )

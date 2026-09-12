@@ -14,6 +14,7 @@ from launch.actions import DeclareLaunchArgument, ExecuteProcess, IncludeLaunchD
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import Node
 
 
 def _include(package: str, launch_file: str, arguments=None, condition=None):
@@ -35,6 +36,7 @@ def generate_launch_description():
     relocalization_executable = LaunchConfiguration('relocalization_executable')
     auto_relocalize = LaunchConfiguration('auto_relocalize')
     launch_rviz = LaunchConfiguration('launch_rviz')
+    enable_replay_audit = LaunchConfiguration('enable_replay_audit')
 
     return LaunchDescription([
         DeclareLaunchArgument('bag', description='Path to test-field rosbag directory'),
@@ -65,6 +67,24 @@ def generate_launch_description():
             'map_tracker_scan_topic',
             default_value='/agt/relocalization/input_cloud',
             description='PointCloud2 query topic used by the offline map tracker.'),
+        DeclareLaunchArgument(
+            'enable_replay_audit', default_value='false',
+            description='Start the side-channel deterministic replay auditor.'),
+        DeclareLaunchArgument(
+            'report_dir', default_value='~/.ros/agt_acceptance/replay_reports',
+            description='Parent directory for replay-audit JSONL/YAML reports.'),
+        DeclareLaunchArgument(
+            'map_package_dir',
+            default_value=(
+                '/home/yangxuan/ros2_ws/agt_data/maps/'
+                'bunker_mid360_mapping_20260901_205036/v003-indexed'),
+            description='Frozen v003-indexed package audited by replay_audit.'),
+        DeclareLaunchArgument(
+            'map_gate_evidence', default_value='',
+            description='Optional persistent P0.5 existing_map_audit.yaml with acceptance_status=PASS.'),
+        DeclareLaunchArgument(
+            'map_gate_status', default_value='PASS',
+            description='Frozen reviewed P0/P0.5 MAP gate result when no evidence file is supplied.'),
 
         _include('agt_system_bringup', 'offline_relocalization_demo.launch.py', {
             'global_map': LaunchConfiguration('localization_map'),
@@ -94,6 +114,21 @@ def generate_launch_description():
             'use_sim_time': 'true',
             'autostart': 'true',
         }),
+
+        Node(
+            package='agt_operator_console', executable='replay_audit',
+            name='agt_replay_audit', output='screen',
+            condition=IfCondition(enable_replay_audit),
+            parameters=[{
+                'use_sim_time': True,
+                'report_dir': LaunchConfiguration('report_dir'),
+                'navigation_map': LaunchConfiguration('navigation_map'),
+                'map_package_dir': LaunchConfiguration('map_package_dir'),
+                'map_gate_evidence': LaunchConfiguration('map_gate_evidence'),
+                'map_gate_status': LaunchConfiguration('map_gate_status'),
+                'enable_map_tracking': enable_map_tracking,
+            }],
+        ),
 
         TimerAction(
             period=2.0,
