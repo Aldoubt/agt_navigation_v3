@@ -1,0 +1,6 @@
+string map_id
+string map_version
+---
+bool success
+string message
+agt_robot_interfaces/MapStatus status

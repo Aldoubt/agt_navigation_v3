@@ -234,7 +234,7 @@ finishing in `453.279 ms`; a subsequent known-free PGO target returned
 `NavigateToPose=SUCCEEDED` in `45.322 s`.
 
 The `cmd_vel_guard` fail-closed transition has a repeatable ROS pub/sub
-acceptance test in `src/agt_base_control/test/guard_fail_closed_acceptance.py`.
+acceptance test in `bringup/agt_base_control/test/guard_fail_closed_acceptance.py`.
 The measured LOST-to-zero latency was `1.4 ms`, and stale command replay after
 localization recovery measured exactly `0.000000` in the test.
 

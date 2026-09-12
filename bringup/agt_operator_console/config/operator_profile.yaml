@@ -1,0 +1,74 @@
+schema_version: 1
+
+# Run this profile in a dedicated `operator_console sensors` terminal. Mapping
+# and navigation terminals observe the ROS graph but never own these drivers.
+# Do not put shell expressions in commands.
+drivers:
+  - name: sensor_session
+    command: [ros2, launch, agt_system_bringup, sensor_session.launch.py]
+
+# A failed required check blocks that mode. RTK and inspection equipment remain
+# visible as WARN during mapping/navigation, then become required for inspection.
+checks:
+  - name: mid360_lidar
+    kind: topic
+    name_or_topic: /livox/lidar
+    type: livox_ros_driver2/msg/CustomMsg
+    required_for: [mapping, navigation, inspection]
+    timeout_sec: 6.0
+    min_messages: 3
+  - name: mid360_imu
+    kind: topic
+    name_or_topic: /livox/imu
+    type: sensor_msgs/msg/Imu
+    required_for: [mapping, navigation, inspection]
+    timeout_sec: 6.0
+    min_messages: 20
+  - name: bunker_can_feedback
+    kind: topic
+    name_or_topic: /bunker_status
+    type: bunker_msgs/msg/BunkerStatus
+    required_for: [mapping, navigation, inspection]
+    timeout_sec: 4.0
+    min_messages: 2
+  - name: rtk_fix
+    kind: topic
+    name_or_topic: /ins/navsatfix
+    type: sensor_msgs/msg/NavSatFix
+    required_for: []
+    timeout_sec: 4.0
+    min_messages: 1
+  - name: rtk_status
+    kind: topic
+    name_or_topic: /agt/rtk/status
+    type: agt_robot_interfaces/msg/RTKStatus
+    required_for: []
+    timeout_sec: 4.0
+    min_messages: 1
+  - name: camera_image
+    kind: topic
+    name_or_topic: /cv_camera0/image_raw
+    type: sensor_msgs/msg/Image
+    required_for: [inspection]
+    timeout_sec: 4.0
+    min_messages: 1
+  - name: gimbal_camera_action
+    kind: action
+    name_or_topic: /camera_gimbal/acquire_view
+    type: camera_gimbal_interfaces/action/AcquireView
+    required_for: [inspection]
+    timeout_sec: 4.0
+
+mode_commands:
+  mapping: [ros2, launch, agt_mapping_bringup, mapping_mode.launch.py, lidar_topic:=/livox/lidar, imu_topic:=/livox/imu]
+  navigation: [ros2, launch, agt_system_bringup, hmi_field_demo.launch.py, auto_relocalize:=true, enable_rtk:=false]
+  inspection: [ros2, launch, agt_system_bringup, hmi_field_demo.launch.py, auto_relocalize:=true, enable_rtk:=false]
+
+# Connectivity alone is insufficient for mapping. This stationary check rejects
+# incompatible MID360 IMU units/noise conditions before FAST-LIO2 starts.
+mode_preflight_commands:
+  mapping:
+    - [ros2, run, agt_mapping_bringup, mid360_imu_preflight.py, --ros-args, -p, imu_topic:=/livox/imu, -p, require_fastlio2_mapping_compatible:=true]
+
+map_root: /home/yangxuan/ros2_ws/agt_data/maps
+pipeline_config: /home/yangxuan/ros2_ws/src/agt_navigation_v3/src/agt_map_manager/config/map_pipeline.example.yaml

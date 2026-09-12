@@ -164,8 +164,8 @@ colcon test-result --verbose
 # with colcon, so run the behavior tests explicitly. This keeps the migration
 # gate meaningful instead of accepting a misleading "0 tests" result.
 python3 -m pytest -q \
-  "${REPO_ROOT}/src/agt_map_converter/test/test_converter.py" \
-  "${REPO_ROOT}/src/agt_navigation_runtime/test/test_stationary_motion.py"
+  "${REPO_ROOT}/cleaning/agt_map_converter/test/test_converter.py" \
+  "${REPO_ROOT}/navigation/nav2/agt_navigation_runtime/test/test_stationary_motion.py"
 
 # Parse launch descriptions without starting hardware. These commands catch
 # package discovery/import/launch-file errors; real sensor/action availability
@@ -180,8 +180,8 @@ ros2 launch agt_gazebo_sim navigation_demo.launch.py --show-args >/dev/null
 # Safety behavior is a migration gate too: LOST must hard-stop and reopening the
 # localization gate must not replay old velocity intent.
 ROS_DOMAIN_ID="${AGT_SMOKE_DOMAIN_ID:-149}" python3 \
-  "${REPO_ROOT}/src/agt_base_control/test/guard_fail_closed_acceptance.py" \
+  "${REPO_ROOT}/bringup/agt_base_control/test/guard_fail_closed_acceptance.py" \
   --ros-args --params-file \
-  "${REPO_ROOT}/src/agt_base_control/config/cmd_vel_guard.yaml"
+  "${REPO_ROOT}/bringup/agt_base_control/config/cmd_vel_guard.yaml"
 
 echo "FIELD BUILD SMOKE PASS"

@@ -1,0 +1,1 @@
+"""AGT camera capability package."""

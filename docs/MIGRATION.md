@@ -40,7 +40,7 @@ For an already provisioned Ubuntu/ROS host or an offline rebuild, add `--no-apt`
 That mode skips apt and rosdep network installation but still verifies exact source revisions, rebuilds workspace-local native libraries, runs colcon, and executes the smoke gate.
 
 The validated Gazebo Livox package is vendored at
-`src/ros2_livox_simulation` with its upstream MIT license. This is deliberate:
+`sensor/ros2_livox_simulation` with its upstream MIT license. This is deliberate:
 the accepted version contains AGT timing/range/Jammy fixes and must not depend
 on an unversioned directory copied from one development machine.
 
@@ -60,9 +60,9 @@ Run the repeatable safety gate directly if needed:
 
 ```bash
 ROS_DOMAIN_ID=149 python3 \
-  ~/agt_ws/src/agt_navigation_v3/src/agt_base_control/test/guard_fail_closed_acceptance.py \
+  ~/agt_ws/src/agt_navigation_v3/bringup/agt_base_control/test/guard_fail_closed_acceptance.py \
   --ros-args --params-file \
-  ~/agt_ws/src/agt_navigation_v3/src/agt_base_control/config/cmd_vel_guard.yaml
+  ~/agt_ws/src/agt_navigation_v3/bringup/agt_base_control/config/cmd_vel_guard.yaml
 ```
 
 Expected final line begins with:

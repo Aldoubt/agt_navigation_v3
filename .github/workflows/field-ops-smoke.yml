@@ -7,11 +7,11 @@ on:
       - 'scripts/**'
       - 'systemd/**'
       - 'config/field_hardware.env'
-      - 'src/agt_mapping_bringup/config/*.rviz'
-      - 'src/agt_rviz_patrol/config/*.rviz'
-      - 'src/agt_livox_tools/scripts/**'
-      - 'src/agt_livox_tools/config/**'
-      - 'src/agt_livox_tools/src/**'
+      - 'mapping/agt_mapping_bringup/config/*.rviz'
+      - 'navigation/nav2/agt_rviz_patrol/config/*.rviz'
+      - 'sensor/agt_livox_tools/scripts/**'
+      - 'sensor/agt_livox_tools/config/**'
+      - 'sensor/agt_livox_tools/src/**'
       - 'AGENTS.md'
       - 'agent.md'
       - '.github/workflows/field-ops-smoke.yml'
@@ -20,11 +20,11 @@ on:
       - 'scripts/**'
       - 'systemd/**'
       - 'config/field_hardware.env'
-      - 'src/agt_mapping_bringup/config/*.rviz'
-      - 'src/agt_rviz_patrol/config/*.rviz'
-      - 'src/agt_livox_tools/scripts/**'
-      - 'src/agt_livox_tools/config/**'
-      - 'src/agt_livox_tools/src/**'
+      - 'mapping/agt_mapping_bringup/config/*.rviz'
+      - 'navigation/nav2/agt_rviz_patrol/config/*.rviz'
+      - 'sensor/agt_livox_tools/scripts/**'
+      - 'sensor/agt_livox_tools/config/**'
+      - 'sensor/agt_livox_tools/src/**'
 
 jobs:
   syntax:
@@ -41,7 +41,7 @@ jobs:
           bash -n scripts/agt_bunker_can
           bash -n scripts/install_bunker_can_service.sh
           bash -n scripts/start_mid360.sh
-          bash -n src/agt_livox_tools/scripts/convert_livox_bag_format.sh
+          bash -n sensor/agt_livox_tools/scripts/convert_livox_bag_format.sh
       - name: Python syntax
         run: python3 -m py_compile scripts/generate_mid360_config.py
       - name: Generate MID360 config with explicit host IP
@@ -56,8 +56,8 @@ jobs:
           python3 - <<'PY'
           import pathlib, yaml
           paths = [
-              pathlib.Path('src/agt_mapping_bringup/config/agt_mapping.rviz'),
-              pathlib.Path('src/agt_rviz_patrol/config/agt_rviz_demo.rviz'),
+              pathlib.Path('mapping/agt_mapping_bringup/config/agt_mapping.rviz'),
+              pathlib.Path('navigation/nav2/agt_rviz_patrol/config/agt_rviz_demo.rviz'),
           ]
           for path in paths:
               data = yaml.safe_load(path.read_text(encoding='utf-8'))

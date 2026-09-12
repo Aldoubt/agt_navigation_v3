@@ -1,0 +1,13 @@
+schema_version: 1
+
+# These values are published with every generated Map Package. Tune them on
+# field data, then create a new map_version rather than modifying a release.
+converter:
+  resolution: 0.10
+  margin: 1.0
+  min_points: 2
+  max_step: 0.22
+  max_slope_deg: 20.0
+  trajectory_front_m: 0.40
+  trajectory_rear_m: 0.72
+  trajectory_half_width_m: 0.46

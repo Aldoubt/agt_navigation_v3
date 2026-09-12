@@ -1,0 +1,32 @@
+# Field acceptance waypoint template.
+# Replace coordinates with surveyed points in the active map before formal testing.
+home:
+  frame_id: map
+  x: 0.0
+  y: 0.0
+  yaw_rad: 0.0
+
+waypoints:
+  - id: target_5m
+    frame_id: map
+    x: 5.0
+    y: 0.0
+    yaw_rad: 0.0
+    capture: true
+    scored: true
+
+  - id: target_7m
+    frame_id: map
+    x: 7.0
+    y: 0.0
+    yaw_rad: 0.0
+    capture: true
+    scored: true
+
+  - id: target_10m
+    frame_id: map
+    x: 10.0
+    y: 0.0
+    yaw_rad: 0.0
+    capture: true
+    scored: true

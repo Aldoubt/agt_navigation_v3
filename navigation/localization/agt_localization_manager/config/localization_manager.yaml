@@ -1,0 +1,48 @@
+agt_localization_manager:
+  ros__parameters:
+    local_odom_topic: /agt/odometry/local
+    global_pose_topic: /agt/relocalization/pose
+    tracking_pose_topic: /agt/map_tracking/pose
+    tracking_status_topic: /agt/map_tracking/status
+    status_topic: /agt/localization/status
+    relocalization_request_topic: /agt/relocalization/request
+    relocalization_service: /agt/localization/relocalize
+
+    map_frame: map
+    odom_frame: odom
+    base_frame: base_link
+
+    local_odom_timeout_sec: 0.30
+    local_odom_lost_sec: 1.00
+    global_match_max_skew_sec: 0.10
+    odom_buffer_sec: 30.0
+
+    # Initial acceptance gates. Tune using the real global-localization benchmark.
+    max_global_position_std_m: 1.00
+    max_global_yaw_std_deg: 20.0
+    accept_zero_covariance: false
+
+    # Low-rate map tracking correction. These are conservative initial defaults
+    # and must be tuned against field data; global relocalization remains the
+    # hard anchor/recovery path.
+    correction_smoothing_enabled: true
+    correction_tau_sec: 3.0
+    max_correction_linear_rate_mps: 0.10
+    max_correction_yaw_rate_degps: 2.0
+    max_tracking_translation_innovation_m: 0.50
+    max_tracking_yaw_innovation_deg: 5.0
+    tracking_consecutive_accepts: 2
+    tracking_consistency_translation_m: 0.20
+    tracking_consistency_yaw_deg: 2.0
+    # Keep automatic fallback disabled until offline replay proves the tracker
+    # rejection/recovery thresholds. When enabled, RECOVERY_REQUIRED publishes
+    # one request to the existing global relocalization backend.
+    tracking_recovery_auto_request: false
+
+    tf_publish_rate_hz: 30.0
+    map_id: ""
+    map_version: ""
+    debug_identity_map_odom: false
+    debug_status_topic: /agt/relocalization/status
+    global_status_topic: /agt/global_relocalization/status
+    map_events_topic: /agt/map/events

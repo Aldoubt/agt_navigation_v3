@@ -325,7 +325,7 @@ Pinned third party
 Gazebo 使用的 `ros2_livox_simulation` 已作为 MIT vendored package 放在：
 
 ```text
-src/ros2_livox_simulation
+sensor/ros2_livox_simulation
 ```
 
 因此新系统不需要手工复制工控机上的仿真插件目录。
@@ -432,7 +432,7 @@ time_diff_lidar_to_imu: 0.0
 配置：
 
 ```text
-src/agt_mapping_bringup/config/batch_lio_mid360.yaml
+mapping/agt_mapping_bringup/config/batch_lio_mid360.yaml
 ```
 
 静止测试：
@@ -598,6 +598,18 @@ ros2 launch agt_system_bringup rviz_field_demo.launch.py \
   map_id:=site_A_v1
 ```
 
+需要启用低频局部地图修正时，额外加上：
+
+```bash
+  enable_map_tracking:=true
+```
+
+该模式在全局重定位成功后，以默认 0.5 Hz 使用预测位姿裁剪局部 PCD 并运行
+small_gicp。tracker 只发布 `/agt/map_tracking/pose` 测量，仍由
+`agt_localization_manager` 唯一发布 `map -> odom`，并通过默认 3 s 时间常数和
+速度上限平滑修正。全局 BBS 不会在正常 tracking 周期运行；tracking 质量或
+innovation 不通过时只报告 `TRACKING_SUSPECT`，不会直接跳变全局坐标。
+
 机器人保持静止，人工触发：
 
 ```bash
@@ -721,3 +733,256 @@ docs/MAINLINE_POLICY.md
 - AGT 自有 Bunker/C1/INS/URDF 在实车稳定前继续跟 `main/master`；
 - 不为每个小功能长期维护分支；
 - RViz 三点巡检稳定后，再做 release/tag 和自有驱动版本冻结。
+
+
+
+## 常用命令
+  启动所有传感器，包括底盘：
+```bash
+cd ~/ros2_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+ros2 run agt_operator_console operator_console sensors
+```
+
+```bash
+cd ~/ros2_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+# 确认传感器检查通过后，在另一终端：
+ros2 run agt_operator_console operator_console navigation
+```
+
+建图模式 fastlio2+pgo HBA（可选）
+```bash
+cd ~/ros2_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+# 终端 2：建图，Ctrl-C 后选择保存
+ros2 run agt_operator_console operator_console mapping
+```
+
+# 终端 3：自动列出可用地图，选择后打开独立 Qt 编辑器
+```bash
+cd ~/ros2_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+ros2 run agt_operator_console operator_console edit
+```
+
+# 终端 4：预检后列出地图，明确选择后启动导航和 HMI
+```bash
+cd ~/ros2_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+ros2 run agt_operator_console operator_console navigation
+```
+
+
+离线保存地图步骤
+
+终端 1：启动离线建图
+cd ~/ros2_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+
+ros2 launch agt_mapping_bringup mapping_mode.launch.py \
+  use_sim_time:=true \
+  lidar_topic:=/agt/sensors/lidar/custom \
+  imu_topic:=/agt/sensors/imu/data \
+  enable_pgo:=true \
+  launch_rviz:=true
+看到 FAST-LIO2、PGO 节点正常启动后，再开终端 2。
+
+终端 2：播放 rosbag
+cd ~/ros2_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+
+ros2 bag play \
+  /home/yangxuan/ros2_ws/src/rosbag/bunker_mid360_mapping_20260901_205036 \
+  --clock \
+  --rate 0.5
+--rate 0.5 比较稳妥，约需 16 分钟播放完成。确认建图节点运行稳定后，也可以改成 --rate 1.0。
+
+终端 3：保存 PGO 地图
+rosbag 播放结束后，保持终端 1 的建图节点运行，在终端 3 执行：
+cd ~/ros2_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+
+MAPRUN=/home/yangxuan/ros2_ws/agt_data/mapping_runs/bunker_mid360_205036_v001
+mkdir -p "$MAPRUN"
+
+ros2 service call /pgo/save_maps interface/srv/SaveMaps \
+"{file_path: '$MAPRUN', save_patches: true}"
+确认生成文件：
+ls -lh "$MAPRUN"
+ls -lh "$MAPRUN/patches"
+至少应看到：
+map.pcd
+poses.txt
+patches/*.pcd
+确认保存完成后，回到终端 1 按 Ctrl-C 停止建图。
+
+生成重定位资产
+cd ~/ros2_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+
+MAPRUN=/home/yangxuan/ros2_ws/agt_data/mapping_runs/bunker_mid360_205036_v001
+
+ros2 run agt_global_relocalization_native build_relocalization_assets \
+  --map "$MAPRUN/map.pcd" \
+  --output "$MAPRUN/relocalization"
+
+ros2 run agt_global_relocalization_native build_relocalization_candidates \
+  --map-dir "$MAPRUN" \
+  --output "$MAPRUN/relocalization"
+
+生成地图包
+ros2 run agt_map_manager generate_map_package \
+  --map-root /home/yangxuan/ros2_ws/agt_data/maps \
+  --map-id bunker_mid360_baseline \
+  --map-version v001 \
+  --source-pcd "$MAPRUN/map.pcd" \
+  --pipeline-config \
+  /home/yangxuan/ros2_ws/src/agt_navigation_v3/map_data_manager/agt_map_manager/config/map_pipeline.example.yaml \
+  --relocalization-assets-dir "$MAPRUN/relocalization" \
+  --trajectory-poses "$MAPRUN/poses.txt"
+
+检查地图包：
+ros2 run agt_map_manager list_map_packages \
+  --map-root /home/yangxuan/ros2_ws/agt_data/maps
+
+后续确认地图质量无误后，再设为当前地图：
+ros2 run agt_map_manager select_map_package \
+  --map-root /home/yangxuan/ros2_ws/agt_data/maps \
+  --active-state-file /home/yangxuan/ros2_ws/agt_data/maps/active_map.yaml \
+  --map-id bunker_mid360_baseline \
+  --map-version v001
+
+---
+
+## 无 MapManager 覆盖调试：建图、重定位、Nav2 与拍照
+
+这是用于现场快速验证的**独立调试模式**，不读取或写入 Map Package、
+`active_map.yaml`、HMI 或 Qt。它固定覆盖以下目录：
+
+```text
+/home/yangxuan/ros2_ws/agt_data/debug_mapping/current/
+├── pgo/                         # /pgo/save_maps: map.pcd, poses.txt, patches/*.pcd
+├── localization/global_map.pcd  # 与 PGO map.pcd 内容一致，供全局重定位
+├── navigation/map.pgm           # OctoMap /projected_map 导出的 Nav2 栅格
+├── navigation/map.yaml
+├── relocalization/              # 3D-BBS voxelmaps + Polar Context DB
+│   ├── voxelmaps_coords/
+│   ├── global_map_downsampled.pcd
+│   ├── polar_context.db
+│   └── polar_context.yaml
+├── octomap/octomap_navigation_baseline.yaml
+└── debug_map.yaml                # 本次覆盖产物的唯一入口清单
+```
+
+`save_mapping_debug.sh` 会替换这个目录中的旧调试产物；不要把需要保留的
+地图放在此目录。该模式不修改产品地图和当前激活地图。
+
+### 1. 启动纯覆盖建图
+
+该 launch 自己启动机器人描述、MID360、底盘 CAN、RTK、C1、FAST-LIO2、
+PGO、OctoMap 和建图 RViz。因此不要同时运行 `operator_console sensors`
+或其他传感器 bringup。
+
+```bash
+cd ~/ros2_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+ros2 launch agt_system_bringup mapping_debug.launch.py
+```
+
+无 RTK 或未接云台相机时，可显式降级而不影响 FAST-LIO2、PGO 和 OctoMap：
+
+```bash
+ros2 launch agt_system_bringup mapping_debug.launch.py \
+  enable_rtk:=false enable_camera_gimbal:=false
+```
+
+数据链为：
+
+```text
+/livox/lidar + /livox/imu
+  -> FAST-LIO2 + PGO -> pgo/map.pcd
+  -> body_cloud -> rear filter -> OctoMap -> /projected_map -> navigation/map.pgm
+```
+
+### 2. 保存并覆盖调试地图
+
+保持建图 launch 运行，在第二个终端执行。确认 `READY` 后再回到第一个
+终端按 Ctrl-C 停止建图。
+
+```bash
+cd ~/ros2_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+ros2 run agt_mapping_bringup save_mapping_debug.sh
+```
+
+保存器执行顺序：PGO 最终 PCD/keyframes -> OctoMap PGM/YAML -> 3D-BBS
+资产 -> Polar Context `polar_context.db`。其中 PGO 的 `patches/*.pcd` 和
+`poses.txt` 是生成 DB 的必需输入；缺少任一项即保存失败，不会伪造可定位地图。
+
+### 3. 重定位资产与默认路径
+
+全局重定位链固定为：Polar Context DB 粗检索候选关键帧 -> 3D-BBS 候选
+搜索 -> small_gicp 精配准。默认路径如下：
+
+```text
+定位 PCD：/home/yangxuan/ros2_ws/agt_data/debug_mapping/current/localization/global_map.pcd
+候选数据库：/home/yangxuan/ros2_ws/agt_data/debug_mapping/current/relocalization/polar_context.db
+3D-BBS：/home/yangxuan/ros2_ws/agt_data/debug_mapping/current/relocalization/voxelmaps_coords/
+Nav2 PGM/YAML：/home/yangxuan/ros2_ws/agt_data/debug_mapping/current/navigation/map.yaml
+```
+
+### 4. RViz 导航与自动拍照闭环
+
+停止建图后，启动无 MapManager 的导航调试模式。它会读取上一步固定覆盖
+产物，自动请求全局重定位，并打开唯一的 RViz 操作入口。
+
+```bash
+cd ~/ros2_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+
+DEBUG_MAP=/home/yangxuan/ros2_ws/agt_data/debug_mapping/current
+ros2 launch agt_system_bringup navigation_debug.launch.py \
+  navigation_map:=$DEBUG_MAP/navigation/map.yaml \
+  localization_map:=$DEBUG_MAP/localization/global_map.pcd \
+  relocalization_assets:=$DEBUG_MAP/relocalization \
+  map_id:=debug_overwrite
+```
+
+在 RViz 的 `Navigation 2` 面板选择 Goal Tool 下发目标；面板提供取消导航。
+`Navigation Debug Status` 标记会显示导航/拍照结果；重定位状态通过
+`/agt/relocalization/pose` 与 `map -> odom -> base_link` TF 检查。到达目标后，
+`agt_demo_task` 监听 `NavigateToPose` 成功状态并调用：
+
+```text
+服务：/capability/camera/capture
+图像输入：/cv_camera0/image_raw (sensor_msgs/msg/Image)
+云台动作：/camera_gimbal/acquire_view (camera_gimbal_interfaces/action/AcquireView)
+C1 bringup：/home/yangxuan/ros2_ws/src/drivers/Autolabor-C1-ROS2/src/autolabor_c1_bringup/launch/autolabor_c1.launch.py
+默认照片目录：~/.ros/agt_navigation_debug/captures/
+```
+
+相机服务只保存当前 C1 帧，不会为这条调试闭环改变云台姿态。照片绝对路径
+会同时出现在服务响应、`/agt/demo_task/status` 和 RViz 状态标记中。
+
+### 5. 测试前必须确认的缺口
+
+- `/projected_map` 必须在保存前已有有效 OctoMap 投影；空 OctoMap 会使 PGM
+  导出失败。
+- PGO 地图与 OctoMap 栅格都在同一建图会话中生成，但当前调试模式没有质量
+  门禁、哈希、版本冻结或回滚；它只能用于现场验证，不能替代产品地图流程。
+- 首次 Nav2 目标前必须确认全局重定位已成功，且 RViz 中存在 `map -> odom -> base_link`。
+- C1 图像流必须可用；相机服务拒绝保存超过 2 秒的旧帧。
+- 调试地图覆盖后，旧照片不会被自动删除；需要按测试批次人工归档。

@@ -120,9 +120,9 @@ Repeat with:
 source /opt/ros/humble/setup.bash
 source ~/ros2_ws/install/setup.bash
 ROS_DOMAIN_ID=149 python3 \
-  ~/ros2_ws/src/agt_navigation_v3/src/agt_base_control/test/guard_fail_closed_acceptance.py \
+  ~/ros2_ws/src/agt_navigation_v3/bringup/agt_base_control/test/guard_fail_closed_acceptance.py \
   --ros-args --params-file \
-  ~/ros2_ws/src/agt_navigation_v3/src/agt_base_control/config/cmd_vel_guard.yaml
+  ~/ros2_ws/src/agt_navigation_v3/bringup/agt_base_control/config/cmd_vel_guard.yaml
 ```
 
 ## V1 core acceptance
