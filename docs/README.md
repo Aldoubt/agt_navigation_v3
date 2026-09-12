@@ -3,6 +3,11 @@
 This is the single entry point for developers and AI agents reading the
 documentation under `docs/`.
 
+AGT Navigation V3 is a ROS 2 Humble navigation stack for a tracked robot with
+Livox MID360 sensing, continuous LIO odometry, 3D global relocalization, and
+Nav2 navigation. The current system is a localization-plus-navigation stack,
+not a generic SLAM demo.
+
 ## Start Here
 
 Read in this order:
@@ -70,6 +75,16 @@ See [archive/](archive/) and [DEPRECATED.md](DEPRECATED.md) for replacements.
 - Do not use archived material as evidence of current behavior without checking
   its replacement and date.
 - Do not infer source-code changes from a documentation migration proposal.
+
+## Contribution Flow
+
+For AI-assisted development:
+
+1. Read [CODEX_CONTEXT.md](CODEX_CONTEXT.md).
+2. Identify the authority document in [AUTHORITY_MATRIX.md](AUTHORITY_MATRIX.md).
+3. Modify the minimal scope.
+4. Add or update a regression test.
+5. Update acceptance evidence when behavior changes.
 
 ## Current Architecture Reading Path
 
