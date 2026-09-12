@@ -159,6 +159,7 @@ class LocalizationManager(Node):
         self.declare_parameter('tracking_consecutive_accepts', 2)
         self.declare_parameter('tracking_consistency_translation_m', 0.20)
         self.declare_parameter('tracking_consistency_yaw_deg', 2.0)
+        self.declare_parameter('tracking_recovery_auto_request', False)
         self.declare_parameter('debug_status_topic', '/agt/relocalization/status')
         self.declare_parameter('global_status_topic', '/agt/global_relocalization/status')
         self.declare_parameter('map_events_topic', '/agt/map/events')
@@ -169,6 +170,8 @@ class LocalizationManager(Node):
         self._correction_target: Optional[_Pose3] = None
         self._last_tracking_measurement: Optional[_Pose3] = None
         self._tracking_consistent_count = 0
+        self._tracking_health = 'UNKNOWN'
+        self._tracking_recovery_requested = False
         self._last_tick_ns = self.get_clock().now().nanoseconds
         self._last_global_std = (math.inf, math.inf)
         self._state = LocalizationStatus.STATE_BOOT
@@ -194,6 +197,12 @@ class LocalizationManager(Node):
             self.get_parameter('tracking_pose_topic').value,
             self._on_tracking_pose,
             10,
+        )
+        self.create_subscription(
+            String,
+            self.get_parameter('tracking_status_topic').value,
+            self._on_tracking_status,
+            20,
         )
         self._backend_debug_state = None
         self.create_subscription(String, self.get_parameter('global_status_topic').value,
@@ -292,6 +301,8 @@ class LocalizationManager(Node):
         # the low-rate tracker, which only changes the target correction.
         self._correction_current = correction
         self._correction_target = correction
+        self._tracking_recovery_requested = False
+        self._tracking_health = 'UNKNOWN'
         self._state = LocalizationStatus.STATE_LOCALIZED
         self._reason = 'global_pose_accepted'
         self.get_logger().info(
@@ -352,6 +363,33 @@ class LocalizationManager(Node):
         self._reason = 'map_tracking_target_updated'
         self._state = LocalizationStatus.STATE_LOCALIZED
 
+    def _on_tracking_status(self, msg: String) -> None:
+        """Consume tracker health without giving the tracker TF ownership."""
+        try:
+            payload = json.loads(msg.data)
+            state = str(payload.get('state', '')).strip()
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return
+        if not state:
+            return
+        self._tracking_health = state
+        if state == 'TRACKING_OK':
+            self._tracking_recovery_requested = False
+            return
+        if state == 'RECOVERY_REQUIRED':
+            self._reason = 'map_tracking_recovery_required'
+            if (bool(self.get_parameter('tracking_recovery_auto_request').value)
+                    and not self._tracking_recovery_requested):
+                self._tracking_recovery_requested = True
+                self._state = LocalizationStatus.STATE_RELOCALIZING
+                self._request_pub.publish(Empty())
+                self.get_logger().warn(
+                    'Map tracker requested recovery; global relocalization was triggered.')
+        elif state == 'DEGRADED':
+            self._reason = 'map_tracking_degraded'
+        elif state == 'HOLD':
+            self._reason = 'map_tracking_hold'
+
     def _on_backend_status(self, msg: String) -> None:
         try:
             state = json.loads(msg.data).get('state')
@@ -402,6 +440,8 @@ class LocalizationManager(Node):
             self._state = LocalizationStatus.STATE_WAIT_LOCAL_ODOM
             self._reason = 'waiting_local_odom'
             return
+        if self._state == LocalizationStatus.STATE_RELOCALIZING:
+            return
         if self._correction_current is None:
             if self._state != LocalizationStatus.STATE_RELOCALIZING:
                 self._state = LocalizationStatus.STATE_WAIT_GLOBAL
@@ -413,6 +453,12 @@ class LocalizationManager(Node):
         elif age > timeout:
             self._state = LocalizationStatus.STATE_DEGRADED
             self._reason = f'local_odom_stale:{age:.2f}s'
+        elif self._tracking_health in {'DEGRADED', 'RECOVERY_REQUIRED'}:
+            self._state = LocalizationStatus.STATE_DEGRADED
+            if self._tracking_health == 'RECOVERY_REQUIRED':
+                self._reason = 'map_tracking_recovery_required'
+            else:
+                self._reason = 'map_tracking_degraded'
         else:
             self._state = LocalizationStatus.STATE_LOCALIZED
             if self._reason.startswith('local_odom_'):
