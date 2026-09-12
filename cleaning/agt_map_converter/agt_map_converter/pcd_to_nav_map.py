@@ -322,6 +322,12 @@ def generate_navigation_map(
     }
     (output / 'map.yaml').write_text(
         yaml.safe_dump(map_yaml, sort_keys=False), encoding='utf-8')
+    trajectory_qa_status = 'NOT_RUN'
+    if trajectory_poses:
+        trajectory_qa_status = (
+            'PASS' if layers['trajectory_cleared_cells'] == 0 else 'REVIEW'
+        )
+
     metadata = {
         'source_pcd': str(pcd),
         'resolution': float(resolution),
@@ -337,7 +343,12 @@ def generate_navigation_map(
         'trajectory_front_m': float(trajectory_front_m),
         'trajectory_rear_m': float(trajectory_rear_m),
         'trajectory_half_width_m': float(trajectory_half_width_m),
+        # Every cleared cell was non-free before the swept-footprint evidence
+        # was applied. A non-zero count is a useful review signal for ghost
+        # obstacles / canopy / self returns intersecting a physically traversed corridor.
         'trajectory_cleared_cells': layers['trajectory_cleared_cells'],
+        'trajectory_conflict_cells_before_carve': layers['trajectory_cleared_cells'],
+        'trajectory_qa_status': trajectory_qa_status,
         'warning': 'Demo V1 thresholds are not final; verify slope/edge behavior on the real Bunker.',
     }
     (output / 'converter_metadata.yaml').write_text(
