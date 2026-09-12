@@ -34,6 +34,10 @@ agt_localization_manager:
     tracking_consecutive_accepts: 2
     tracking_consistency_translation_m: 0.20
     tracking_consistency_yaw_deg: 2.0
+    # Keep automatic fallback disabled until offline replay proves the tracker
+    # rejection/recovery thresholds. When enabled, RECOVERY_REQUIRED publishes
+    # one request to the existing global relocalization backend.
+    tracking_recovery_auto_request: false
 
     tf_publish_rate_hz: 30.0
     map_id: ""
