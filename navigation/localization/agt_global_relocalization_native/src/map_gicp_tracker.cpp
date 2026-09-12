@@ -136,7 +136,7 @@ int main(int argc, char** argv) {
     Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double, 6, 6>> eig(hessian);
     Eigen::Matrix<double, 6, 1> hessian_eigenvalues =
       Eigen::Matrix<double, 6, 1>::Constant(std::numeric_limits<double>::quiet_NaN());
-    double hessian_condition_number = std::numeric_limits<double>::infinity();
+    double hessian_condition_number = 1.0e30;
     bool hessian_degenerate = true;
     if (eig.info() == Eigen::Success) {
       hessian_eigenvalues = eig.eigenvalues();
@@ -144,8 +144,8 @@ int main(int argc, char** argv) {
       const double max_eig = hessian_eigenvalues.maxCoeff();
       if (std::isfinite(min_eig) && std::isfinite(max_eig) && min_eig > 1.0e-12) {
         hessian_condition_number = max_eig / min_eig;
-        hessian_degenerate =
-          !std::isfinite(hessian_condition_number) || hessian_condition_number > 1.0e10;
+        if (!std::isfinite(hessian_condition_number)) hessian_condition_number = 1.0e30;
+        hessian_degenerate = hessian_condition_number > 1.0e10;
       }
     }
     std::cout << "{\"success\":true"
