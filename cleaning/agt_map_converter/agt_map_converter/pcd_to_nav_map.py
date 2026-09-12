@@ -158,13 +158,29 @@ def carve_trajectory_free(pgm, origin, resolution, poses,
     explicitly supplies the mapping trajectory. Obstacles outside the swept
     footprint remain untouched.
     """
+    swept = trajectory_swept_mask(
+        pgm.shape, origin, resolution, poses, front_m, rear_m, half_width_m)
+    before = pgm.copy()
+    pgm[swept] = 254
+    return int(np.count_nonzero((before != 254) & swept))
+
+
+def trajectory_swept_mask(shape, origin, resolution, poses,
+                           front_m, rear_m, half_width_m):
+    """Return the map-grid cells covered by the recorded body footprint.
+
+    The grid uses map coordinates (origin at its lower-left), before the PGM
+    row flip performed for disk output.  Keeping this mask explicit makes the
+    trajectory QA evidence reproducible without assigning a cause to a
+    conflict: a conflict is only a non-free map cell in a traversed corridor.
+    """
+    swept = np.zeros(shape, dtype=bool)
     if not poses:
-        return 0
+        return swept
     min_x, min_y, _ = origin
-    height, width = pgm.shape
+    height, width = shape
     radius = math.hypot(max(front_m, rear_m), half_width_m)
     cells = int(math.ceil(radius / resolution)) + 1
-    before = pgm.copy()
 
     for x, y, yaw in poses:
         cx = int((x - min_x) / resolution)
@@ -180,9 +196,74 @@ def carve_trajectory_free(pgm, origin, resolution, poses,
                 local_x = c * dx + s * dy
                 local_y = -s * dx + c * dy
                 if -rear_m <= local_x <= front_m and abs(local_y) <= half_width_m:
-                    pgm[gy, gx] = 254
+                    swept[gy, gx] = True
+    return swept
 
-    return int(np.count_nonzero((before != 254) & (pgm == 254)))
+
+def trajectory_conflict_regions(conflicts, origin, resolution):
+    """Cluster 8-connected conflict cells in deterministic grid scan order."""
+    height, width = conflicts.shape
+    seen = np.zeros_like(conflicts, dtype=bool)
+    min_x, min_y, _ = origin
+    regions = []
+    for gy in range(height):
+        for gx in range(width):
+            if not conflicts[gy, gx] or seen[gy, gx]:
+                continue
+            seen[gy, gx] = True
+            pending = [(gy, gx)]
+            cells = []
+            while pending:
+                cy, cx = pending.pop()
+                cells.append((cy, cx))
+                for ny in range(max(0, cy - 1), min(height, cy + 2)):
+                    for nx in range(max(0, cx - 1), min(width, cx + 2)):
+                        if conflicts[ny, nx] and not seen[ny, nx]:
+                            seen[ny, nx] = True
+                            pending.append((ny, nx))
+            cells.sort()
+            grid_y = [cell[0] for cell in cells]
+            grid_x = [cell[1] for cell in cells]
+            centers = [
+                (min_x + (x + 0.5) * resolution, min_y + (y + 0.5) * resolution)
+                for y, x in cells
+            ]
+            gx0, gx1 = min(grid_x), max(grid_x)
+            gy0, gy1 = min(grid_y), max(grid_y)
+            regions.append({
+                'id': len(regions) + 1,
+                'cell_count': len(cells),
+                'grid_bbox': {'min_x': gx0, 'min_y': gy0, 'max_x': gx1, 'max_y': gy1},
+                'map_bbox_m': {
+                    'min_x': min_x + gx0 * resolution,
+                    'min_y': min_y + gy0 * resolution,
+                    'max_x': min_x + (gx1 + 1) * resolution,
+                    'max_y': min_y + (gy1 + 1) * resolution,
+                },
+                'centroid_m': {
+                    'x': float(sum(point[0] for point in centers) / len(centers)),
+                    'y': float(sum(point[1] for point in centers) / len(centers)),
+                },
+                'approximate_area_m2': float(len(cells) * resolution * resolution),
+                'cells': [
+                    {
+                        'grid_x': x,
+                        'grid_y': y,
+                        'map_x_m': center[0],
+                        'map_y_m': center[1],
+                    }
+                    for (y, x), center in zip(cells, centers)
+                ],
+            })
+    return regions
+
+
+def trajectory_conflict_debug_image(original, swept, conflicts):
+    """Create a no-dependency QA overlay; see emitted YAML legend for values."""
+    image = original.copy()
+    image[swept] = 160       # swept corridor over original free/occupied/unknown
+    image[conflicts] = 80    # suspected-artifact conflict; not a dynamic label
+    return np.flipud(image)
 
 
 def convert(xyz, resolution, margin, min_points, max_step, max_slope_deg,
@@ -231,9 +312,13 @@ def convert(xyz, resolution, margin, min_points, max_step, max_slope_deg,
     pgm[obstacle] = 0
 
     origin = [min_x, min_y, 0.0]
-    trajectory_cleared_cells = carve_trajectory_free(
-        pgm, origin, resolution, trajectory_poses,
+    occupancy_before_trajectory_carve = pgm.copy()
+    trajectory_swept = trajectory_swept_mask(
+        pgm.shape, origin, resolution, trajectory_poses,
         trajectory_front_m, trajectory_rear_m, trajectory_half_width_m)
+    trajectory_conflicts = trajectory_swept & (occupancy_before_trajectory_carve != 254)
+    pgm[trajectory_swept] = 254
+    trajectory_cleared_cells = int(trajectory_conflicts.sum())
 
     def normalized_layer(values, invert=False):
         image = np.full(values.shape, 205, dtype=np.uint8)
@@ -265,6 +350,16 @@ def convert(xyz, resolution, margin, min_points, max_step, max_slope_deg,
         'valid_cells': int(known.sum()),
         'occupied_cells': int(final_obstacle.sum()),
         'trajectory_cleared_cells': trajectory_cleared_cells,
+        'trajectory_swept_cells': int(trajectory_swept.sum()),
+        'trajectory_conflicts': trajectory_conflicts,
+        'trajectory_conflict_debug': trajectory_conflict_debug_image(
+            occupancy_before_trajectory_carve, trajectory_swept, trajectory_conflicts),
+        'trajectory_conflict_regions': trajectory_conflict_regions(
+            trajectory_conflicts, origin, resolution),
+        'trajectory_conflict_original_occupied_cells': int(
+            (trajectory_conflicts & (occupancy_before_trajectory_carve == 0)).sum()),
+        'trajectory_conflict_original_unknown_cells': int(
+            (trajectory_conflicts & (occupancy_before_trajectory_carve == 205)).sum()),
     }
 
 
@@ -328,6 +423,36 @@ def generate_navigation_map(
             'PASS' if layers['trajectory_cleared_cells'] == 0 else 'REVIEW'
         )
 
+    conflict_count = int(layers['trajectory_conflicts'].sum())
+    swept_count = int(layers['trajectory_swept_cells'])
+    conflict_evidence = {
+        'format_version': 1,
+        'description': (
+            'Trajectory conflict / suspected artifact evidence. A conflict means '
+            'a recorded swept corridor crossed a non-free cell before the carve; '
+            'it is not a dynamic-object classification.'),
+        'trajectory_conflict_cells': conflict_count,
+        'trajectory_swept_cells': swept_count,
+        'trajectory_conflict_ratio_of_swept_cells': (
+            float(conflict_count / swept_count) if swept_count else 0.0),
+        'original_occupied_conflict_cells': layers['trajectory_conflict_original_occupied_cells'],
+        'original_unknown_conflict_cells': layers['trajectory_conflict_original_unknown_cells'],
+        'region_count': len(layers['trajectory_conflict_regions']),
+        'debug_pgm': 'trajectory_conflicts.pgm',
+        'legend': {
+            '0': 'original occupied cell outside swept/conflict overlay',
+            '205': 'original unknown cell outside swept/conflict overlay',
+            '254': 'original free cell outside swept/conflict overlay',
+            '160': 'trajectory swept corridor without conflict',
+            '80': 'trajectory conflict / suspected artifact',
+        },
+        'regions': layers['trajectory_conflict_regions'],
+    }
+    if trajectory_poses:
+        write_pgm(output / 'trajectory_conflicts.pgm', layers['trajectory_conflict_debug'])
+        (output / 'trajectory_conflicts.yaml').write_text(
+            yaml.safe_dump(conflict_evidence, sort_keys=False), encoding='utf-8')
+
     metadata = {
         'source_pcd': str(pcd),
         'resolution': float(resolution),
@@ -347,7 +472,17 @@ def generate_navigation_map(
         # was applied. A non-zero count is a useful review signal for ghost
         # obstacles / canopy / self returns intersecting a physically traversed corridor.
         'trajectory_cleared_cells': layers['trajectory_cleared_cells'],
-        'trajectory_conflict_cells_before_carve': layers['trajectory_cleared_cells'],
+        'trajectory_conflict_cells_before_carve': conflict_count,
+        'trajectory_conflict_ratio_of_swept_cells': conflict_evidence['trajectory_conflict_ratio_of_swept_cells'],
+        'trajectory_conflict_region_count': conflict_evidence['region_count'],
+        'trajectory_conflict_original_occupied_cells': (
+            conflict_evidence['original_occupied_conflict_cells']),
+        'trajectory_conflict_original_unknown_cells': (
+            conflict_evidence['original_unknown_conflict_cells']),
+        'trajectory_conflict_evidence': (
+            'trajectory_conflicts.yaml' if trajectory_poses else ''),
+        'trajectory_conflict_debug_pgm': (
+            'trajectory_conflicts.pgm' if trajectory_poses else ''),
         'trajectory_qa_status': trajectory_qa_status,
         'warning': 'Demo V1 thresholds are not final; verify slope/edge behavior on the real Bunker.',
     }

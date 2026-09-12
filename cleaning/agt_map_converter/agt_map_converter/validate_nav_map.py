@@ -101,18 +101,108 @@ def validate(directory: Path) -> list[str]:
     return errors
 
 
+def acceptance_result(directory: Path) -> tuple[str, list[str]]:
+    """Return the explicit MAP gate result for a generated acceptance map.
+
+    Ordinary validation remains intentionally permissive for draft maps.  The
+    acceptance gate is stricter: it requires trajectory QA provenance and its
+    reproducible evidence.  Any non-zero conflict stays REVIEW; this tool never
+    converts REVIEW into PASS based on an assumed dynamic-object explanation.
+    """
+    errors = validate(directory)
+    if errors:
+        return 'FAIL', errors
+
+    metadata_path = directory / 'converter_metadata.yaml'
+    if not metadata_path.is_file():
+        return 'FAIL', ['acceptance metadata missing: converter_metadata.yaml']
+    try:
+        metadata = yaml.safe_load(metadata_path.read_text(encoding='utf-8')) or {}
+    except Exception as exc:
+        return 'FAIL', [f'acceptance metadata parse failed: {exc}']
+
+    status = metadata.get('trajectory_qa_status')
+    pose_count = metadata.get('trajectory_pose_count')
+    poses_path = metadata.get('trajectory_poses')
+    conflict_count = metadata.get('trajectory_conflict_cells_before_carve')
+    evidence_name = metadata.get('trajectory_conflict_evidence')
+    debug_name = metadata.get('trajectory_conflict_debug_pgm')
+    if status == 'NOT_RUN' or not poses_path or not isinstance(pose_count, int) or pose_count <= 0:
+        return 'FAIL', ['acceptance trajectory QA was not run (poses.txt is required)']
+    if status not in {'PASS', 'REVIEW'}:
+        return 'FAIL', [f'acceptance trajectory_qa_status is invalid: {status!r}']
+    if not isinstance(conflict_count, int) or conflict_count < 0:
+        return 'FAIL', ['acceptance trajectory conflict count is missing or invalid']
+    if not evidence_name or not debug_name:
+        return 'FAIL', ['acceptance trajectory conflict evidence artifacts are not declared']
+
+    evidence_path = directory / str(evidence_name)
+    debug_path = directory / str(debug_name)
+    if not evidence_path.is_file() or not debug_path.is_file():
+        return 'FAIL', ['acceptance trajectory conflict evidence artifact is missing']
+    try:
+        evidence = yaml.safe_load(evidence_path.read_text(encoding='utf-8')) or {}
+        evidence_count = evidence.get('trajectory_conflict_cells')
+        swept_count = evidence.get('trajectory_swept_cells')
+        evidence_ratio = evidence.get('trajectory_conflict_ratio_of_swept_cells')
+        regions = evidence.get('regions')
+        region_count = evidence.get('region_count')
+        if evidence_count != conflict_count:
+            return 'FAIL', ['acceptance conflict count disagrees with trajectory_conflicts.yaml']
+        if not isinstance(swept_count, int) or swept_count <= 0:
+            return 'FAIL', ['acceptance swept-cell count is missing or invalid']
+        expected_ratio = conflict_count / swept_count
+        if (not isinstance(evidence_ratio, (int, float))
+                or abs(float(evidence_ratio) - expected_ratio) > 1.0e-12
+                or abs(float(metadata.get('trajectory_conflict_ratio_of_swept_cells', -1.0))
+                       - expected_ratio) > 1.0e-12):
+            return 'FAIL', ['acceptance trajectory conflict ratio disagrees with evidence']
+        if metadata.get('trajectory_cleared_cells') != conflict_count:
+            return 'FAIL', ['acceptance cleared-cell count disagrees with conflict evidence']
+        if not isinstance(regions, list) or region_count != len(regions):
+            return 'FAIL', ['acceptance conflict region evidence is missing or inconsistent']
+        if sum(region.get('cell_count', -1) for region in regions) != conflict_count:
+            return 'FAIL', ['acceptance conflict region cell counts disagree with metadata']
+        if metadata.get('trajectory_conflict_region_count') != region_count:
+            return 'FAIL', ['acceptance conflict region count disagrees with metadata']
+        # Confirm the artifact is a structurally valid PGM without interpreting
+        # its palette as a Nav2 occupancy map.
+        map_width, map_height, _ = read_pgm_header(directory / 'map.pgm')
+        debug_width, debug_height, _ = read_pgm_header(debug_path)
+        if (debug_width, debug_height) != (map_width, map_height):
+            return 'FAIL', ['acceptance trajectory conflict debug image dimensions disagree with map.pgm']
+    except Exception as exc:
+        return 'FAIL', [f'acceptance trajectory conflict evidence is unreadable: {exc}']
+
+    if conflict_count == 0:
+        if status != 'PASS':
+            return 'FAIL', ['trajectory QA status must be PASS when conflict count is zero']
+        return 'PASS', []
+    if status != 'REVIEW':
+        return 'FAIL', ['trajectory QA status must be REVIEW when conflicts exist']
+    return 'REVIEW', []
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description='Validate AGT Nav2 map-converter output.')
     parser.add_argument('directory', help='Directory containing map.yaml/map.pgm terrain layers')
+    parser.add_argument('--acceptance', action='store_true',
+                        help='require trajectory QA evidence and emit MAP PASS/REVIEW/FAIL')
     args = parser.parse_args(argv)
     directory = Path(args.directory).expanduser().resolve()
-    errors = validate(directory)
+    if args.acceptance:
+        status, errors = acceptance_result(directory)
+    else:
+        status, errors = 'PASS', validate(directory)
     if errors:
         print('MAP VALIDATION FAILED', file=sys.stderr)
         for error in errors:
             print(f' - {error}', file=sys.stderr)
         raise SystemExit(2)
-    print('MAP VALIDATION PASS')
+    if args.acceptance:
+        print(f'MAP ACCEPTANCE {status}')
+    else:
+        print('MAP VALIDATION PASS')
 
 
 if __name__ == '__main__':
