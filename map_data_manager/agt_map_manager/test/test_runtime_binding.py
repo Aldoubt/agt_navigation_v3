@@ -12,6 +12,8 @@ def _write_relocalization_assets(root: Path) -> Path:
     root.mkdir(parents=True)
     (root / 'relocalization_assets.yaml').write_text('schema_version: 1\n', encoding='utf-8')
     (root / 'global_map_downsampled.pcd').write_bytes(b'pcd')
+    (root / 'polar_context.db').write_bytes(b'db')
+    (root / 'polar_context.yaml').write_text('schema_version: 1\n', encoding='utf-8')
     voxel = root / 'voxelmaps_coords'
     voxel.mkdir()
     (voxel / 'voxel_params.txt').write_text('min_level_res 0.5\n', encoding='utf-8')
