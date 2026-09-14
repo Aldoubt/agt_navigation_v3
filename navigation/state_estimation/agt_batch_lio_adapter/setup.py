@@ -11,7 +11,7 @@ setup(
         ('share/' + package_name + '/config', ['config/batch_lio_adapter.yaml']),
         ('share/' + package_name + '/launch', ['launch/batch_lio_adapter.launch.py']),
     ],
-    install_requires=['setuptools'],
+    install_requires=['setuptools', 'PyYAML'],
     zip_safe=True,
     maintainer='AGT',
     maintainer_email='contact@aldoubt.com',
