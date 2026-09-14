@@ -30,12 +30,16 @@ def generate_launch_description():
     enable_runtime = LaunchConfiguration('enable_runtime')
     map_yaml = LaunchConfiguration('map')
     nav2_params_file = LaunchConfiguration('nav2_params_file')
+    batch_config = LaunchConfiguration('batch_config')
     default_nav2_params = str(
         Path(get_package_share_directory('agt_nav2_bringup')) / 'config' / 'nav2_params.yaml')
+    default_batch_config = str(
+        Path(get_package_share_directory('agt_mapping_bringup')) / 'config' / 'batch_lio_mid360.yaml')
 
     return LaunchDescription([
         DeclareLaunchArgument('map', default_value='', description='Absolute path to derived Nav2 map YAML; required when enable_nav2=true.'),
         DeclareLaunchArgument('nav2_params_file', default_value=default_nav2_params),
+        DeclareLaunchArgument('batch_config', default_value=default_batch_config),
         DeclareLaunchArgument('enable_map_manager', default_value='true'),
         DeclareLaunchArgument('enable_rtk', default_value='true'),
         DeclareLaunchArgument('enable_fastlio_adapter', default_value='false'),
@@ -50,8 +54,12 @@ def generate_launch_description():
         _include('agt_map_manager', 'map_manager.launch.py', IfCondition(enable_map_manager)),
         _include('agt_rtk_manager', 'rtk_manager.launch.py', IfCondition(enable_rtk)),
         _include('agt_fastlio_adapter', 'adapter.launch.py', IfCondition(enable_fastlio_adapter)),
-        _include('agt_batch_lio_adapter', 'batch_lio_adapter.launch.py', IfCondition(enable_batch_lio_adapter)),
-        _include('agt_global_relocalization', 'global_relocalization.launch.py', IfCondition(enable_global_relocalization)),
+        _include('agt_batch_lio_adapter', 'batch_lio_adapter.launch.py', IfCondition(enable_batch_lio_adapter), {
+            'batch_lio_config_file': batch_config,
+        }),
+        _include('agt_global_relocalization', 'global_relocalization.launch.py', IfCondition(enable_global_relocalization), {
+            'batch_lio_config_file': batch_config,
+        }),
         _include('agt_localization_manager', 'localization_manager.launch.py', IfCondition(enable_localization_manager)),
         _include('agt_pointcloud_preprocessor', 'obstacle_cloud.launch.py', IfCondition(enable_obstacle_cloud)),
         _include('agt_base_control', 'cmd_vel_guard.launch.py', IfCondition(enable_base_guard)),
