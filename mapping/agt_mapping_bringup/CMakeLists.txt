@@ -5,6 +5,7 @@ find_package(ament_cmake REQUIRED)
 install(DIRECTORY launch config scripts DESTINATION share/${PROJECT_NAME})
 install(PROGRAMS
   scripts/mid360_imu_preflight.py
+  scripts/mid360_mount_audit.py
   scripts/export_octomap_navigation_map.sh
   scripts/save_mapping_debug.sh
   DESTINATION lib/${PROJECT_NAME}
