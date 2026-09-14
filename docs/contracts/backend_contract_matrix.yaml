@@ -5,6 +5,7 @@ formal_map_package:
   localization_cloud_semantics: mapping_body
   runtime_navigation_anchor: T_map_base_link
   publication_boundary: T_map_base_link = T_map_body * T_body_base_link
+  body_to_base_source: T_body_lidar(Batch-LIO runtime config) * T_lidar_base(robot_state_publisher)
 backends:
   manual_seed_relocalization:
     default_query_frame_mode: mapping_body
@@ -40,3 +41,4 @@ acceptance_regressions:
   - candidate_bbs_mapping_body_default
   - mixed_query_candidate_modes_rejected_before_backend
   - no_duplicate_body_to_base_conversion
+  - derived_body_to_base_uses_batch_config_and_chassis_tf
