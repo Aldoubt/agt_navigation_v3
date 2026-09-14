@@ -73,6 +73,7 @@ that files have been moved or deleted.
 | [BOOTSTRAP_AND_ROSBAG_GATE.md](BOOTSTRAP_AND_ROSBAG_GATE.md) | acceptance | Bootstrap and rosbag-to-field gate |
 | [CURRENT_NAVIGATION_CAPABILITIES.md](CURRENT_NAVIGATION_CAPABILITIES.md) | acceptance | Validated runtime capability snapshot |
 | [FIELD_SENSOR_BASELINE.md](FIELD_SENSOR_BASELINE.md) | acceptance | Hardware and sensor baseline |
+| [acceptance/LIDAR_MOUNT_YAW_AUDIT.md](acceptance/LIDAR_MOUNT_YAW_AUDIT.md) | acceptance | MID360 mount-yaw diagnosis, evidence and exit criteria |
 | [INTEGRATION_RUNTIME_V1.md](INTEGRATION_RUNTIME_V1.md) | acceptance | Integration runtime validation boundary |
 | [RVIZ_FIELD_ACCEPTANCE.md](RVIZ_FIELD_ACCEPTANCE.md) | acceptance | Current RViz field acceptance procedure |
 | [VIBRATION_AND_LI_INIT.md](VIBRATION_AND_LI_INIT.md) | acceptance | Vibration and LI-Init diagnostic procedure |
