@@ -15,6 +15,34 @@ time_diff_lidar_to_imu: 0.0
 
 The translation is the MID360 value already documented by the selected Batch-LIO upstream. Treat it as the V1 factory-consistency baseline, not as a mathematically proven calibration of this individual unit.
 
+
+## Vehicle mount authority
+
+Do not copy a second `body_to_base` calibration into navigation/localization
+configs.
+
+The two sources of truth are:
+
+- MID360 LiDAR/IMU internal relation: the exact Batch-LIO runtime YAML
+  `mapping.extrinsic_R/T`;
+- MID360-to-chassis physical mount: `tracked_chassis_description` published by
+  `robot_state_publisher`.
+
+The runtime derives:
+
+```text
+T_body_base = T_body_lidar(Batch-LIO)
+              * T_lidar_base(robot_state_publisher)
+```
+
+Both `agt_batch_lio_adapter` and `agt_global_relocalization` use this
+derived relation. Offline relocalization starts the same chassis description;
+it must not publish a separate hard-coded base-to-lidar transform.
+
+If the physical damping mount is changed, update/verify the chassis calibration
+first. Do not compensate for a chassis mounting error by editing Batch-LIO's
+internal LiDAR/IMU extrinsic.
+
 ## Mandatory acc_norm test
 
 Before the first mapping/navigation field run and after any driver/firmware change:
