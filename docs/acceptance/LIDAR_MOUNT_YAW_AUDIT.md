@@ -1,0 +1,290 @@
+# MID360 Mount Yaw Audit
+
+Status: active investigation on `fix/lidar-mount-yaw`.
+
+## Goal
+
+Determine whether the MID360-to-chassis mounting relation is sufficiently rigid
+and repeatable for navigation, and separate that question from LiDAR/IMU
+internal calibration, map quality, and Nav2 controller tuning.
+
+The result of this audit decides whether the next action is:
+
+1. keep the current mount and only correct a static chassis extrinsic;
+2. repair or constrain the mechanical damping mount;
+3. tune MID360/Batch-LIO vibration and timing parameters; or
+4. close this issue and move to the map-quality audit.
+
+MPPI, global-planner changes, and map-generation algorithm replacement are out
+of scope for this branch.
+
+## Current sensor boundary
+
+V3 navigation uses the MID360 LiDAR and its built-in IMU as the primary motion
+sensor pair. External INS/GNSS is not required by this audit and must not be
+introduced as a navigation dependency.
+
+Keep the two calibration layers separate:
+
+```text
+MID360 internal:
+  IMU <-> LiDAR
+  Batch-LIO extrinsic_T / extrinsic_R
+
+Vehicle mounting:
+  Batch-LIO body / lidar mount <-> base_link
+  body_to_base_* and physical chassis TF
+```
+
+The current Batch-LIO factory-consistency baseline remains:
+
+```yaml
+extrinsic_est_en: false
+extrinsic_T: [0.011, 0.02329, -0.04412]
+extrinsic_R: [1,0,0, 0,1,0, 0,0,1]
+time_diff_lidar_to_imu: 0.0
+```
+
+Do not change `extrinsic_R` merely because chassis yaw is suspected. Change the
+LiDAR/IMU internal extrinsic only after repeatable LI-Init evidence indicates an
+internal calibration problem.
+
+## Known documentation/configuration debt
+
+The current tree contains repeated vehicle-mount values:
+
+- `navigation/state_estimation/agt_batch_lio_adapter/config/batch_lio_adapter.yaml`
+- `navigation/localization/agt_global_relocalization/config/global_relocalization.yaml`
+- default values in `agt_global_relocalization/global_relocalization.py`
+
+The offline relocalization launch also hard-codes a separate
+`base_link -> lidar_link` transform. This can drift away from the chassis
+description, although `docs/contracts/TF_CONVENTION.md` declares the chassis
+description to be the physical TF source of truth.
+
+This branch should converge these values toward one versioned mount-calibration
+source and make online/offline testing consume the same convention.
+
+## Hypotheses to distinguish
+
+### H1 - Mechanical relative yaw
+
+The damping mount has torsional compliance, backlash, or resonance, so the
+actual sensor-to-chassis relation varies during motion.
+
+Expected evidence:
+
+- repeat-return tests do not reproduce the same sensor/chassis alignment;
+- constraining the yaw freedom improves repeatability;
+- base-frame obstacle clouds show mount-correlated rotation relative to the
+  chassis model.
+
+### H2 - Static chassis extrinsic is wrong
+
+The mount is rigid but the stored `body -> base_link` or
+`base_link -> lidar_link` calibration is biased.
+
+Expected evidence:
+
+- repeatability is good;
+- the same fixed angular/translation bias is observed across runs;
+- one static correction improves both odometry/base semantics and
+  relocalization consistency.
+
+### H3 - LIO vibration/timing problem
+
+The physical mount relation is acceptable, but vibration, IMU saturation,
+timestamp alignment, or deskew degrades the LIO estimate.
+
+Expected evidence:
+
+- degradation correlates with acceleration, rough terrain, or rotation rate;
+- the MID360 IMU preflight/vibration statistics are abnormal;
+- changing only the chassis static extrinsic does not remove the distortion.
+
+### H4 - Downstream TF/self-filter problem
+
+The LIO is stable, but local obstacle processing uses the wrong transform,
+stale TF, or an inconsistent mount definition.
+
+Expected evidence:
+
+- raw/LIO point clouds are repeatable;
+- `/agt/navigation/points_obstacles` is misaligned or intermittently missing;
+- TF lookup failures or self-filter ratios correlate with navigation defects.
+
+## Fast diagnostic workflow
+
+### Gate A - Configuration snapshot
+
+Before every experiment save:
+
+```bash
+ros2 param dump /agt_batch_lio_adapter
+ros2 param dump /agt_obstacle_cloud_preprocessor
+ros2 run tf2_ros tf2_echo base_link lidar_link
+ros2 run tf2_ros tf2_echo body base_link
+```
+
+The TF commands verify the software configuration only. A static TF remaining
+constant does not prove the physical damping mount is rigid.
+
+### Gate B - MID360 IMU preflight
+
+Run the existing preflight with the robot stationary:
+
+```bash
+ros2 run agt_mapping_bringup mid360_imu_preflight.py --ros-args \
+  -p duration_sec:=10.0
+```
+
+Record the recommended `acc_norm`, sample rate, acceleration norm stability,
+and any clipping/unit warning before interpreting an LIO result.
+
+### Gate C - Minimal runtime
+
+The audit runtime should contain only the sensor/LIO chain required to observe
+the problem:
+
+```text
+MID360 driver
+  -> Batch-LIO
+  -> agt_batch_lio_adapter
+  -> Livox PointCloud2 bridge
+  -> obstacle cloud preprocessor
+  -> audit/diagnostic outputs
+```
+
+Do not start Nav2, global relocalization, Map Tracker, RTK manager, mission
+runtime, or the camera for this test unless a later gate explicitly requires
+them.
+
+A dedicated `lidar_mount_audit.launch.py` should become the repeatable entry
+point for this minimal chain.
+
+### Gate D - One standardized rosbag
+
+Use one run with labeled phases rather than many unrelated bags:
+
+1. static, motors disabled;
+2. static, motors powered;
+3. left 90 deg and return, repeated;
+4. right 90 deg and return, repeated;
+5. straight 5-10 m and return;
+6. short rough-surface pass and return;
+7. static after motion.
+
+Record at least:
+
+```bash
+ros2 bag record -o lidar_mount_audit \
+  /livox/lidar \
+  /livox/imu \
+  /aft_mapped_to_init \
+  /agt/odometry/local \
+  /agt/livox/points \
+  /agt/navigation/points_obstacles \
+  /tf \
+  /tf_static \
+  /cmd_vel \
+  /cmd_vel_smoothed
+```
+
+If a wheel/chassis odometry topic is available, record it as a diagnostic
+reference only. It is not required to be fused into navigation.
+
+## Metrics
+
+The audit script/report should calculate at least:
+
+### IMU
+
+- sample rate and timestamp gaps;
+- mean/std/peak angular velocity per axis;
+- acceleration norm mean/std;
+- clipping or saturation evidence where available.
+
+### LIO / adapted odometry
+
+- output rate and timestamp age;
+- static XY/Z drift;
+- static yaw drift;
+- start-to-end position difference for return tests;
+- start-to-end yaw difference for left/right return tests;
+- symmetry/repeatability across repeated rotations.
+
+### Point cloud / TF
+
+- cloud input/output rate;
+- TF lookup success/failure counts;
+- self-filter and rear-filter removal ratios;
+- optional cloud transformed to `base_link` for RViz inspection.
+
+The first clean bag establishes the baseline. Avoid inventing a pass/fail
+threshold before the baseline distribution is known; freeze numeric thresholds
+only after at least one repeatable field dataset exists.
+
+## Mechanical A/B
+
+If safe and mechanically feasible, run the same test twice:
+
+- A: current damping mount;
+- B: temporary safe constraint that reduces yaw compliance without changing
+  software parameters.
+
+Compare the same metrics and the same fixed scene. A repeatable improvement in
+return yaw, point-cloud overlap, or map sharpness in B is strong evidence for a
+mechanical mount problem.
+
+## Implementation changes planned for this branch
+
+### P0 - Calibration source consolidation
+
+Create one versioned mount-calibration source and make the following consumers
+derive from it or validate against it:
+
+- `agt_batch_lio_adapter`;
+- `agt_global_relocalization`;
+- offline relocalization tooling;
+- chassis/static TF configuration.
+
+Do not silently change the numerical calibration during this consolidation.
+
+### P0 - Remove offline hard-coded mount divergence
+
+`offline_relocalization_demo.launch.py` must stop defining a second physical
+mount truth. Offline replay should consume the same robot description or the
+same calibration asset as field runtime.
+
+### P1 - Dedicated audit launch
+
+Add `lidar_mount_audit.launch.py` with the minimal chain described above.
+
+### P1 - Automated audit report
+
+Add an analyzer that produces a versioned YAML/JSON report containing the
+metrics in this document.
+
+### P1 - Obstacle/TF observability
+
+Extend obstacle-cloud diagnostics with TF lookup success/failure counters and,
+when explicitly enabled, a `base_link` debug cloud.
+
+## Exit criteria
+
+This branch may merge to `main` when:
+
+- online and offline paths use one consistent mount convention;
+- the standardized audit can be replayed without Nav2 or global localization;
+- one baseline bag and report are archived;
+- the mechanical A/B result is recorded if the mount remains suspect;
+- any accepted mount correction is applied consistently to odometry and
+  relocalization consumers;
+- the MID360 internal LiDAR/IMU extrinsic remains unchanged unless separate
+  calibration evidence justifies changing it.
+
+After this gate:
+
+- if mount/LIO is stable, open a short-lived `fix/map-quality` branch;
+- only after map/costmap behavior is understood should a
+  `feature/nav2-mppi` branch be opened.
