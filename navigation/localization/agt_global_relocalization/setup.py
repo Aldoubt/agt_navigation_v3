@@ -12,6 +12,7 @@ setup(
         ('share/' + package_name + '/launch', ['launch/global_relocalization.launch.py']),
     ],
     install_requires=['setuptools', 'PyYAML'],
+    tests_require=['pytest'],
     zip_safe=True,
     maintainer='AGT',
     maintainer_email='contact@aldoubt.com',
