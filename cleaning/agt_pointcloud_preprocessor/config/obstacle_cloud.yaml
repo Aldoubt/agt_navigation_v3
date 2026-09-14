@@ -22,20 +22,10 @@ agt_obstacle_cloud_preprocessor:
       size_xyz: [1.023, 0.778, 0.400]
       padding_m: 0.05
 
-    # Rear filtering is navigation-only. Do not enable for mapping or localization
-    # pipelines because removing environmental features can reduce map quality.
-    rear_filter:
-      enabled: false
-      type: box
-      box:
-        x_min: -2.0
-        x_max: 0.0
-        y_min: -0.8
-        y_max: 0.8
-        z_min: -0.5
-        z_max: 2.0
-
-    # Legacy angular rear mask kept for compatibility with previous experiments.
+    # Formal rear exclusion contract.  The node implements only rear_sector.*;
+    # do not use the retired rear_filter box key (it was never consumed).
+    # This navigation-only filter must remain disabled by default.  Enable it
+    # only for a recorded self-obstacle experiment after reviewing the output.
     rear_sector:
       enabled: false
       center_deg: 180.0
@@ -46,3 +36,10 @@ agt_obstacle_cloud_preprocessor:
     voxel:
       enabled: true
       leaf_size_m: 0.20
+
+    # Cumulative, read-only experiment observability.  With a non-empty path,
+    # final YAML statistics are written at a clean node shutdown.  A positive
+    # interval prints the same key ratios periodically; defaults preserve the
+    # normal field runtime's quiet behavior.
+    statistics_output: ""
+    debug_log_interval_sec: 0.0

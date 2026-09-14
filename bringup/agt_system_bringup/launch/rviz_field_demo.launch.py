@@ -53,6 +53,9 @@ def generate_launch_description():
     rviz_config = LaunchConfiguration('rviz_config')
     lidar_topic = LaunchConfiguration('lidar_topic')
     imu_topic = LaunchConfiguration('imu_topic')
+    obstacle_rear_sector_enabled = LaunchConfiguration('obstacle_rear_sector_enabled')
+    obstacle_statistics_output = LaunchConfiguration('obstacle_statistics_output')
+    obstacle_debug_log_interval_sec = LaunchConfiguration('obstacle_debug_log_interval_sec')
 
     default_rviz = os.path.join(
         get_package_share_directory('agt_rviz_patrol'), 'config', 'agt_rviz_demo.rviz')
@@ -96,6 +99,15 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'imu_topic', default_value='/livox/imu',
             description='Live MID360 IMU input for Batch-LIO.'),
+        DeclareLaunchArgument(
+            'obstacle_rear_sector_enabled', default_value='false',
+            description='Experimental obstacle preprocessor rear sector; false preserves the field baseline.'),
+        DeclareLaunchArgument(
+            'obstacle_statistics_output', default_value='',
+            description='Optional final YAML path for obstacle-filter experiment statistics.'),
+        DeclareLaunchArgument(
+            'obstacle_debug_log_interval_sec', default_value='0.0',
+            description='Obstacle-filter cumulative debug log interval; 0 disables it.'),
         OpaqueFunction(function=_validate_required_files),
 
         # Hardware prerequisites intentionally stay outside this launch:
@@ -114,7 +126,11 @@ def generate_launch_description():
         include('agt_livox_tools', 'livox_format_bridge.launch.py', arguments={
             'livox_bridge_params_file': livox_bridge_params_file,
         }),
-        include('agt_pointcloud_preprocessor', 'obstacle_cloud.launch.py'),
+        include('agt_pointcloud_preprocessor', 'obstacle_cloud.launch.py', arguments={
+            'rear_sector_enabled': obstacle_rear_sector_enabled,
+            'statistics_output': obstacle_statistics_output,
+            'debug_log_interval_sec': obstacle_debug_log_interval_sec,
+        }),
 
         # Startup global localization is automatic by default. The live query
         # uses the secondary PointCloud2 bridge; Batch-LIO keeps the untouched

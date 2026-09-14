@@ -1,4 +1,5 @@
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
@@ -115,6 +116,7 @@ public:
     tf_timeout_sec_ = declare_parameter<double>("tf_timeout_sec", 0.05);
     drop_on_tf_failure_ = declare_parameter<bool>("drop_on_tf_failure", true);
     statistics_output_ = declare_parameter<std::string>("statistics_output", "");
+    debug_log_interval_sec_ = declare_parameter<double>("debug_log_interval_sec", 0.0);
 
     if (self_center_.size() != 3U || self_size_.size() != 3U) {
       throw std::runtime_error("self_filter.center_xyz and size_xyz must each contain 3 values");
@@ -124,6 +126,9 @@ public:
     }
     if (voxel_enabled_ && voxel_leaf_ <= 0.0) {
       throw std::runtime_error("voxel.leaf_size_m must be > 0 when voxel filter is enabled");
+    }
+    if (debug_log_interval_sec_ < 0.0) {
+      throw std::runtime_error("debug_log_interval_sec must be >= 0");
     }
 
     publisher_ = create_publisher<sensor_msgs::msg::PointCloud2>(
@@ -279,6 +284,7 @@ private:
     }
 
     statistics_.output_points += accepted.size();
+    maybe_log_statistics();
 
     sensor_msgs::msg::PointCloud2 output;
     output.header = cloud->header;
@@ -329,6 +335,11 @@ private:
              << "\nrear_removed_points: " << statistics_.rear_removed
              << "\nvoxel_removed_points: " << statistics_.voxel_removed
              << "\noutput_points: " << statistics_.output_points
+             << "\nremoved_points: " << removed_points()
+             << "\noutput_ratio_of_input: " << ratio_of_input(statistics_.output_points)
+             << "\nremoved_ratio_of_input: " << ratio_of_input(removed_points())
+             << "\nrear_sector_removed_ratio_of_input: "
+             << ratio_of_input(statistics_.rear_removed)
              << "\nrear_sector_enabled: " << (rear_enabled_ ? "true" : "false")
              << "\nrear_sector_center_deg: " << rear_center_rad_ * 180.0 / M_PI
              << "\nrear_sector_width_deg: " << rear_half_width_rad_ * 2.0 * 180.0 / M_PI
@@ -337,6 +348,43 @@ private:
     } catch (const std::exception & ex) {
       RCLCPP_ERROR(get_logger(), "Cannot write filter statistics: %s", ex.what());
     }
+  }
+
+  std::uint64_t removed_points() const
+  {
+    return statistics_.input_points >= statistics_.output_points ?
+      statistics_.input_points - statistics_.output_points : 0U;
+  }
+
+  double ratio_of_input(const std::uint64_t count) const
+  {
+    if (statistics_.input_points == 0U) {
+      return 0.0;
+    }
+    return static_cast<double>(count) / static_cast<double>(statistics_.input_points);
+  }
+
+  void maybe_log_statistics()
+  {
+    if (debug_log_interval_sec_ <= 0.0) {
+      return;
+    }
+    const auto now = std::chrono::steady_clock::now();
+    if (last_debug_log_.time_since_epoch().count() != 0 &&
+      std::chrono::duration<double>(now - last_debug_log_).count() < debug_log_interval_sec_)
+    {
+      return;
+    }
+    last_debug_log_ = now;
+    RCLCPP_INFO(
+      get_logger(),
+      "Obstacle filter cumulative: input=%llu output=%llu removed=%llu (%.3f) rear_sector=%llu (%.3f)",
+      static_cast<unsigned long long>(statistics_.input_points),
+      static_cast<unsigned long long>(statistics_.output_points),
+      static_cast<unsigned long long>(removed_points()),
+      ratio_of_input(removed_points()),
+      static_cast<unsigned long long>(statistics_.rear_removed),
+      ratio_of_input(statistics_.rear_removed));
   }
 
   std::string input_topic_;
@@ -359,7 +407,9 @@ private:
   double tf_timeout_sec_{};
   bool drop_on_tf_failure_{};
   std::string statistics_output_;
+  double debug_log_interval_sec_{};
   FilterStatistics statistics_;
+  std::chrono::steady_clock::time_point last_debug_log_{};
 
   tf2_ros::Buffer tf_buffer_;
   tf2_ros::TransformListener tf_listener_;
