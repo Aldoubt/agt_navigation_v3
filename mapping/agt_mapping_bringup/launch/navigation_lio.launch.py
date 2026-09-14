@@ -5,7 +5,6 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import Node
 
 
 def generate_launch_description():
@@ -21,21 +20,37 @@ def generate_launch_description():
 
     def includes(context):
         import tempfile
+
         run_dir = Path(tempfile.mkdtemp(prefix='agt_batch_lio_'))
         cfg = run_dir / 'batch_lio.yaml'
-        config_text = Path(batch_config.perform(context)).read_text()
-        # The checked-in config retains rosbag topic names.  Bind the raw,
-        # timing-preserving Batch-LIO input explicitly for either live MID360
-        # topics or an offline bag replay passed through launch arguments.
+        config_text = Path(batch_config.perform(context)).read_text(encoding='utf-8')
+        # Bind live/offline raw topics without altering the calibration section.
+        # The same generated runtime YAML is handed to the adapter so
+        # mapping.extrinsic_R/T has exactly one runtime source of truth.
         config_text = config_text.replace(
             '/agt/sensors/lidar/custom', lidar_topic.perform(context)).replace(
             '/agt/sensors/imu/data', imu_topic.perform(context)).replace(
             '/livox/lidar', lidar_topic.perform(context)).replace(
             '/livox/imu', imu_topic.perform(context))
-        cfg.write_text(config_text)
+        cfg.write_text(config_text, encoding='utf-8')
         return [
-            IncludeLaunchDescription(PythonLaunchDescriptionSource(str(batch_share / 'launch' / 'mapping_avia.launch.py')), launch_arguments={'config': str(cfg), 'rviz': launch_batch_rviz.perform(context), 'use_sim_time': use_sim_time.perform(context)}.items()),
-            IncludeLaunchDescription(PythonLaunchDescriptionSource(str(adapter_share / 'launch' / 'batch_lio_adapter.launch.py')), launch_arguments={'use_sim_time': use_sim_time.perform(context)}.items()),
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(
+                    str(batch_share / 'launch' / 'mapping_avia.launch.py')),
+                launch_arguments={
+                    'config': str(cfg),
+                    'rviz': launch_batch_rviz.perform(context),
+                    'use_sim_time': use_sim_time.perform(context),
+                }.items(),
+            ),
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(
+                    str(adapter_share / 'launch' / 'batch_lio_adapter.launch.py')),
+                launch_arguments={
+                    'use_sim_time': use_sim_time.perform(context),
+                    'batch_lio_config_file': str(cfg),
+                }.items(),
+            ),
         ]
 
     return LaunchDescription([
