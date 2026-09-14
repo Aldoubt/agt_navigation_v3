@@ -1,0 +1,17 @@
+format_version: 1
+experiment: P3.1 self-obstacle rear-sector OFF/ON replay analysis
+status: NOT_EXECUTED
+reason: >-
+  No P3_1/off or P3_1/on rosbag directory was found beneath
+  /home/yangxuan/ros2_ws/agt_data during the 2026-09-13 preflight audit.
+required_inputs:
+  off_bag: <P3_1/off rosbag directory containing metadata.yaml>
+  on_bag: <P3_1/on rosbag directory containing metadata.yaml>
+  optional_off_statistics: <statistics_output YAML from rear-sector OFF run>
+  optional_on_statistics: <statistics_output YAML from rear-sector ON run>
+run_command: >-
+  source /opt/ros/humble/setup.bash && source ~/ros2_ws/install/setup.bash &&
+  python3 ~/ros2_ws/src/agt_navigation_v3/tools/p3_1_self_obstacle_replay_analyzer.py
+  --off <P3_1/off> --on <P3_1/on>
+  --metrics ~/ros2_ws/src/agt_navigation_v3/docs/acceptance/p3_1_metrics.yaml
+  --report ~/ros2_ws/src/agt_navigation_v3/docs/acceptance/P3_1_SELF_OBSTACLE_RESULT.md
