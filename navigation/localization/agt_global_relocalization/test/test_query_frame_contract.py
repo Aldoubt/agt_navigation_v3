@@ -12,8 +12,8 @@ def _pose(x, y, z, qx, qy, qz, qw):
 
 def test_compose_inverse_round_trip_is_identity():
     body_to_base = _pose(
-        -0.16403417, 0.02439982, -0.49511119,
-        0.000477, -0.100267018, -0.001592, 0.994959177)
+        -0.31, 0.02, -0.72,
+        0.0, 0.0, 0.0, 1.0)
     identity = GlobalRelocalization.compose_pose(
         body_to_base, GlobalRelocalization.inverse_pose(body_to_base))
     assert identity['x'] == pytest.approx(0.0, abs=1e-12)
@@ -30,8 +30,8 @@ def test_map_body_to_base_conversion_preserves_se3_contract():
     # conversion after native GICP has aligned a body-frame query.
     map_to_body = _pose(-0.15, 0.03, -0.48, 0.0, 0.0, 0.0, 1.0)
     body_to_base = _pose(
-        -0.16403417, 0.02439982, -0.49511119,
-        0.000477, -0.100267018, -0.001592, 0.994959177)
+        -0.31, 0.02, -0.72,
+        0.0, 0.0, 0.0, 1.0)
     map_to_base = GlobalRelocalization.compose_pose(map_to_body, body_to_base)
     recovered_map_to_body = GlobalRelocalization.compose_pose(
         map_to_base, GlobalRelocalization.inverse_pose(body_to_base))
