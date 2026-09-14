@@ -624,13 +624,11 @@ class GlobalRelocalization(Node):
             self.write_ascii_pcd(scan_pcd, rows)
             timeout = float(self.get_parameter('sdk_timeout_sec').value)
             assets_arg = f'--assets-dir {shlex.quote(assets_dir)}' if assets_dir else ''
-            if bbs_mode == 'mapping_body':
-                base_from_body = self.inverse_pose(self.body_to_base_pose())
-            else:
-                base_from_body = {
-                    'x': 0.0, 'y': 0.0, 'z': 0.0,
-                    'qx': 0.0, 'qy': 0.0, 'qz': 0.0, 'qw': 1.0,
-                }
+            # The candidate backend needs T_base_body in base_link
+            # compatibility mode to convert formal T_map_body candidates before
+            # matching. In mapping_body mode it is harmless but keeping the same
+            # derived value makes the CLI contract deterministic in both modes.
+            base_from_body = self.inverse_pose(self.body_to_base_pose())
             cmd = command_template.format(
                 scan_pcd=str(scan_pcd),
                 global_map=global_map,
