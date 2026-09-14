@@ -10,6 +10,11 @@ from collections import deque
 from pathlib import Path
 
 import rclpy
+from agt_batch_lio_adapter.extrinsics import (
+    compose_transform as compose_mount_transform,
+    load_batch_lio_body_to_lidar,
+    transform_msg_to_tuple,
+)
 from agt_robot_interfaces.msg import MapStatus
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from nav_msgs.msg import Odometry
@@ -42,9 +47,11 @@ class GlobalRelocalization(Node):
         p('bbs_query_frame_mode', 'mapping_body')
         p('mapping_body_livox_translation', [-0.011, -0.02329, 0.04412])
         p('mapping_body_livox_quaternion_xyzw', [0.0, 0.0, 0.0, 1.0])
-        p('body_to_base_translation', [-0.16403417, 0.02439982, -0.49511119])
-        p('body_to_base_quaternion_xyzw',
-          [0.000477000, -0.100267018, -0.001592000, 0.994959177])
+        # Vehicle-mount conversion is derived from the same Batch-LIO runtime
+        # config and robot_state_publisher TF used by the local odometry path.
+        p('batch_lio_config_file', '')
+        p('mount_lidar_frame', 'livox_frame')
+        p('mount_base_frame', 'base_link')
         p('tf_timeout_sec', 0.10)
         p('follow_map_manager', True)
         p('map_status_topic', '/agt/map/status')
@@ -91,6 +98,7 @@ class GlobalRelocalization(Node):
         self.last_query_cloud_contract = None
         self._base_link_compatibility_warned = False
         self._body_aligned_alias_warned = False
+        self._body_to_base_cache = None
         self.tf_buffer = Buffer(cache_time=Duration(seconds=10.0))
         self.tf_listener = TransformListener(self.tf_buffer, self)
         self.pose_pub = self.create_publisher(PoseWithCovarianceStamped, self.get_parameter('output_pose_topic').value, 10)
@@ -352,14 +360,56 @@ class GlobalRelocalization(Node):
                                'qx': q[0], 'qy': q[1], 'qz': q[2], 'qw': q[3]}
 
     def body_to_base_pose(self):
-        t = list(self.get_parameter('body_to_base_translation').value)
-        if len(t) != 3:
-            raise RuntimeError('body_to_base_translation must contain exactly three values')
-        q = self._normalized_xyzw(
-            list(self.get_parameter('body_to_base_quaternion_xyzw').value),
-            'body_to_base_quaternion_xyzw')
-        return {'x': float(t[0]), 'y': float(t[1]), 'z': float(t[2]),
-                'qx': q[0], 'qy': q[1], 'qz': q[2], 'qw': q[3]}
+        """Resolve T_body_base from canonical internal + physical mount sources."""
+        if self._body_to_base_cache is not None:
+            return dict(self._body_to_base_cache)
+
+        config_path = os.path.expanduser(
+            str(self.get_parameter('batch_lio_config_file').value).strip())
+        if not config_path:
+            raise RuntimeError(
+                'batch_lio_config_file is required to derive body->base_link')
+        t_body_lidar, q_body_lidar = load_batch_lio_body_to_lidar(config_path)
+
+        lidar_frame = str(self.get_parameter('mount_lidar_frame').value).strip()
+        base_frame = str(self.get_parameter('mount_base_frame').value).strip()
+        if not lidar_frame or not base_frame:
+            raise RuntimeError('mount_lidar_frame and mount_base_frame must not be empty')
+
+        try:
+            # target=lidar, source=base -> T_lidar_base from the calibrated
+            # robot_description chain. Time(0) is intentional for static TF.
+            tf = self.tf_buffer.lookup_transform(
+                lidar_frame,
+                base_frame,
+                Time(),
+                timeout=Duration(
+                    seconds=float(self.get_parameter('tf_timeout_sec').value)),
+            )
+        except TransformException as exc:
+            raise RuntimeError(
+                f'physical mount TF {lidar_frame} <- {base_frame} unavailable: {exc}'
+            ) from exc
+
+        t_lidar_base, q_lidar_base = transform_msg_to_tuple(tf.transform)
+        t_body_base, q_body_base = compose_mount_transform(
+            t_body_lidar, q_body_lidar, t_lidar_base, q_lidar_base)
+        self._body_to_base_cache = {
+            'x': t_body_base[0], 'y': t_body_base[1], 'z': t_body_base[2],
+            'qx': q_body_base[0], 'qy': q_body_base[1],
+            'qz': q_body_base[2], 'qw': q_body_base[3],
+        }
+        self.get_logger().info(
+            'Resolved relocalization body->%s from Batch-LIO T_body_lidar + '
+            'robot_description %s<- %s: '
+            't=[%.6f, %.6f, %.6f] q=[%.9f, %.9f, %.9f, %.9f]',
+            base_frame,
+            lidar_frame,
+            base_frame,
+            t_body_base[0], t_body_base[1], t_body_base[2],
+            q_body_base[0], q_body_base[1], q_body_base[2], q_body_base[3],
+        )
+        return dict(self._body_to_base_cache)
 
     def query_pose_to_base_pose(self, query_pose, mode):
         """Convert native T_map_query to the ROS T_map_base boundary contract."""
@@ -574,6 +624,13 @@ class GlobalRelocalization(Node):
             self.write_ascii_pcd(scan_pcd, rows)
             timeout = float(self.get_parameter('sdk_timeout_sec').value)
             assets_arg = f'--assets-dir {shlex.quote(assets_dir)}' if assets_dir else ''
+            if bbs_mode == 'mapping_body':
+                base_from_body = self.inverse_pose(self.body_to_base_pose())
+            else:
+                base_from_body = {
+                    'x': 0.0, 'y': 0.0, 'z': 0.0,
+                    'qx': 0.0, 'qy': 0.0, 'qz': 0.0, 'qw': 1.0,
+                }
             cmd = command_template.format(
                 scan_pcd=str(scan_pcd),
                 global_map=global_map,
@@ -583,6 +640,13 @@ class GlobalRelocalization(Node):
                 local_map_half_height=float(self.get_parameter('backend_local_map_half_height').value),
                 min_local_map_points=int(self.get_parameter('backend_min_local_map_points').value),
                 bbs_query_frame_mode=bbs_mode,
+                base_from_body_tx=base_from_body['x'],
+                base_from_body_ty=base_from_body['y'],
+                base_from_body_tz=base_from_body['z'],
+                base_from_body_qx=base_from_body['qx'],
+                base_from_body_qy=base_from_body['qy'],
+                base_from_body_qz=base_from_body['qz'],
+                base_from_body_qw=base_from_body['qw'],
             )
             self.status(
                 'BBS_SEARCHING',
