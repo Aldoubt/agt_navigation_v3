@@ -46,6 +46,7 @@ def generate_launch_description():
     auto_relocalize = LaunchConfiguration('auto_relocalize')
     relocalization_executable = LaunchConfiguration('relocalization_executable')
     nav2_params_file = LaunchConfiguration('nav2_params_file')
+    batch_config = LaunchConfiguration('batch_config')
     livox_bridge_params_file = LaunchConfiguration('livox_bridge_params_file')
     enable_rtk = LaunchConfiguration('enable_rtk')
     enable_map_tracking = LaunchConfiguration('enable_map_tracking')
@@ -61,6 +62,8 @@ def generate_launch_description():
         get_package_share_directory('agt_rviz_patrol'), 'config', 'agt_rviz_demo.rviz')
     default_nav2_params = os.path.join(
         get_package_share_directory('agt_nav2_bringup'), 'config', 'nav2_params.yaml')
+    default_batch_config = os.path.join(
+        get_package_share_directory('agt_mapping_bringup'), 'config', 'batch_lio_mid360.yaml')
     default_livox_bridge_params = os.path.join(
         get_package_share_directory('agt_livox_tools'), 'config', 'custom_to_pointcloud2.yaml')
 
@@ -78,6 +81,9 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'nav2_params_file', default_value=default_nav2_params,
             description='Nav2 parameter file; kept unique to avoid params_file collisions.'),
+        DeclareLaunchArgument(
+            'batch_config', default_value=default_batch_config,
+            description='Canonical Batch-LIO runtime config shared with odometry and relocalization.'),
         DeclareLaunchArgument(
             'livox_bridge_params_file', default_value=default_livox_bridge_params,
             description='Livox bridge parameter file; kept unique to avoid params_file collisions.'),
@@ -117,6 +123,7 @@ def generate_launch_description():
         # Navigation odometry: Batch-LIO + frame adapter.
         include('agt_mapping_bringup', 'navigation_lio.launch.py', arguments={
             'use_sim_time': use_sim_time,
+            'batch_config': batch_config,
             'lidar_topic': lidar_topic,
             'imu_topic': imu_topic,
         }),
@@ -139,6 +146,7 @@ def generate_launch_description():
         include('agt_global_relocalization', 'global_relocalization.launch.py', arguments={
             'global_map': global_map,
             'relocalization_assets': relocalization_assets,
+            'batch_lio_config_file': batch_config,
             'follow_map_manager': 'false',
             'scan_topic': '/agt/livox/points',
             'auto_request': auto_relocalize,
