@@ -43,3 +43,10 @@ agt_obstacle_cloud_preprocessor:
     # normal field runtime's quiet behavior.
     statistics_output: ""
     debug_log_interval_sec: 0.0
+
+    # P1 diagnostics only.  When enabled, publish the accepted obstacle cloud
+    # transformed into base_link so RViz can compare it directly with the
+    # chassis model.  Keep disabled in normal field runtime.
+    debug_base_cloud:
+      enabled: false
+      topic: /agt/debug/points_obstacles_base
