@@ -2,7 +2,7 @@
 
 ## Scope and Authority Rules
 
-This report audits all 57 Markdown/YAML documents currently below `docs/`.
+This report audits all 58 Markdown/YAML documents currently below `docs/`.
 It does not move, delete, or modify any existing document. `KEEP` means the
 document remains an active authority or required navigation/evidence document;
 it does not mean every sentence is current. `MERGE` means retain the source
@@ -45,10 +45,11 @@ as authoritative.
 | [POINTCLOUD_PIPELINE.md](POINTCLOUD_PIPELINE.md) | 点云契约 | 过滤顺序和不可破坏的处理约束 | 是，点云契约 | KEEP |
 | [ACCEPTANCE.md](ACCEPTANCE.md) | 软件验收 | offline、Gazebo、V1 acceptance gates | 是，软件验收权威 | KEEP |
 | [acceptance/PRE_ACCEPTANCE_GATE.md](acceptance/PRE_ACCEPTANCE_GATE.md) | 现场前置验收 | MAP/LIO/localization/Nav2/field 的有序 gate | 是，前置验收权威 | KEEP |
-| [acceptance/FIELD_ACCEPTANCE_V1.md](acceptance/FIELD_ACCEPTANCE_V1.md) | 现场验收 | V1 现场模式和目标 | 是，但需确认分支状态 | REVIEW |
+| [acceptance/FIELD_ACCEPTANCE_V1.md](acceptance/FIELD_ACCEPTANCE_V1.md) | 现场验收 | V1 现场模式和目标；原 release 分支已并入 main | 是，保留为验收目标文档 | KEEP |
 | [BOOTSTRAP_AND_ROSBAG_GATE.md](BOOTSTRAP_AND_ROSBAG_GATE.md) | 可复现性验收 | bootstrap 与 rosbag-to-field gate | 是，现场准备流程 | KEEP |
 | [CURRENT_NAVIGATION_CAPABILITIES.md](CURRENT_NAVIGATION_CAPABILITIES.md) | 能力快照 | runtime-v1 已实现能力 | 是，能力权威 | KEEP |
 | [FIELD_SENSOR_BASELINE.md](FIELD_SENSOR_BASELINE.md) | 硬件基线 | MID360/IMU 和标定 preflight | 是，传感器权威 | KEEP |
+| [acceptance/LIDAR_MOUNT_YAW_AUDIT.md](acceptance/LIDAR_MOUNT_YAW_AUDIT.md) | 现场诊断 | MID360 相对底盘 yaw/缓震、TF 与 LIO 可重复性审计 | 是，当前安装诊断权威 | KEEP |
 | [INTEGRATION_RUNTIME_V1.md](INTEGRATION_RUNTIME_V1.md) | 集成验收 | 跨仓库运行时边界和已知缺口 | 是，集成边界 | KEEP |
 | [RVIZ_FIELD_ACCEPTANCE.md](RVIZ_FIELD_ACCEPTANCE.md) | 现场操作验收 | 当前阶段 RViz 现场验收程序 | 是，当前现场路径 | KEEP |
 | [VIBRATION_AND_LI_INIT.md](VIBRATION_AND_LI_INIT.md) | 诊断流程 | 振动诊断与 LI-Init | 是，当前诊断流程 | KEEP |
@@ -122,14 +123,15 @@ relocalization 文档共同解释；其中 YAML 矩阵是最精确的机器可�
 
 `ODOMETRY_MAPPING_SELECTION.md`、`MAPPING_AND_LIO_POLICY.md`、
 `LIVOX_DATA_AND_RELOCALIZATION_PRIMER.md`、`CURRENT_NAVIGATION_CAPABILITIES.md`、
-`FIELD_SENSOR_BASELINE.md` 和 `VIBRATION_AND_LI_INIT.md` 都涉及 LIO 或传感器。
+`FIELD_SENSOR_BASELINE.md`、`VIBRATION_AND_LI_INIT.md` 和 `acceptance/LIDAR_MOUNT_YAW_AUDIT.md` 都涉及 LIO 或传感器。
 推荐权威分工为：
 
 - 选型策略：`MAPPING_AND_LIO_POLICY.md`；
 - Livox 消息格式和转换：`LIVOX_DATA_AND_RELOCALIZATION_PRIMER.md`；
 - 已实现能力：`CURRENT_NAVIGATION_CAPABILITIES.md`；
 - 硬件 preflight：`FIELD_SENSOR_BASELINE.md`；
-- 振动/初始化诊断：`VIBRATION_AND_LI_INIT.md`。
+- 振动/初始化诊断：`VIBRATION_AND_LI_INIT.md`；
+- MID360 相对底盘安装 yaw、机械缓震与 TF 一致性：`acceptance/LIDAR_MOUNT_YAW_AUDIT.md`。
 
 `ODOMETRY_MAPPING_SELECTION.md` 保留决策理由，但不再单独作为策略权威。
 
@@ -143,7 +145,7 @@ relocalization 文档共同解释；其中 YAML 矩阵是最精确的机器可�
 - 软件/offline/Gazebo gate：`ACCEPTANCE.md`；
 - 进入现场前的有序 gate：`acceptance/PRE_ACCEPTANCE_GATE.md`；
 - 当前 RViz 实车路径：`RVIZ_FIELD_ACCEPTANCE.md`；
-- V1 正式现场目标：`acceptance/FIELD_ACCEPTANCE_V1.md`，需确认其旧 commit 基线；
+- V1 正式现场目标：`acceptance/FIELD_ACCEPTANCE_V1.md`；原 `release/field-acceptance-v1` 已于 2026-09-14 并入 `main`，文档不再定义独立分支策略；
 - R1.1 文件和 `TEST_REPORT.md`：归档证据，不作为当前通过条件。
 
 ### 2.6 Architecture migration records
@@ -161,8 +163,7 @@ relocalization 文档共同解释；其中 YAML 矩阵是最精确的机器可�
 - `ACCEPTANCE.md` 的 offline/Gazebo gate 已通过，但
   `PRE_ACCEPTANCE_GATE.md`、`RVIZ_FIELD_ACCEPTANCE.md` 和
   `FIELD_ACCEPTANCE_V1.md` 表明真实 Bunker field acceptance 仍是开放阶段。
-- `FIELD_ACCEPTANCE_V1.md` 固定在较早 commit `8d0ab16`，不能不加核验地定义
-  当前分支状态；因此标记 `REVIEW`。
+- `FIELD_ACCEPTANCE_V1.md` 的原始内容来自较早 acceptance 分支；该分支已并入并删除，当前文档仅保留验收目标和流程，分支策略以 `MAINLINE_POLICY.md` 为准。
 - `ADVANCED_DESIGN_V2.md` 中部分 RTK、terrain、map lifecycle 和 recovery 内容
   是规划性描述；必须由 `CURRENT_NAVIGATION_CAPABILITIES.md` 区分已实现能力。
 - `map_manager_audit.md` 指出 Map Manager 结构存在但生成/编排仍不完整，
@@ -196,8 +197,9 @@ AI 应按“上下文 → 结构 → 契约 → 数据/定位 → 地图 → 验
    → [acceptance/PRE_ACCEPTANCE_GATE.md](acceptance/PRE_ACCEPTANCE_GATE.md)
    → [RVIZ_FIELD_ACCEPTANCE.md](RVIZ_FIELD_ACCEPTANCE.md)
 10. [FIELD_SENSOR_BASELINE.md](FIELD_SENSOR_BASELINE.md)
-    → [BOOTSTRAP_AND_ROSBAG_GATE.md](BOOTSTRAP_AND_ROSBAG_GATE.md)
     → [VIBRATION_AND_LI_INIT.md](VIBRATION_AND_LI_INIT.md)
+    → [acceptance/LIDAR_MOUNT_YAW_AUDIT.md](acceptance/LIDAR_MOUNT_YAW_AUDIT.md)
+    → [BOOTSTRAP_AND_ROSBAG_GATE.md](BOOTSTRAP_AND_ROSBAG_GATE.md)
 11. [INTEGRATION_RUNTIME_V1.md](INTEGRATION_RUNTIME_V1.md)
     → [design/operator_mode_upgrade.md](design/operator_mode_upgrade.md)
     → [MAINLINE_POLICY.md](MAINLINE_POLICY.md)
