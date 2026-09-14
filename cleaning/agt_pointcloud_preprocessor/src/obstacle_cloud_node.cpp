@@ -76,6 +76,9 @@ struct FilterStatistics
   std::uint64_t rear_removed{};
   std::uint64_t voxel_removed{};
   std::uint64_t output_points{};
+  std::uint64_t input_frame_mismatch{};
+  std::uint64_t tf_lookup_success{};
+  std::uint64_t tf_lookup_failure{};
 };
 
 }  // namespace
@@ -117,6 +120,9 @@ public:
     drop_on_tf_failure_ = declare_parameter<bool>("drop_on_tf_failure", true);
     statistics_output_ = declare_parameter<std::string>("statistics_output", "");
     debug_log_interval_sec_ = declare_parameter<double>("debug_log_interval_sec", 0.0);
+    debug_base_cloud_enabled_ = declare_parameter<bool>("debug_base_cloud.enabled", false);
+    debug_base_cloud_topic_ = declare_parameter<std::string>(
+      "debug_base_cloud.topic", "/agt/debug/points_obstacles_base");
 
     if (self_center_.size() != 3U || self_size_.size() != 3U) {
       throw std::runtime_error("self_filter.center_xyz and size_xyz must each contain 3 values");
@@ -133,6 +139,10 @@ public:
 
     publisher_ = create_publisher<sensor_msgs::msg::PointCloud2>(
       output_topic_, rclcpp::SensorDataQoS());
+    if (debug_base_cloud_enabled_) {
+      debug_base_publisher_ = create_publisher<sensor_msgs::msg::PointCloud2>(
+        debug_base_cloud_topic_, rclcpp::SensorDataQoS());
+    }
     subscription_ = create_subscription<sensor_msgs::msg::PointCloud2>(
       input_topic_, rclcpp::SensorDataQoS(),
       std::bind(&ObstacleCloudNode::on_cloud, this, std::placeholders::_1));
@@ -175,6 +185,7 @@ private:
     tf2::Transform & base_from_cloud)
   {
     if (!expected_input_frame_.empty() && cloud.header.frame_id != expected_input_frame_) {
+      ++statistics_.input_frame_mismatch;
       RCLCPP_WARN_THROTTLE(
         get_logger(), *get_clock(), 2000,
         "Obstacle cloud frame is '%s', expected '%s'.",
@@ -190,13 +201,16 @@ private:
       const auto & qr = stamped.transform.rotation;
       tf2::Quaternion q(qr.x, qr.y, qr.z, qr.w);
       if (q.length2() < 1e-12) {
+        ++statistics_.tf_lookup_failure;
         RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000, "Invalid zero TF quaternion.");
         return false;
       }
       q.normalize();
       base_from_cloud = tf2::Transform(q, tf2::Vector3(tr.x, tr.y, tr.z));
+      ++statistics_.tf_lookup_success;
       return true;
     } catch (const std::exception & ex) {
+      ++statistics_.tf_lookup_failure;
       RCLCPP_WARN_THROTTLE(
         get_logger(), *get_clock(), 2000,
         "TF %s <- %s unavailable at cloud stamp: %s",
@@ -213,15 +227,19 @@ private:
     }
 
     tf2::Transform base_from_cloud;
-    const bool need_tf = self_filter_enabled_ || rear_enabled_;
+    const bool need_tf = self_filter_enabled_ || rear_enabled_ || debug_base_cloud_enabled_;
     const bool tf_ok = !need_tf || get_base_from_cloud(*cloud, base_from_cloud);
     if (need_tf && !tf_ok && drop_on_tf_failure_) {
       return;
     }
 
     std::vector<std::array<float, 3>> accepted;
+    std::vector<std::array<float, 3>> accepted_base;
     const auto point_count = static_cast<std::size_t>(cloud->width) * cloud->height;
     accepted.reserve(point_count / 2U);
+    if (debug_base_cloud_enabled_) {
+      accepted_base.reserve(point_count / 2U);
+    }
     std::unordered_set<VoxelKey, VoxelHash> occupied;
     if (voxel_enabled_) {
       occupied.reserve(point_count / 4U);
@@ -251,8 +269,9 @@ private:
           continue;
         }
 
+        tf2::Vector3 p_base;
         if (need_tf && tf_ok) {
-          const tf2::Vector3 p_base = base_from_cloud * tf2::Vector3(x, y, z);
+          p_base = base_from_cloud * tf2::Vector3(x, y, z);
           if (self_filter_enabled_ && inside_self_box(p_base)) {
             ++statistics_.self_removed;
             continue;
@@ -275,6 +294,12 @@ private:
         }
 
         accepted.push_back({x, y, z});
+        if (debug_base_cloud_enabled_ && tf_ok) {
+          accepted_base.push_back({
+            static_cast<float>(p_base.x()),
+            static_cast<float>(p_base.y()),
+            static_cast<float>(p_base.z())});
+        }
       }
     } catch (const std::runtime_error & ex) {
       RCLCPP_ERROR_THROTTLE(
@@ -309,6 +334,32 @@ private:
     }
 
     publisher_->publish(output);
+
+    if (debug_base_cloud_enabled_ && tf_ok && debug_base_publisher_) {
+      sensor_msgs::msg::PointCloud2 debug_output;
+      debug_output.header = cloud->header;
+      debug_output.header.frame_id = base_frame_;
+      debug_output.height = 1U;
+      debug_output.width = static_cast<std::uint32_t>(accepted_base.size());
+      debug_output.is_dense = false;
+
+      sensor_msgs::PointCloud2Modifier debug_modifier(debug_output);
+      debug_modifier.setPointCloud2FieldsByString(1, "xyz");
+      debug_modifier.resize(accepted_base.size());
+
+      sensor_msgs::PointCloud2Iterator<float> debug_x(debug_output, "x");
+      sensor_msgs::PointCloud2Iterator<float> debug_y(debug_output, "y");
+      sensor_msgs::PointCloud2Iterator<float> debug_z(debug_output, "z");
+      for (const auto & p : accepted_base) {
+        *debug_x = p[0];
+        *debug_y = p[1];
+        *debug_z = p[2];
+        ++debug_x;
+        ++debug_y;
+        ++debug_z;
+      }
+      debug_base_publisher_->publish(debug_output);
+    }
   }
 
   void write_statistics() const
@@ -335,6 +386,9 @@ private:
              << "\nrear_removed_points: " << statistics_.rear_removed
              << "\nvoxel_removed_points: " << statistics_.voxel_removed
              << "\noutput_points: " << statistics_.output_points
+             << "\ninput_frame_mismatch: " << statistics_.input_frame_mismatch
+             << "\ntf_lookup_success: " << statistics_.tf_lookup_success
+             << "\ntf_lookup_failure: " << statistics_.tf_lookup_failure
              << "\nremoved_points: " << removed_points()
              << "\noutput_ratio_of_input: " << ratio_of_input(statistics_.output_points)
              << "\nremoved_ratio_of_input: " << ratio_of_input(removed_points())
@@ -344,7 +398,9 @@ private:
              << "\nrear_sector_center_deg: " << rear_center_rad_ * 180.0 / M_PI
              << "\nrear_sector_width_deg: " << rear_half_width_rad_ * 2.0 * 180.0 / M_PI
              << "\nrear_sector_min_range_m: " << rear_min_range_
-             << "\nrear_sector_max_range_m: " << rear_max_range_ << '\n';
+             << "\nrear_sector_max_range_m: " << rear_max_range_
+             << "\ndebug_base_cloud_enabled: " << (debug_base_cloud_enabled_ ? "true" : "false")
+             << "\ndebug_base_cloud_topic: " << debug_base_cloud_topic_ << '\n';
     } catch (const std::exception & ex) {
       RCLCPP_ERROR(get_logger(), "Cannot write filter statistics: %s", ex.what());
     }
@@ -378,13 +434,15 @@ private:
     last_debug_log_ = now;
     RCLCPP_INFO(
       get_logger(),
-      "Obstacle filter cumulative: input=%llu output=%llu removed=%llu (%.3f) rear_sector=%llu (%.3f)",
+      "Obstacle filter cumulative: input=%llu output=%llu removed=%llu (%.3f) rear_sector=%llu (%.3f) tf_ok=%llu tf_fail=%llu",
       static_cast<unsigned long long>(statistics_.input_points),
       static_cast<unsigned long long>(statistics_.output_points),
       static_cast<unsigned long long>(removed_points()),
       ratio_of_input(removed_points()),
       static_cast<unsigned long long>(statistics_.rear_removed),
-      ratio_of_input(statistics_.rear_removed));
+      ratio_of_input(statistics_.rear_removed),
+      static_cast<unsigned long long>(statistics_.tf_lookup_success),
+      static_cast<unsigned long long>(statistics_.tf_lookup_failure));
   }
 
   std::string input_topic_;
@@ -408,6 +466,8 @@ private:
   bool drop_on_tf_failure_{};
   std::string statistics_output_;
   double debug_log_interval_sec_{};
+  bool debug_base_cloud_enabled_{};
+  std::string debug_base_cloud_topic_;
   FilterStatistics statistics_;
   std::chrono::steady_clock::time_point last_debug_log_{};
 
@@ -415,6 +475,7 @@ private:
   tf2_ros::TransformListener tf_listener_;
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr subscription_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr publisher_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr debug_base_publisher_;
 };
 
 int main(int argc, char ** argv)
