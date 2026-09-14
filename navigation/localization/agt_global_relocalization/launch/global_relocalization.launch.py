@@ -16,6 +16,9 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('use_sim_time', default_value='false'),
         DeclareLaunchArgument(
+            'batch_lio_config_file', default_value='',
+            description='Exact Batch-LIO runtime YAML used to derive T_body_base with chassis TF.'),
+        DeclareLaunchArgument(
             'relocalization_executable', default_value='global_relocalization',
             description='global_relocalization or manual_seed_relocalization.'),
         DeclareLaunchArgument('auto_request', default_value='false'),
@@ -58,6 +61,7 @@ def generate_launch_description():
                 cfg,
                 {
                     'global_map': LaunchConfiguration('global_map'),
+                    'batch_lio_config_file': LaunchConfiguration('batch_lio_config_file'),
                     'relocalization_assets': LaunchConfiguration('relocalization_assets'),
                     'follow_map_manager': ParameterValue(
                         LaunchConfiguration('follow_map_manager'), value_type=bool),
