@@ -48,11 +48,12 @@ struct Options {
   // Formal PGO pose and cloud contract.  base_link is accepted only as an
   // explicit compatibility selection by the wrapper/CLI.
   std::string bbs_query_frame_mode{"mapping_body"};
-  // T_base_body maps FAST-LIO / Batch-LIO IMU-body coordinates into robot base_link.
-  // It is composed from the measured base_link->lidar_link mount and the pinned
-  // MID360 LiDAR/IMU extrinsic (Batch-LIO: p_body = R * p_lidar + t).
-  Eigen::Vector3d base_from_body_t{0.25960014, -0.02326770, 0.45244230};
-  Eigen::Quaterniond base_from_body_q{0.994959177, -0.000477000, 0.100267018, 0.001592000};
+  // T_base_body is supplied by the ROS wrapper from the current Batch-LIO
+  // internal extrinsic + robot_description mount. Never keep a second numeric
+  // chassis calibration in this native backend.
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  Eigen::Vector3d base_from_body_t{nan, nan, nan};
+  Eigen::Quaterniond base_from_body_q{nan, nan, nan, nan};
 };
 
 struct RankedCandidate {
@@ -76,6 +77,8 @@ void usage() {
     << "Usage: candidate_bbs_gicp_localizer --map MAP.pcd --scan SCAN.pcd"
     << " --assets-dir DIR [--timeout 10] [--candidate-top-k 3]"
     << " [--candidate-xy-radius 4] [--candidate-yaw-range-deg 0]"
+    << " [--bbs-query-frame-mode mapping_body|base_link]"
+    << " [--base-from-body-tx ... --base-from-body-qw ...]"
     << std::endl;
 }
 
@@ -247,6 +250,13 @@ int main(int argc, char** argv) {
     if (o.bbs_query_frame_mode == "base_link") {
       std::cerr << "WARN: --bbs-query-frame-mode=base_link is deprecated for "
                 << "formal PGO body-cloud map packages; use mapping_body\n";
+      if (!o.base_from_body_t.allFinite() ||
+          !o.base_from_body_q.coeffs().allFinite() ||
+          o.base_from_body_q.norm() <= 1e-12) {
+        throw std::runtime_error(
+          "base_link compatibility mode requires explicit --base-from-body-* "
+          "arguments from the current mount calibration");
+      }
     }
 
     const fs::path assets(o.assets_dir);
