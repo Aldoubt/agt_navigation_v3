@@ -24,6 +24,11 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'debug_log_interval_sec', default_value='0.0',
             description='Cumulative filter-statistics log interval; 0 disables periodic logs.'),
+        DeclareLaunchArgument(
+            'debug_base_cloud_enabled', default_value='false',
+            description='Publish accepted obstacle points transformed to base_link for audit/RViz.'),
+        DeclareLaunchArgument(
+            'debug_base_cloud_topic', default_value='/agt/debug/points_obstacles_base'),
         Node(
             package='agt_pointcloud_preprocessor',
             executable='obstacle_cloud_node',
@@ -45,6 +50,9 @@ def generate_launch_description():
                     'statistics_output': LaunchConfiguration('statistics_output'),
                     'debug_log_interval_sec': ParameterValue(
                         LaunchConfiguration('debug_log_interval_sec'), value_type=float),
+                    'debug_base_cloud.enabled': ParameterValue(
+                        LaunchConfiguration('debug_base_cloud_enabled'), value_type=bool),
+                    'debug_base_cloud.topic': LaunchConfiguration('debug_base_cloud_topic'),
                 },
             ],
         )
