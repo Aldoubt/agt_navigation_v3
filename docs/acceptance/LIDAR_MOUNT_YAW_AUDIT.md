@@ -51,7 +51,7 @@ internal calibration problem.
 
 ## P0 implementation status
 
-P0 calibration-source consolidation is implemented on this branch and is **pending local build/replay validation before merge to `main`**.
+P0 calibration-source consolidation is implemented and **software-validated by offline replay on 2026-09-15**. Mechanical mount rigidity remains a vehicle-side P1/field validation item.
 
 The runtime no longer treats copied `body_to_base_*` constants as the normal
 source of truth. Instead:
@@ -274,12 +274,22 @@ mechanical mount problem.
 
 ## Remaining implementation work
 
-### P0 - Completed
+### P0 - Completed and replay-validated
 
 - one Batch-LIO internal-extrinsic source is threaded through odometry and relocalization;
 - physical mount geometry comes from `tracked_chassis_description` TF;
 - candidate BBS base/body arguments are generated from the resolved transform;
-- offline relocalization uses the same chassis description instead of hard-coded TF.
+- offline relocalization uses the same chassis description instead of hard-coded TF;
+- `agt_batch_lio_adapter` and `agt_global_relocalization` resolved exactly the same
+  `T_body_base` during replay:
+  `t=[-0.221022, 0.023290, -0.844290]`,
+  `q=[0.000000000, -0.113203214, 0.000000000, 0.993571856]`;
+- automatic relocalization completed with
+  `score=0.942599`, `fitness=0.116435`, `overlap=0.995376`;
+- Localization Manager accepted the global correction and the
+  `map -> odom -> base_link` chain became available;
+- the initial stationary-gate rejection at `linear=0.070 m/s` is expected
+  behavior and was followed by a successful stationary retry.
 
 ### P1 - Dedicated audit launch
 
