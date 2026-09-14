@@ -400,14 +400,11 @@ class GlobalRelocalization(Node):
             'qz': q_body_base[2], 'qw': q_body_base[3],
         }
         self.get_logger().info(
-            'Resolved relocalization body->%s from Batch-LIO T_body_lidar + '
-            'robot_description %s<- %s: '
-            't=[%.6f, %.6f, %.6f] q=[%.9f, %.9f, %.9f, %.9f]',
-            base_frame,
-            lidar_frame,
-            base_frame,
-            t_body_base[0], t_body_base[1], t_body_base[2],
-            q_body_base[0], q_body_base[1], q_body_base[2], q_body_base[3],
+            f'Resolved relocalization body->{base_frame} from Batch-LIO T_body_lidar + '
+            f'robot_description {lidar_frame}<- {base_frame}: '
+            f't=[{t_body_base[0]:.6f}, {t_body_base[1]:.6f}, {t_body_base[2]:.6f}] '
+            f'q=[{q_body_base[0]:.9f}, {q_body_base[1]:.9f}, '
+            f'{q_body_base[2]:.9f}, {q_body_base[3]:.9f}]'
         )
         return dict(self._body_to_base_cache)
 
