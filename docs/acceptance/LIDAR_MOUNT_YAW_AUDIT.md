@@ -153,12 +153,17 @@ Before every experiment save:
 ```bash
 ros2 param dump /agt_batch_lio_adapter
 ros2 param dump /agt_obstacle_cloud_preprocessor
-ros2 run tf2_ros tf2_echo base_link lidar_link
-ros2 run tf2_ros tf2_echo body base_link
+ros2 run tf2_ros tf2_echo base_link livox_frame
 ```
 
-The TF commands verify the software configuration only. A static TF remaining
-constant does not prove the physical damping mount is rigid.
+The TF command verifies the physical mount configuration published by
+`tracked_chassis_description` only. A static TF remaining constant does not
+prove the physical damping mount is rigid.
+
+`body` is an internal Batch-LIO state frame and is not required to exist as a
+robot-description TF frame. The resolved `T_body_base` must instead be checked
+from the startup log of `agt_batch_lio_adapter` / `agt_global_relocalization`,
+which derive it from the Batch-LIO config plus `livox_frame <- base_link`.
 
 ### Gate B - MID360 IMU preflight
 
