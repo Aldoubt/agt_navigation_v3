@@ -11,6 +11,7 @@ from launch_ros.parameter_descriptions import ParameterValue
 def generate_launch_description():
     share = Path(get_package_share_directory('agt_pointcloud_preprocessor'))
     return LaunchDescription([
+        DeclareLaunchArgument('use_sim_time', default_value='false'),
         DeclareLaunchArgument(
             'rear_sector_enabled', default_value='false',
             description='Experimental navigation-only rear-sector exclusion; false preserves field behavior.'),
@@ -37,6 +38,8 @@ def generate_launch_description():
             parameters=[
                 str(share / 'config' / 'obstacle_cloud.yaml'),
                 {
+                    'use_sim_time': ParameterValue(
+                        LaunchConfiguration('use_sim_time'), value_type=bool),
                     'rear_sector.enabled': ParameterValue(
                         LaunchConfiguration('rear_sector_enabled'), value_type=bool),
                     'rear_sector.center_deg': ParameterValue(
