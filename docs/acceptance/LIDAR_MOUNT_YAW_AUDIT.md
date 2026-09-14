@@ -49,21 +49,52 @@ Do not change `extrinsic_R` merely because chassis yaw is suspected. Change the
 LiDAR/IMU internal extrinsic only after repeatable LI-Init evidence indicates an
 internal calibration problem.
 
-## Known documentation/configuration debt
+## P0 implementation status
 
-The current tree contains repeated vehicle-mount values:
+P0 calibration-source consolidation is implemented on this branch.
 
-- `navigation/state_estimation/agt_batch_lio_adapter/config/batch_lio_adapter.yaml`
-- `navigation/localization/agt_global_relocalization/config/global_relocalization.yaml`
-- default values in `agt_global_relocalization/global_relocalization.py`
+The runtime no longer treats copied `body_to_base_*` constants as the normal
+source of truth. Instead:
 
-The offline relocalization launch also hard-codes a separate
-`base_link -> lidar_link` transform. This can drift away from the chassis
-description, although `docs/contracts/TF_CONVENTION.md` declares the chassis
-description to be the physical TF source of truth.
+```text
+Batch-LIO runtime YAML
+  mapping.extrinsic_R/T
+        |
+        v
+     T_body_lidar
 
-This branch should converge these values toward one versioned mount-calibration
-source and make online/offline testing consume the same convention.
+tracked_chassis_description / robot_state_publisher
+        |
+        v
+     T_base_lidar
+
+T_body_base = T_body_lidar * T_lidar_base
+```
+
+This derived `T_body_base` is consumed by both:
+
+- `agt_batch_lio_adapter`, for `camera_init/body -> odom/base_link`;
+- `agt_global_relocalization`, for the single
+  `T_map_body -> T_map_base` publication boundary and for the candidate BBS
+  `--base-from-body-*` arguments.
+
+The canonical internal extrinsic is read from the exact Batch-LIO configuration
+passed by the launch chain. The physical chassis relation is read from TF
+published by `tracked_chassis_description`.
+
+`offline_relocalization_demo.launch.py` no longer publishes its own
+hard-coded base/lidar transforms. It starts the same chassis description
+calibration used by the field sensor session.
+
+The previous numeric `body_to_base_*` values are retained only as no active
+runtime configuration; the adapter exposes an explicit legacy override mode
+whose values must be supplied intentionally. This P0 change therefore removes
+configuration divergence without silently inventing a new chassis calibration.
+
+The mapping-era `mapping_body_livox_*` query transform remains frozen. It is
+not changed by this mount-yaw cleanup because global relocalization is currently
+operational and that transform belongs to the map/query frame contract rather
+than the vehicle-mount authority.
 
 ## Hypotheses to distinguish
 
@@ -236,25 +267,14 @@ Compare the same metrics and the same fixed scene. A repeatable improvement in
 return yaw, point-cloud overlap, or map sharpness in B is strong evidence for a
 mechanical mount problem.
 
-## Implementation changes planned for this branch
+## Remaining implementation work
 
-### P0 - Calibration source consolidation
+### P0 - Completed
 
-Create one versioned mount-calibration source and make the following consumers
-derive from it or validate against it:
-
-- `agt_batch_lio_adapter`;
-- `agt_global_relocalization`;
-- offline relocalization tooling;
-- chassis/static TF configuration.
-
-Do not silently change the numerical calibration during this consolidation.
-
-### P0 - Remove offline hard-coded mount divergence
-
-`offline_relocalization_demo.launch.py` must stop defining a second physical
-mount truth. Offline replay should consume the same robot description or the
-same calibration asset as field runtime.
+- one Batch-LIO internal-extrinsic source is threaded through odometry and relocalization;
+- physical mount geometry comes from `tracked_chassis_description` TF;
+- candidate BBS base/body arguments are generated from the resolved transform;
+- offline relocalization uses the same chassis description instead of hard-coded TF.
 
 ### P1 - Dedicated audit launch
 
