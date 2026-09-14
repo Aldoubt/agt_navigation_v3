@@ -51,7 +51,7 @@ internal calibration problem.
 
 ## P0 implementation status
 
-P0 calibration-source consolidation is implemented on this branch.
+P0 calibration-source consolidation is implemented on this branch and is **pending local build/replay validation before merge to `main`**.
 
 The runtime no longer treats copied `body_to_base_*` constants as the normal
 source of truth. Instead:
