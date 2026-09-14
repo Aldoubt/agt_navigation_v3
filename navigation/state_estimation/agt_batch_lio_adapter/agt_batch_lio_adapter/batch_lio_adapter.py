@@ -242,13 +242,11 @@ class BatchLioAdapter(Node):
             t_body_lidar, q_body_lidar, t_lidar_base, q_lidar_base)
         self._body_to_base_cache = resolved
         self.get_logger().info(
-            'Resolved body->%s from Batch-LIO T_body_lidar + robot_description '
-            '%s<- %s: t=[%.6f, %.6f, %.6f] q=[%.9f, %.9f, %.9f, %.9f]',
-            out_child,
-            lidar_frame,
-            out_child,
-            resolved[0][0], resolved[0][1], resolved[0][2],
-            resolved[1][0], resolved[1][1], resolved[1][2], resolved[1][3],
+            f'Resolved body->{out_child} from Batch-LIO T_body_lidar + '
+            f'robot_description {lidar_frame}<- {out_child}: '
+            f't=[{resolved[0][0]:.6f}, {resolved[0][1]:.6f}, {resolved[0][2]:.6f}] '
+            f'q=[{resolved[1][0]:.9f}, {resolved[1][1]:.9f}, '
+            f'{resolved[1][2]:.9f}, {resolved[1][3]:.9f}]'
         )
         return resolved
 
