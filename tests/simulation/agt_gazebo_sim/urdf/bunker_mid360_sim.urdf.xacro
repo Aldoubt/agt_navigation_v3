@@ -13,8 +13,10 @@
     </visual>
   </link>
 
-  <!-- Physical simulation IMU pose matches the inverse of the production
-       navigation_lio body->base_link calibration. -->
+  <!-- Simulation fixture mirrors the current field sensor geometry:
+       base_link -> livox_frame = (0.406, 0, 0.727) m, pitch 13 deg.
+       The IMU/body pose below is derived with the same Batch-LIO
+       T_body_lidar translation used by production. -->
   <link name="imu_link">
     <inertial>
       <mass value="0.05"/>
@@ -23,7 +25,7 @@
   </link>
   <joint name="base_to_imu" type="fixed">
     <parent link="base_link"/><child link="imu_link"/>
-    <origin xyz="0.25960015 -0.02326770 0.45244229" rpy="-0.00064287 0.20087284 0.00313534"/>
+    <origin xyz="0.40520677 -0.02329000 0.77246367" rpy="0 0.22689280 0"/>
   </joint>
 
   <!-- Batch-LIO production extrinsic_T: IMU/body -> LiDAR. -->
