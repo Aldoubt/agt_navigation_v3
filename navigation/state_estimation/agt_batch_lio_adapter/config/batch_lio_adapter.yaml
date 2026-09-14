@@ -6,14 +6,23 @@ agt_batch_lio_adapter:
     source_child_frame: body
     output_parent_frame: odom
     output_child_frame: base_link
+
+    # Physical mount source of truth:
+    # tracked_chassis_description publishes base_link -> livox_frame.
+    # Internal LiDAR/IMU source of truth:
+    # the exact Batch-LIO runtime YAML passed through batch_lio_config_file.
+    lidar_frame: livox_frame
+    batch_lio_config_file: ""
     max_input_age_sec: 0.20
     tf_timeout_sec: 0.20
-    # Fixed T_body_base derived from the measured base_link->lidar_link mount
-    # and the pinned MID360 LiDAR/IMU extrinsic. Using the configured value by
-    # default removes rosbag /tf_static timing as a runtime dependency.
-    use_configured_extrinsic: true
-    body_to_base_translation: [-0.16403417, 0.02439982, -0.49511119]
-    body_to_base_quaternion_xyzw: [0.000477000, -0.100267018, -0.001592000, 0.994959177]
+
+    # Normal field mode derives T_body_base from the two sources above.
+    # Legacy override remains available only for controlled recovery/debugging;
+    # values must be supplied explicitly when enabled.
+    use_configured_extrinsic: false
+    body_to_base_translation: []
+    body_to_base_quaternion_xyzw: []
+
     allow_parent_alias: false
     # Functionhx/Batch-LIO publishes zero twist on /aft_mapped_to_init. Nav2 RPP
     # uses odometry twist for rotate-to-heading acceleration limiting, so derive
