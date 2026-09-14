@@ -1,6 +1,6 @@
 # TF Convention
 
-The repository assumes the chassis description from `agt_chassis_description` is the physical TF source of truth.
+The repository assumes the chassis description from `tracked_chassis_description` is the physical sensor-mount TF source of truth.
 
 ```text
 map
@@ -35,26 +35,39 @@ Batch-LIO publishes `camera_init -> body`, where `body` is the LIO/IMU state
 frame. `body` is **not** the robot chassis frame and must not be aliased to
 `base_link` with an identity transform.
 
-Current calibrated relation:
+V3 no longer stores an independent fixed `T_body_base` number in the odometry
+adapter or relocalization configuration. The runtime relation is derived from
+two independent authorities:
 
 ```text
-T_base_body:
-  translation  [ 0.25960014, -0.02326770,  0.45244230 ]
-  quaternion   [-0.00047700,  0.100267018, 0.00159200, 0.994959177]  # xyzw
+Batch-LIO runtime YAML
+  mapping.extrinsic_R/T
+  = T_body_lidar
 
-T_body_base:
-  translation  [-0.16403417,  0.02439982, -0.49511119 ]
-  quaternion   [ 0.00047700, -0.100267018,-0.00159200, 0.994959177]  # xyzw
+tracked_chassis_description
+  robot_state_publisher
+  = T_base_lidar
 ```
 
-`agt_batch_lio_adapter` uses the versioned `T_body_base` parameter directly by
-default. This fixed calibration should not depend on TF-buffer timing during
-rosbag playback. A matching static `body -> base_link` TF is still published for
-RViz/Nav2 and other graph consumers.
+The runtime composes:
 
-The relocalization backend uses the inverse `T_base_body` to convert mapping
-keyframe `T_map_body` poses into runtime `T_map_base` candidate poses. Keep both
-configurations synchronized.
+```text
+T_body_base = T_body_lidar * T_lidar_base
+```
+
+`agt_batch_lio_adapter` and `agt_global_relocalization` must use the same
+Batch-LIO config path and the same physical `base_link <-> livox_frame` TF.
+The candidate BBS backend receives the inverse `T_base_body` generated from
+that same resolved transform.
+
+This removes the former duplicated body/base constants and prevents online and
+offline paths from silently using different mount calibrations. Offline replay
+must start the same `tracked_chassis_description` calibration instead of
+publishing its own hard-coded base-to-lidar transform.
+
+The mapping-era `mapping_body_livox_*` query transform is a separate frozen
+map/query contract. Do not change it as part of chassis-mount cleanup unless a
+dedicated relocalization-frame experiment proves that contract wrong.
 
 ## Tilted sensor
 
