@@ -27,8 +27,13 @@ agt_global_relocalization:
     relocalization_query_frame_mode: mapping_body
     mapping_body_livox_translation: [-0.011, -0.02329, 0.04412]
     mapping_body_livox_quaternion_xyzw: [0.0, 0.0, 0.0, 1.0]
-    body_to_base_translation: [-0.16403417, 0.02439982, -0.49511119]
-    body_to_base_quaternion_xyzw: [0.000477000, -0.100267018, -0.001592000, 0.994959177]
+
+    # Vehicle-mount conversion is derived at runtime instead of copied here:
+    # T_body_base = T_body_lidar(Batch-LIO runtime YAML)
+    #               * T_lidar_base(robot_state_publisher TF).
+    batch_lio_config_file: ""
+    mount_lidar_frame: livox_frame
+    mount_base_frame: base_link
     bbs_query_frame_mode: mapping_body
     tf_timeout_sec: 0.10
     require_stationary: true
@@ -54,9 +59,13 @@ agt_global_relocalization:
       --candidate-xy-radius 4.0 --candidate-z-radius 2.0
       --candidate-yaw-range-deg 0.0 --roll-pitch-range-deg 0.0
       --bbs-query-frame-mode {bbs_query_frame_mode}
-      --base-from-body-tx 0.25960014 --base-from-body-ty -0.02326770 --base-from-body-tz 0.45244230
-      --base-from-body-qx -0.000477000 --base-from-body-qy 0.100267018
-      --base-from-body-qz 0.001592000 --base-from-body-qw 0.994959177
+      --base-from-body-tx {base_from_body_tx}
+      --base-from-body-ty {base_from_body_ty}
+      --base-from-body-tz {base_from_body_tz}
+      --base-from-body-qx {base_from_body_qx}
+      --base-from-body-qy {base_from_body_qy}
+      --base-from-body-qz {base_from_body_qz}
+      --base-from-body-qw {base_from_body_qw}
       --per-candidate-timeout 8.0 --bbs-score-threshold 0.05
       --local-map-radius-xy {local_map_radius_xy}
       --local-map-half-height {local_map_half_height}
