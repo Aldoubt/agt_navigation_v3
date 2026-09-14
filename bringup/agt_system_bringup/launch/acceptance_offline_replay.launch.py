@@ -181,6 +181,13 @@ def generate_launch_description():
                     cmd=[
                         'ros2', 'bag', 'play', LaunchConfiguration('bag'),
                         '--clock', '--rate', LaunchConfiguration('bag_rate'),
+                        # Replay only the raw LIO sensor pair. Runtime TF,
+                        # odometry and localization outputs must be regenerated
+                        # by this launch so recorded /tf_static cannot override
+                        # the current chassis calibration.
+                        '--topics',
+                        LaunchConfiguration('lidar_topic'),
+                        LaunchConfiguration('imu_topic'),
                     ],
                     output='screen',
                 ),
