@@ -272,7 +272,7 @@ Compare the same metrics and the same fixed scene. A repeatable improvement in
 return yaw, point-cloud overlap, or map sharpness in B is strong evidence for a
 mechanical mount problem.
 
-## Remaining implementation work
+## Implementation status
 
 ### P0 - Completed and replay-validated
 
@@ -291,19 +291,48 @@ mechanical mount problem.
 - the initial stationary-gate rejection at `linear=0.070 m/s` is expected
   behavior and was followed by a successful stationary retry.
 
-### P1 - Dedicated audit launch
+### P1 - Implemented, pending local replay validation
 
-Add `lidar_mount_audit.launch.py` with the minimal chain described above.
+The branch now contains:
 
-### P1 - Automated audit report
+- `agt_system_bringup/launch/lidar_mount_audit.launch.py`: a minimal launch
+  containing only chassis TF, optional MID360 driver or raw bag replay,
+  Batch-LIO, the body/base adapter, Livox PointCloud2 bridge, obstacle
+  preprocessor, and the audit reporter;
+- `agt_mapping_bringup/mid360_mount_audit.py`: read-only YAML reporting for
+  IMU rate/noise, LIO rate/start-to-end motion, point-cloud rates/counts, and
+  software-observed mount-TF lookup health;
+- obstacle-preprocessor counters for input-frame mismatch and TF lookup
+  success/failure;
+- optional `/agt/debug/points_obstacles_base` publication in `base_link` for
+  direct RViz comparison with the chassis model.
 
-Add an analyzer that produces a versioned YAML/JSON report containing the
-metrics in this document.
+For the existing MID360 bag:
 
-### P1 - Obstacle/TF observability
+```bash
+ros2 launch agt_system_bringup lidar_mount_audit.launch.py \
+  replay_bag:=true \
+  use_sim_time:=true \
+  bag:=/home/yangxuan/ros2_ws/src/rosbag/bunker_mid360_mapping_20260901_205036 \
+  lidar_topic:=/agt/sensors/lidar/custom \
+  imu_topic:=/agt/sensors/imu/data \
+  audit_duration_sec:=60.0
+```
 
-Extend obstacle-cloud diagnostics with TF lookup success/failure counters and,
-when explicitly enabled, a `base_link` debug cloud.
+Expected outputs:
+
+```text
+~/.ros/agt_mount_audit/mid360_mount_audit.yaml
+~/.ros/agt_mount_audit/obstacle_filter_statistics.yaml
+/agt/debug/points_obstacles_base
+```
+
+The obstacle-filter statistics file is finalized on clean shutdown.  The main
+audit YAML is frozen automatically after the configured sensor-time duration.
+
+P1 software replay validates the diagnostic pipeline, not the physical rigidity
+of the damping mount.  Mechanical yaw/compliance still requires a later
+vehicle-side A/B.
 
 ## Exit criteria
 
