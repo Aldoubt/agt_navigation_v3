@@ -1,7 +1,5 @@
 import math
 from pathlib import Path
-import re
-
 import pytest
 import yaml
 
@@ -124,21 +122,26 @@ def test_candidate_bbs_has_explicit_non_mixing_frame_mode_contract():
     config = yaml.safe_load((root / 'navigation/localization/agt_global_relocalization/'
                              'config/global_relocalization.yaml').read_text(encoding='utf-8'))
     params = config['agt_global_relocalization']['ros__parameters']
-    body_to_base = _pose(
-        *params['body_to_base_translation'],
-        *params['body_to_base_quaternion_xyzw'])
-    expected_base_to_body = GlobalRelocalization.inverse_pose(body_to_base)
+    assert 'body_to_base_translation' not in params
+    assert 'body_to_base_quaternion_xyzw' not in params
+    assert params['mount_lidar_frame'] == 'livox_frame'
+    assert params['mount_base_frame'] == 'base_link'
+
     command = params['candidate_sdk_command']
     assert '--bbs-query-frame-mode {bbs_query_frame_mode}' in command
-    values = {}
-    for axis in ('tx', 'ty', 'tz', 'qx', 'qy', 'qz', 'qw'):
-        match = re.search(rf'--base-from-body-{axis}\s+([-+0-9.eE]+)', command)
-        assert match, axis
-        values[axis] = float(match.group(1))
-    assert values['tx'] == pytest.approx(expected_base_to_body['x'], abs=1e-6)
-    assert values['ty'] == pytest.approx(expected_base_to_body['y'], abs=1e-6)
-    assert values['tz'] == pytest.approx(expected_base_to_body['z'], abs=1e-6)
-    assert values['qx'] == pytest.approx(expected_base_to_body['qx'], abs=1e-6)
-    assert values['qy'] == pytest.approx(expected_base_to_body['qy'], abs=1e-6)
-    assert values['qz'] == pytest.approx(expected_base_to_body['qz'], abs=1e-6)
-    assert values['qw'] == pytest.approx(expected_base_to_body['qw'], abs=1e-6)
+    placeholders = {
+        'tx': 'base_from_body_tx',
+        'ty': 'base_from_body_ty',
+        'tz': 'base_from_body_tz',
+        'qx': 'base_from_body_qx',
+        'qy': 'base_from_body_qy',
+        'qz': 'base_from_body_qz',
+        'qw': 'base_from_body_qw',
+    }
+    for axis, placeholder in placeholders.items():
+        assert f'--base-from-body-{axis} {{{placeholder}}}' in command
+
+    assert 'load_batch_lio_body_to_lidar' in source
+    assert 'lookup_transform(' in source
+    assert "self.get_parameter('mount_lidar_frame')" in source
+    assert "self.get_parameter('mount_base_frame')" in source
