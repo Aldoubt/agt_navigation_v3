@@ -29,6 +29,30 @@ def _rate_hz(stamps: list[float]) -> float:
     return (len(stamps) - 1) / span if span > 1.0e-9 else 0.0
 
 
+def _gap_summary(stamps: list[float]) -> dict:
+    if len(stamps) < 2:
+        return {
+            'mean_sec': 0.0,
+            'max_sec': 0.0,
+            'p95_sec': 0.0,
+            'non_monotonic_count': 0,
+        }
+    gaps = [b - a for a, b in zip(stamps[:-1], stamps[1:])]
+    positive = [g for g in gaps if g >= 0.0]
+    ordered = sorted(positive)
+    if ordered:
+        idx = min(len(ordered) - 1, int(math.ceil(0.95 * len(ordered))) - 1)
+        p95 = ordered[max(0, idx)]
+    else:
+        p95 = 0.0
+    return {
+        'mean_sec': _mean(positive),
+        'max_sec': max(positive, default=0.0),
+        'p95_sec': p95,
+        'non_monotonic_count': sum(1 for g in gaps if g < 0.0),
+    }
+
+
 def _mean(values: Iterable[float]) -> float:
     values = list(values)
     return statistics.fmean(values) if values else 0.0
@@ -256,6 +280,7 @@ class Mid360MountAudit(Node):
         summary = {
             'samples': len(self.odom_stamps),
             'rate_hz': _rate_hz(self.odom_stamps),
+            'timestamp_gaps': _gap_summary(self.odom_stamps),
             'max_translation_step_m': self.max_odom_step_m,
             'max_yaw_step_deg': self.max_odom_yaw_step_deg,
         }
@@ -297,6 +322,7 @@ class Mid360MountAudit(Node):
             'imu': {
                 'samples': len(self.imu_stamps),
                 'rate_hz': _rate_hz(self.imu_stamps),
+                'timestamp_gaps': _gap_summary(self.imu_stamps),
                 'acceleration_xyz': self.accel.summary(),
                 'angular_velocity_xyz': self.gyro.summary(),
                 'accel_norm_mean': _mean(self.accel_norm),
@@ -308,9 +334,11 @@ class Mid360MountAudit(Node):
             'pointcloud': {
                 'raw_clouds': len(self.raw_cloud_stamps),
                 'raw_rate_hz': raw_rate,
+                'raw_timestamp_gaps': _gap_summary(self.raw_cloud_stamps),
                 'raw_points': self.raw_points,
                 'obstacle_clouds': len(self.obstacle_cloud_stamps),
                 'obstacle_rate_hz': obstacle_rate,
+                'obstacle_timestamp_gaps': _gap_summary(self.obstacle_cloud_stamps),
                 'obstacle_points': self.obstacle_points,
                 'obstacle_points_over_raw_points': (
                     float(self.obstacle_points) / float(self.raw_points)
