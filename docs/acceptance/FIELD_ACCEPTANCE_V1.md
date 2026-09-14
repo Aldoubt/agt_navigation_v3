@@ -1,8 +1,6 @@
 # Field Acceptance V1
 
-Branch: `release/field-acceptance-v1`
-
-This branch freezes the functional-domain architecture at `8d0ab16` and turns the repository into an acceptance-oriented delivery baseline. Large package moves, package renames, and new architecture work are out of scope until the acceptance release is merged.
+Status: the former `release/field-acceptance-v1` branch was merged into `main` and removed on 2026-09-14. This document now preserves the V1 field-acceptance targets, evidence rules, and test workflow; it no longer defines an active branch policy.
 
 ## Acceptance modes
 
@@ -140,9 +138,9 @@ Offline replay cannot prove physical 30 m speed, 30 degree climbing, 3 h battery
 
 Nav2 closed-loop controller behavior also requires a simulated/mocked moving base. A rosbag alone provides a recorded trajectory and does not respond to new `cmd_vel` commands.
 
-## Release rule
+## Mainline rule
 
-Only bug fixes, acceptance tooling, parameter overlays, logging, hardware adaptation, and safety-gate changes are allowed on this branch. After all official acceptance items pass, merge this branch to `main` and tag the field-acceptance release.
+The dedicated acceptance branch no longer exists. Current development follows `docs/MAINLINE_POLICY.md`: keep `main` as the long-lived baseline, use short-lived branches for focused fixes/experiments, and preserve accepted field baselines with tags. The acceptance targets in this document remain valid until superseded by a newer acceptance specification.
 
 
 ## Current implementation entry points
