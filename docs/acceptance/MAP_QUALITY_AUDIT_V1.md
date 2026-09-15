@@ -798,6 +798,21 @@ A/B and completes a deterministic package-generation job.
 
 ## MQ4 - Navigation acceptance
 
+### MQ3 research stop decision
+
+MQ3-B.2.1 completed its accounting reconciliation (`PASS`) and found
+`REFERENCE_RECOVERY_PARTIAL`: among the five frozen static-obstacle review
+regions there were two partial recoveries, two non-recoveries, and one strong
+recovery.  Ground-reference propagation remains research/evidence only and
+must not enter production occupancy, traversability, or Nav2 map generation.
+The MQ3 Patchwork terrain baseline is rejected for production.
+
+The reproducible production fallback remains MQ0 / legacy
+`agt_map_converter`; MQ2-A.1b remains an experimental candidate.  MQ2-B is
+also rejected for production.  No MQ3 code is removed, but no terrain,
+Patchwork++, propagation, voxel, elevation, or converter-heuristic tuning is
+authorized beyond this point.
+
 A candidate navigation map passes only when:
 
 1. `validate_nav_map` passes;
