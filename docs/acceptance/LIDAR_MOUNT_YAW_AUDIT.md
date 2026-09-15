@@ -291,7 +291,7 @@ mechanical mount problem.
 - the initial stationary-gate rejection at `linear=0.070 m/s` is expected
   behavior and was followed by a successful stationary retry.
 
-### P1 - Implemented, pending local replay validation
+### P1 - Implemented, first replay completed; one observability fix pending rerun
 
 The branch now contains:
 
@@ -329,6 +329,21 @@ Expected outputs:
 
 The obstacle-filter statistics file is finalized on clean shutdown.  The main
 audit YAML is frozen automatically after the configured sensor-time duration.
+
+First replay baseline (2026-09-15):
+
+- IMU: ~199.98 Hz, no non-monotonic timestamps, max gap ~10.7 ms;
+- adapted odometry: ~10.00 Hz, max gap ~101.6 ms;
+- raw PointCloud2: ~10.00 Hz, no non-monotonic timestamps;
+- software mount TF: 126/126 successful lookups, 0 failures, no observed
+  translation/yaw step;
+- obstacle preprocessor: 853/853 successful TF lookups, 0 frame mismatches,
+  0 TF failures;
+- the audit reporter observed 0 obstacle-cloud messages even though the
+  preprocessor processed/published 853 clouds.  Root cause: the reporter used
+  the default reliable subscription while the obstacle publisher uses
+  SensorDataQoS/best-effort.  The reporter now uses `qos_profile_sensor_data`
+  for IMU/cloud diagnostics and requires one replay rerun to close this item.
 
 P1 software replay validates the diagnostic pipeline, not the physical rigidity
 of the damping mount.  Mechanical yaw/compliance still requires a later
