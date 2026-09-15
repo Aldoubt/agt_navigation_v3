@@ -291,7 +291,7 @@ mechanical mount problem.
 - the initial stationary-gate rejection at `linear=0.070 m/s` is expected
   behavior and was followed by a successful stationary retry.
 
-### P1 - Implemented, first replay completed; one observability fix pending rerun
+### P1 - Software replay validated; vehicle mechanical A/B pending
 
 The branch now contains:
 
@@ -330,20 +330,31 @@ Expected outputs:
 The obstacle-filter statistics file is finalized on clean shutdown.  The main
 audit YAML is frozen automatically after the configured sensor-time duration.
 
-First replay baseline (2026-09-15):
+P1 replay validation baseline (2026-09-15):
 
 - IMU: ~199.98 Hz, no non-monotonic timestamps, max gap ~10.7 ms;
 - adapted odometry: ~10.00 Hz, max gap ~101.6 ms;
-- raw PointCloud2: ~10.00 Hz, no non-monotonic timestamps;
+- raw PointCloud2 observed by the reporter: ~9.58 Hz, no non-monotonic
+  timestamps, p95 gap ~101 ms, one observed max gap ~300 ms;
+- obstacle PointCloud2 observed by the reporter: ~9.63 Hz, p95 gap ~101 ms,
+  with a matching ~300 ms max gap; this confirms the QoS fix closed the
+  previous zero-message observability failure;
 - software mount TF: 126/126 successful lookups, 0 failures, no observed
   translation/yaw step;
-- obstacle preprocessor: 853/853 successful TF lookups, 0 frame mismatches,
+- obstacle preprocessor: 730/730 successful TF lookups, 0 frame mismatches,
   0 TF failures;
-- the audit reporter observed 0 obstacle-cloud messages even though the
-  preprocessor processed/published 853 clouds.  Root cause: the reporter used
-  the default reliable subscription while the obstacle publisher uses
-  SensorDataQoS/best-effort.  The reporter now uses `qos_profile_sensor_data`
-  for IMU/cloud diagnostics and requires one replay rerun to close this item.
+- the reporter observed 577 obstacle clouds and 2,383,011 output obstacle
+  points during its 60 s capture window;
+- filter statistics over the full node lifetime reported 14,599,200 input
+  points, 3,369,318 output points, and an output/input ratio of ~0.231.
+  This lifetime window is longer than the reporter's frozen 60 s window, so
+  its aggregate point ratio must not be compared numerically one-to-one with
+  the reporter ratio.
+
+The ~9.6 Hz diagnostic-cloud observation and ~300 ms worst gap are recorded as
+baseline observations, not frozen acceptance thresholds.  They may reflect
+best-effort diagnostic delivery and workstation replay load; the LIO odometry
+stream itself remained ~10 Hz with ~102 ms worst gap.
 
 P1 software replay validates the diagnostic pipeline, not the physical rigidity
 of the damping mount.  Mechanical yaw/compliance still requires a later
