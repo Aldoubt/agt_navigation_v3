@@ -2,6 +2,7 @@
 """MQ4-P2: one MQ0 fixture, deterministic pairs, dynamic synthetic robot TF."""
 import argparse
 import csv
+import hashlib
 import math
 import os
 import sys
@@ -104,9 +105,10 @@ def main():
     parser.add_argument('--map-yaml', required=True); parser.add_argument('--params', required=True)
     parser.add_argument('--pairs-output', required=True); parser.add_argument('--summary-output', required=True)
     parser.add_argument('--paths-output', required=True)
+    parser.add_argument('--candidate', default='MQ0')
     args = parser.parse_args(); os.makedirs(args.paths_output, exist_ok=True)
     pairs = yaml.safe_load(open(args.pairs))['pairs']; yaws = pose_yaws(args.poses)
-    report = {'candidate': 'MQ0', 'fixture': {}, 'pairs': []}; rclpy.init(); node = Smoke()
+    report = {'candidate': args.candidate, 'nav2_params_sha256': hashlib.sha256(open(args.params, 'rb').read()).hexdigest(), 'fixture': {}, 'pairs': []}; rclpy.init(); node = Smoke()
     try:
         node.ensure_active('map_server', {'nodes': {'map_server': {}, 'planner_server': {}}})
         deadline = time.monotonic() + 30
@@ -128,7 +130,7 @@ def main():
     finally:
         with open(args.pairs_output, 'w') as stream: yaml.safe_dump(report, stream, sort_keys=False)
         successes = [p for p in report['pairs'] if p.get('planner_success')]
-        summary = {'candidate': 'MQ0', 'total_pairs': len(pairs), 'planner_success': len(successes),
+        summary = {'candidate': args.candidate, 'nav2_params_sha256': report['nav2_params_sha256'], 'total_pairs': len(pairs), 'planner_success': len(successes),
                    'planner_failure': len(report['pairs']) - len(successes),
                    'success_ratio': len(successes) / len(pairs), 'fixture_shutdown_clean': None}
         for field in ('category', 'direction'):
@@ -137,6 +139,8 @@ def main():
             values = [p[key] for p in successes if key in p]; summary[name] = {'mean': sum(values)/len(values) if values else 0.0, 'p50': percentile(values,.5), 'p90': percentile(values,.9), 'max': max(values) if values else 0.0}
         semantic_keys = [('paths_with_raw_occupied', 'raw_map', 'occupied_samples'), ('paths_with_raw_unknown', 'raw_map', 'unknown_samples'), ('paths_with_raw_outside', 'raw_map', 'outside_samples'), ('paths_with_costmap_lethal', 'global_costmap', 'lethal_samples'), ('paths_with_costmap_unknown', 'global_costmap', 'unknown_samples'), ('paths_with_costmap_outside', 'global_costmap', 'outside_samples'), ('paths_with_inscribed', 'global_costmap', 'inscribed_samples')]
         summary['semantics'] = {name: sum(p.get(group, {}).get(key, 0) > 0 for p in successes) for name, group, key in semantic_keys}
+        summary['semantics']['total_inscribed_samples'] = sum(p.get('global_costmap', {}).get('inscribed_samples', 0) for p in successes)
+        summary['semantics']['max_inscribed_samples_per_path'] = max((p.get('global_costmap', {}).get('inscribed_samples', 0) for p in successes), default=0)
         fractions = [p['raw_map']['unknown_fraction'] for p in successes if 'raw_map' in p]; summary['mean_unknown_fraction'] = sum(fractions)/len(fractions) if fractions else 0.0; summary['max_unknown_fraction'] = max(fractions) if fractions else 0.0
         with open(args.summary_output, 'w') as stream: yaml.safe_dump(summary, stream, sort_keys=False)
         node.destroy_node(); rclpy.shutdown()
