@@ -828,6 +828,35 @@ A candidate navigation map passes only when:
 Controller tuning is explicitly outside this gate.  RPP/MPPI A/B starts only
 after this branch produces a trustworthy map.
 
+### MQ4 final Nav2 A/B acceptance (frozen)
+
+MQ4 used the same frozen Nav2 parameter hash
+`2518c52ac99c578e06b28f3092fd6a98934d1c89141195c2cd8b4347db71c86e`,
+the same 12 deterministic trajectory pairs, `GridBased` / SmacPlanner2D,
+world-space path sampling, and isolated planner fixtures for MQ0 and
+MQ2-A.1b. Both fixtures shut down cleanly. Both candidates completed 12/12
+plans, with no raw occupied/unknown/outside path samples and no global-costmap
+lethal/unknown/outside samples.
+
+MQ0 legacy is **PRODUCTION ACCEPTED** and remains the production default.
+MQ2-A.1b is **EXPERIMENTAL VALIDATED** with **NAV2 FUNCTIONAL PARITY**, but is
+**NOT PRODUCTION DEFAULT**: this A/B has not demonstrated a production
+replacement benefit. MQ2-B remains **REJECTED FOR PRODUCTION**. MQ3 Patchwork
+terrain remains **REJECTED FOR PRODUCTION / RESEARCH ONLY**. MQ3 ground
+propagation remains `REFERENCE_RECOVERY_PARTIAL` and must not write into a
+production map. The MQ4 verdict is **LEGACY_ACCEPTED**.
+
+Map-quality research is frozen unless field evidence shows that the legacy map
+blocks genuinely traversable space, SmacPlanner cannot plan a field-confirmed
+traversable route, vegetation/slope/overhang creates a confirmed false
+obstacle, the static map is visibly inconsistent with the environment, or
+formal elevation/traversability navigation becomes necessary.
+
+The next development branch is `feature/nav2-mppi`, scoped to controller
+tracking, oscillation, straight-line behavior, obstacle stopping, local
+costmap perception, controller frequency, and `cmd_vel` behavior. It must not
+reopen map generation, Patchwork, or PCD-converter research.
+
 ## Deliverables
 
 The branch should finish with:
