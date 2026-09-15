@@ -216,6 +216,46 @@ Acceptance:
 - the branch can point to at least one source-PCD defect and/or one projection
   defect before algorithm changes begin.
 
+### MQ1 first historical-delta analysis (2026-09-15)
+
+The 2,576 historical `occupied -> free` cells were compared against the
+current recorded swept footprint and the frozen source PCD.
+
+Spatial relationship to the current swept footprint:
+
+- current swept footprint: 0 / 2,576 cells;
+- +0.10 m expansion: 757 / 2,576 (29.4%);
+- +0.20 m expansion: 1,365 / 2,576 (53.0%);
+- +0.30 m expansion: 1,778 / 2,576 (69.0%);
+- +0.40 m expansion: 2,042 / 2,576 (79.3%);
+- +0.50 m expansion: 2,196 / 2,576 (85.2%).
+
+The delta is highly fragmented: 488 connected regions for 2,576 cells, with
+the largest region only 79 cells (0.79 m^2).  This makes a single large parked
+vehicle or one contiguous manual erase unlikely as a complete explanation.
+The strong concentration immediately outside the recorded swept footprint is
+consistent with a historical clearance halo or path-adjacent cleanup, but that
+cause is not yet proven.
+
+Source-PCD statistics for the largest regions show two recurring signatures:
+
+1. tall mixed-height returns: several regions contain ground-level returns near
+   z ~= -1.2 m together with strong returns at z ~= 3-5.5 m, consistent with
+   canopy/overhang or tall vegetation being projected into the same XY cells;
+2. lower mixed-height returns: many regions contain low returns near z ~= -1.0
+   m and substantial returns around z ~= 0-0.8 m, producing robust vertical
+   spans around 1.6-1.8 m.
+
+These are not sparse single-point outliers: the p05-p95 span remains large and
+typical point density is roughly 3-7 points/cell in the largest regions.
+
+Important limitation: these first statistics pool all PCD points across each
+connected region.  Region-level min/max/percentiles can mix neighboring ground
+and obstacle cells.  Before changing converter rules, MQ1 must compute
+**per-cell** vertical profiles and a local-ground-relative height distribution,
+then aggregate those per-cell features by region.  This is required to
+distinguish canopy/overhang from ground-connected obstacles and slopes.
+
 ## MQ2 - Robust fallback converter
 
 Improve `agt_map_converter` conservatively before replacing it.
