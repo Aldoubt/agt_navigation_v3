@@ -397,6 +397,40 @@ final non-unknown cell count **after** trajectory carve.  It is retained for
 compatibility.  New outputs also record `raw_valid_cells` (count>=min_points)
 and `final_known_cells` explicitly.
 
+### MQ2-A overlap review result
+
+Comparison against the historical v003 free-space cleanup does **not** justify
+promoting MQ2-A yet.
+
+For the 2,576 historical `legacy occupied -> v003 free` cells, MQ2-A produces:
+
+- occupied: 1,857 (72.1%);
+- unknown: 263 (10.2%);
+- free: 456 (17.7%).
+
+For all 1,294 `legacy occupied -> MQ2-A free` cells:
+
+- 456 overlap the historical v003 free-space cleanup;
+- 838 (64.8%) are newly released beyond that historical cleanup.
+
+Additional review transitions are:
+
+- legacy free -> MQ2-A occupied: 19;
+- legacy free -> MQ2-A unknown: 1,197.
+
+Interpretation: MQ2-A is directionally useful for suppressing false slope
+occupancy, but its newly-free set is not sufficiently corroborated by the
+historical field cleanup.  The historical cleanup is not ground truth, so lack
+of overlap is not an automatic failure; however, 838 new free cells are too
+many to accept without source-PCD and static-obstacle review.
+
+Gate decision: **MQ2-A remains REVIEW / experimental. Do not start MQ2-B by
+stacking another obstacle-rule change on top of this candidate.** First audit
+the 1,294 occupied->free cells, with priority on the 838 newly released cells,
+and inspect the 19 free->occupied regressions.  The 1,197 free->unknown cells
+are primarily a planning-usability regression and should be quantified by
+region/corridor before promotion.
+
 ## MQ2 - Robust fallback converter
 
 Improve `agt_map_converter` conservatively before replacing it.
