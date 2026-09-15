@@ -660,6 +660,77 @@ Acceptance:
 - occupied artifacts decrease only where 3D evidence supports the change;
 - true static obstacles used in the review set remain occupied.
 
+### MQ2-B frozen-map result and stop decision
+
+The first ground-relative collision-band experiment is **too aggressive to
+promote** as the fallback converter.
+
+MQ2-A.1b -> MQ2-B map transitions:
+
+- occupied -> unknown: 33,115;
+- occupied -> free: 5,871;
+- unknown -> occupied: 885;
+- free -> occupied: 5;
+- free -> unknown: 35.
+
+Final map totals changed from:
+
+- MQ2-A.1b: 30,244 free / 45,680 occupied / 989,451 unknown;
+- MQ2-B: 36,075 free / 7,584 occupied / 1,021,716 unknown.
+
+Occupied cells therefore fell by 38,096 (83.4%) while free cells rose by
+5,831 (19.3%).  The trajectory conflict count improved only from 11,359 to
+10,663 (-6.1%): occupied conflicts fell 4,188 -> 3,087, but unknown conflicts
+rose 7,171 -> 7,576.
+
+MQ2-B evidence counters:
+
+- collision-band supported obstacle cells: 9,326;
+- ambiguous collision-band cells: 2,514;
+- high-only/overhang evidence cells: 17,018;
+- legacy span-trigger cells on the same source remain 49,437.
+
+Interpretation: collision-band evidence is useful, but the current direct
+replacement of the legacy span rule removes far more occupancy than the
+trajectory evidence justifies.  A large fraction of former occupied space is
+demoted to unknown and 5,871 cells are newly released as free.  Without a
+frozen labelled static-obstacle review set, this is too large a semantic change
+for the stable fallback converter.
+
+Decision:
+
+- keep `legacy_span` as the default/fallback obstacle rule;
+- keep MQ2-A.1b as the preferred experimental slope correction baseline;
+- keep MQ2-B as evidence/prototype code only;
+- **stop adding converter heuristics here** instead of tuning collision-band
+  thresholds to force a desired map;
+- move to MQ3 and compare against the terrain-aware pipeline, which already has
+  Patchwork++, robust elevation, ground-relative obstacle, traversability and
+  confidence interfaces.
+
+### MQ3 implementation readiness note
+
+The existing `agt_terrain_map_generator` has the component implementations
+needed for the next A/B (patch source, preprocessing, Patchwork++ adapter,
+median elevation, slope, height obstacle, trajectory carver, traversability,
+exporter), but its ROS node is intentionally not yet a runnable production
+pipeline.  `pipeline.enabled=true` currently throws because those components
+are not fully wired as one map-generation job.
+
+Therefore MQ3 must start by wiring a deterministic **offline one-shot terrain
+generation job** on the frozen patch-set assets.  Do not enable the runtime node
+or replace `agt_map_converter` yet.
+
+Required first MQ3 inputs/gates:
+
+1. frozen `patches/*.pcd + poses.txt` from the same mapping run;
+2. measured Patchwork++ body-frame patch-origin ground height (the current
+   config value 0.0 is intentionally invalid for activation);
+3. the same 0.10 m comparison grid where practical;
+4. the same trajectory evidence and selected review regions;
+5. deterministic output package plus counts/hashes suitable for the existing
+   map-quality A/B report.
+
 ## MQ3 - Terrain-generator A/B candidate
 
 Run `agt_terrain_map_generator` on the same frozen mapping assets only after
