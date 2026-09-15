@@ -46,13 +46,31 @@ target_include_directories(agt_pcl_patch_set_source PUBLIC
   ${PCL_INCLUDE_DIRS})
 target_link_libraries(agt_pcl_patch_set_source PRIVATE ${PCL_LIBRARIES})
 
+# MQ3-A is a separate, PCD-only adapter path.  It intentionally does not link
+# the optional native Patchwork++ package or alter terrain_offline_generate.
+add_library(agt_patchwork_adapter SHARED
+  src/patchwork_adapter/patchwork_adapter.cpp)
+target_include_directories(agt_patchwork_adapter PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+  ${PCL_INCLUDE_DIRS})
+target_link_libraries(agt_patchwork_adapter PRIVATE ${PCL_LIBRARIES})
+
 add_executable(terrain_generator_node src/terrain_generator_node.cpp)
 add_executable(terrain_offline_generate tools/terrain_offline_generate.cpp)
+add_executable(terrain_patchwork_offline tools/terrain_patchwork_offline.cpp)
 target_include_directories(terrain_offline_generate PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(terrain_offline_generate
   agt_terrain_core
   agt_pcl_patch_set_source)
+target_include_directories(terrain_patchwork_offline PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+  ${PCL_INCLUDE_DIRS})
+target_link_libraries(terrain_patchwork_offline
+  agt_terrain_core
+  agt_patchwork_adapter
+  ${PCL_LIBRARIES})
 
 target_include_directories(terrain_generator_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -89,11 +107,13 @@ target_link_libraries(static_confidence_exporter
 set(AGT_TERRAIN_INSTALL_TARGETS
   terrain_generator_node
   terrain_offline_generate
+  terrain_patchwork_offline
   robot_mesh_filter_test
   voxel_persistence_analyzer
   static_confidence_exporter
   agt_terrain_core
-  agt_pcl_patch_set_source)
+  agt_pcl_patch_set_source
+  agt_patchwork_adapter)
 
 if(AGT_ENABLE_PATCHWORKPP)
   find_package(patchworkpp QUIET CONFIG)
@@ -136,6 +156,11 @@ if(BUILD_TESTING)
   target_include_directories(test_static_confidence PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include)
   target_link_libraries(test_static_confidence agt_terrain_core)
+  ament_add_gtest(test_patchwork_adapter test/test_patchwork_adapter.cpp)
+  target_include_directories(test_patchwork_adapter PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${PCL_INCLUDE_DIRS})
+  target_link_libraries(test_patchwork_adapter agt_patchwork_adapter ${PCL_LIBRARIES})
 endif()
 
 ament_export_include_directories(include)
