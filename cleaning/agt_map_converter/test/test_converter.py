@@ -159,6 +159,9 @@ def test_ground_confidence_mode_keeps_gentle_ground_trusted():
 
 
 def test_anchored_ground_confidence_rejects_disconnected_flat_high_surface():
+    # Keep samples away from exact grid boundaries. The production converter
+    # intentionally preserves its legacy float-to-int binning for frozen-map
+    # reproducibility; this test targets connectivity, not bin-edge rounding.
     # Ground is connected to the trajectory on the left. A flat high-only
     # surface exists on the right, separated by an unobserved column. Local
     # confidence alone can accept both; anchored confidence must keep the
@@ -174,7 +177,7 @@ def test_anchored_ground_confidence_rejects_disconnected_flat_high_surface():
     xyz = np.asarray(xyz, dtype=float)
 
     local = convert(
-        xyz, resolution=1.0, margin=0.0, min_points=2,
+        xyz, resolution=1.0, margin=0.5, min_points=2,
         max_step=0.22, max_slope_deg=20.0,
         trajectory_poses=[(1.0, 2.0, 0.0)],
         trajectory_front_m=0.4, trajectory_rear_m=0.4,
@@ -184,7 +187,7 @@ def test_anchored_ground_confidence_rejects_disconnected_flat_high_surface():
         ground_height_tolerance_m=0.25)
 
     anchored = convert(
-        xyz, resolution=1.0, margin=0.0, min_points=2,
+        xyz, resolution=1.0, margin=0.5, min_points=2,
         max_step=0.22, max_slope_deg=20.0,
         trajectory_poses=[(1.0, 2.0, 0.0)],
         trajectory_front_m=0.4, trajectory_rear_m=0.4,
@@ -215,7 +218,7 @@ def test_anchored_ground_confidence_keeps_connected_gentle_ground():
     xyz = np.asarray(xyz, dtype=float)
 
     anchored = convert(
-        xyz, resolution=1.0, margin=0.0, min_points=2,
+        xyz, resolution=1.0, margin=0.5, min_points=2,
         max_step=0.22, max_slope_deg=20.0,
         trajectory_poses=[(1.0, 2.0, 0.0)],
         trajectory_front_m=0.4, trajectory_rear_m=0.4,
