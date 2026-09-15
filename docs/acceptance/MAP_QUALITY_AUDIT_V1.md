@@ -361,6 +361,42 @@ the frozen-map A/B and static-obstacle review pass.  The converter also exports
 `ground_confidence.pgm` plus metadata counters for trusted cells, low-confidence
 valid cells, span triggers and slope triggers.
 
+### MQ2-A frozen-map A/B result
+
+The first `ground_confidence` run passed structural map validation and produced
+the following legacy -> MQ2-A transitions:
+
+- occupied -> unknown: 8,063;
+- occupied -> free: 1,294;
+- free -> occupied: 19;
+- free -> unknown: 1,197;
+- total changed cells: 10,573.
+
+Final map totals changed from 34,131 free / 55,762 occupied / 975,482 unknown
+to 34,209 free / 46,424 occupied / 984,742 unknown.  Occupied cells therefore
+fell by 9,338 (16.7%) while free cells changed by only +78; most of the removed
+occupancy was conservatively demoted to unknown instead of being released as
+free.
+
+Trajectory evidence moved in the same conservative direction:
+
+- pre-carve occupied conflicts: 5,439 -> 4,188 (-1,251, -23.0%);
+- pre-carve unknown conflicts: 6,407 -> 7,171 (+764);
+- total trajectory conflicts: 11,846 -> 11,359 (-487, -4.1%);
+- conflict ratio: 83.67% -> 80.23%.
+
+Interpretation: MQ2-A successfully removes a substantial part of the false
+slope occupancy without broadly increasing free space.  It is a useful
+candidate, not yet a production map: the 1,294 occupied->free cells and 19
+free->occupied cells still require focused A/B review, and the remaining
+49,437 span-trigger cells show that the vertical-span path is now the dominant
+next problem.
+
+Metadata semantics note: the historical `valid_cells` field is actually the
+final non-unknown cell count **after** trajectory carve.  It is retained for
+compatibility.  New outputs also record `raw_valid_cells` (count>=min_points)
+and `final_known_cells` explicitly.
+
 ## MQ2 - Robust fallback converter
 
 Improve `agt_map_converter` conservatively before replacing it.

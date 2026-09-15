@@ -422,7 +422,12 @@ def convert(xyz, resolution, margin, min_points, max_step, max_slope_deg,
             np.where(ground_confident, 254, 205).astype(np.uint8)),
         'obstacle': np.flipud(obstacle_image),
         'shape': [height, width],
+        # Historical field kept for compatibility: this is the final count of
+        # non-unknown navigation cells after trajectory carve, not raw
+        # count>=min_points validity.
         'valid_cells': int(known.sum()),
+        'raw_valid_cells': int(valid.sum()),
+        'final_known_cells': int(known.sum()),
         'occupied_cells': int(final_obstacle.sum()),
         'ground_confident_cells': int(ground_confident.sum()),
         'low_confidence_valid_cells': int((valid & ~ground_confident).sum()),
@@ -555,6 +560,8 @@ def generate_navigation_map(
         'ground_height_tolerance_m': float(ground_height_tolerance_m),
         'grid_shape': layers['shape'],
         'valid_cells': layers['valid_cells'],
+        'raw_valid_cells': layers['raw_valid_cells'],
+        'final_known_cells': layers['final_known_cells'],
         'occupied_cells': layers['occupied_cells'],
         'ground_confident_cells': layers['ground_confident_cells'],
         'low_confidence_valid_cells': layers['low_confidence_valid_cells'],
