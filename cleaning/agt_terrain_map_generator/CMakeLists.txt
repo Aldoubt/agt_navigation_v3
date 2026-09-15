@@ -60,10 +60,12 @@ add_executable(terrain_generator_node src/terrain_generator_node.cpp)
 add_executable(terrain_offline_generate tools/terrain_offline_generate.cpp)
 add_executable(terrain_patchwork_offline tools/terrain_patchwork_offline.cpp)
 target_include_directories(terrain_offline_generate PRIVATE
-  ${CMAKE_CURRENT_SOURCE_DIR}/include)
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+  ${PCL_INCLUDE_DIRS})
 target_link_libraries(terrain_offline_generate
   agt_terrain_core
-  agt_pcl_patch_set_source)
+  agt_pcl_patch_set_source
+  ${PCL_LIBRARIES})
 target_include_directories(terrain_patchwork_offline PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   ${PCL_INCLUDE_DIRS})

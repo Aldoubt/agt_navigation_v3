@@ -13,6 +13,10 @@
 #include <string>
 #include <vector>
 
+#include <pcl/io/pcd_io.h>
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+
 #include "agt_terrain_map_generator/central_difference_slope_builder.hpp"
 #include "agt_terrain_map_generator/export/terrain_package_exporter.hpp"
 #include "agt_terrain_map_generator/geometry/robot_geometry_provider.hpp"
@@ -233,6 +237,51 @@ std::string parameter_summary(const Options & o, const std::size_t patches)
   return stream.str();
 }
 
+struct PatchSegmentationStats
+{
+  std::string name;
+  std::size_t input_points{0U};
+  std::size_t filtered_points{0U};
+  std::size_t ground_points{0U};
+  std::size_t nonground_points{0U};
+};
+
+double percentile(std::vector<double> values, const double fraction)
+{
+  if (values.empty()) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+  std::sort(values.begin(), values.end());
+  const double index = fraction * static_cast<double>(values.size() - 1U);
+  const auto low = static_cast<std::size_t>(std::floor(index));
+  const auto high = static_cast<std::size_t>(std::ceil(index));
+  return values[low] + (values[high] - values[low]) * (index - low);
+}
+
+void save_pcd(const fs::path & path, const agt::PointCloud & cloud)
+{
+  pcl::PointCloud<pcl::PointXYZ> pcl_cloud;
+  pcl_cloud.reserve(cloud.size());
+  for (const auto & point : cloud) {
+    pcl_cloud.push_back(pcl::PointXYZ{point.x, point.y, point.z});
+  }
+  pcl_cloud.width = static_cast<std::uint32_t>(pcl_cloud.size());
+  pcl_cloud.height = 1U;
+  pcl_cloud.is_dense = true;
+  if (pcl::io::savePCDFileBinary(path.string(), pcl_cloud) != 0) {
+    throw std::runtime_error("failed to write PCD: " + path.string());
+  }
+}
+
+void copy_layer(const fs::path & from, const fs::path & to)
+{
+  std::error_code error;
+  fs::copy_file(from, to, fs::copy_options::overwrite_existing, error);
+  if (error) {
+    throw std::runtime_error("failed to copy " + from.string() + ": " + error.message());
+  }
+}
+
 }  // namespace
 
 int main(int argc, char ** argv)
@@ -283,8 +332,11 @@ int main(int argc, char ** argv)
     agt::PointCloud map_ground;
     agt::PointCloud map_non_ground;
     std::size_t patch_count = 0U;
+    std::size_t patch_success_count = 0U;
+    std::size_t patch_failure_count = 0U;
     std::size_t raw_points = 0U;
     std::size_t filtered_points = 0U;
+    std::vector<PatchSegmentationStats> patch_stats;
 
     for (;;) {
       agt::PatchAsset asset;
@@ -298,6 +350,9 @@ int main(int argc, char ** argv)
       }
       ++patch_count;
       raw_points += body_cloud.size();
+      PatchSegmentationStats stats_row;
+      stats_row.name = asset.patch_name;
+      stats_row.input_points = body_cloud.size();
 
       agt::PreparedPatch prepared;
       if (!gravity_leveler.process(asset, body_cloud, prepared, error)) {
@@ -313,16 +368,24 @@ int main(int argc, char ** argv)
           "terrain preprocessing failed for " + asset.patch_name);
       }
       filtered_points += filtered.size();
+      stats_row.filtered_points = filtered.size();
       if (filtered.empty()) {
+        ++patch_failure_count;
+        patch_stats.push_back(stats_row);
         continue;
       }
 
       agt::PointCloud ground_local;
       agt::PointCloud non_ground_local;
       if (!segmenter.process(filtered, ground_local, non_ground_local)) {
-        throw std::runtime_error(
-          "Patchwork++ failed for " + asset.patch_name);
+        ++patch_failure_count;
+        patch_stats.push_back(stats_row);
+        continue;
       }
+      ++patch_success_count;
+      stats_row.ground_points = ground_local.size();
+      stats_row.nonground_points = non_ground_local.size();
+      patch_stats.push_back(stats_row);
       append_transformed(ground_local, prepared.map_from_local, map_ground);
       append_transformed(non_ground_local, prepared.map_from_local, map_non_ground);
     }
@@ -415,6 +478,116 @@ int main(int argc, char ** argv)
       }
     }
 
+    std::size_t trajectory_swept = 0U;
+    std::size_t trajectory_free = 0U;
+    std::size_t trajectory_unknown = 0U;
+    std::size_t trajectory_occupied = 0U;
+    for (std::size_t index = 0U; index < corridor.confidence.size(); ++index) {
+      if (corridor.confidence[index] <= 0.0F) {
+        continue;
+      }
+      ++trajectory_swept;
+      const auto state = traversability.cells[index].state;
+      if (state == agt::TraversabilityState::FREE) {++trajectory_free;}
+      else if (state == agt::TraversabilityState::BLOCKED) {++trajectory_occupied;}
+      else {++trajectory_unknown;}
+    }
+
+    std::vector<double> ratios;
+    ratios.reserve(patch_stats.size());
+    for (const auto & row : patch_stats) {
+      const auto total = row.ground_points + row.nonground_points;
+      if (total > 0U) {
+        ratios.push_back(static_cast<double>(row.ground_points) / static_cast<double>(total));
+      }
+    }
+    const fs::path mq3_root = fs::absolute(options.output_root) / "mq3_patchwork_patchset";
+    fs::create_directories(mq3_root);
+    save_pcd(mq3_root / "ground_map.pcd", map_ground);
+    save_pcd(mq3_root / "nonground_map.pcd", map_non_ground);
+    const fs::path generated = fs::absolute(options.output_root) / "terrain_package";
+    for (const auto * name : {"map.pgm", "map.yaml", "elevation.pgm", "slope.pgm", "obstacle.pgm",
+        "confidence.pgm", "trajectory_free.pgm", "traversability.pgm"}) {
+      copy_layer(generated / name, mq3_root / name);
+    }
+    std::ofstream patch_csv(mq3_root / "patch_segmentation_stats.csv");
+    patch_csv << "patch_name,input_points,filtered_points,ground_points,nonground_points,ground_ratio,status\n";
+    for (const auto & row : patch_stats) {
+      const auto total = row.ground_points + row.nonground_points;
+      const double ratio = total > 0U ? static_cast<double>(row.ground_points) / total : 0.0;
+      const char * status = total == 0U || ratio < 0.05 || ratio > 0.99 ? "REVIEW" : "PASS";
+      patch_csv << row.name << ',' << row.input_points << ',' << row.filtered_points << ',' <<
+        row.ground_points << ',' << row.nonground_points << ',' << std::fixed << std::setprecision(6) <<
+        ratio << ',' << status << '\n';
+    }
+    const double total_segmented = static_cast<double>(map_ground.size() + map_non_ground.size());
+    const double ground_ratio = map_ground.size() / total_segmented;
+    const double conflict_ratio = trajectory_swept > 0U ?
+      static_cast<double>(trajectory_occupied + trajectory_unknown) / trajectory_swept : 0.0;
+    std::ofstream metadata(mq3_root / "metadata.yaml");
+    metadata << std::fixed << std::setprecision(6)
+             << "format_version: mq3-patchwork-patchset-v1\n"
+             << "input_map_directory: " << fs::absolute(options.map_directory).string() << "\n"
+             << "segmentation_backend: native_patchworkpp\n"
+             << "sensor_height_m: " << options.sensor_height_m << "\n"
+             << "resolution: " << grid.resolution << "\n"
+             << "origin: [" << grid.origin_x << ", " << grid.origin_y << ", 0.0]\n"
+             << "grid_shape: [" << grid.height << ", " << grid.width << "]\n"
+             << "patch_count: " << patch_count << "\n"
+             << "patch_success_count: " << patch_success_count << "\n"
+             << "patch_failure_count: " << patch_failure_count << "\n"
+             << "raw_points: " << raw_points << "\n"
+             << "filtered_points: " << filtered_points << "\n"
+             << "ground_points: " << map_ground.size() << "\n"
+             << "nonground_points: " << map_non_ground.size() << "\n"
+             << "ground_ratio: " << ground_ratio << "\n"
+             << "nonground_ratio: " << map_non_ground.size() / total_segmented << "\n"
+             << "ground_ratio_p10: " << percentile(ratios, 0.10) << "\n"
+             << "ground_ratio_p25: " << percentile(ratios, 0.25) << "\n"
+             << "ground_ratio_p50: " << percentile(ratios, 0.50) << "\n"
+             << "ground_ratio_p75: " << percentile(ratios, 0.75) << "\n"
+             << "ground_ratio_p90: " << percentile(ratios, 0.90) << "\n"
+             << "free_cells: " << free_count << "\n"
+             << "occupied_cells: " << blocked_count << "\n"
+             << "unknown_cells: " << unknown_count << "\n"
+             << "trajectory_footprint_model: circular_radius_m_plus_inflation_m\n"
+             << "trajectory_circular_radius_m: " << options.trajectory_radius_m + options.trajectory_inflation_m << "\n"
+             << "trajectory_swept_cells: " << trajectory_swept << "\n"
+             << "trajectory_free_cells: " << trajectory_free << "\n"
+             << "trajectory_unknown_cells: " << trajectory_unknown << "\n"
+             << "trajectory_occupied_cells: " << trajectory_occupied << "\n"
+             << "trajectory_conflict_ratio: " << conflict_ratio << "\n"
+             << "trajectory_comparison_contract: DIFFERENT_FROM_MQ2_RECTANGLE\n";
+    std::ofstream report(mq3_root / "mq3_ab_report.yaml");
+    report << "format_version: mq3-ab-v1\ncomparison: world_coordinate_alignment_required_for_pixel_ab\n"
+           << "mq0_legacy_converter:\n  source: /home/yangxuan/ros2_ws/agt_data/map_quality/mq0_v003_repro\n"
+           << "  resolution: 0.1\n  origin: [-21.563543, -54.144798, 0.0]\n  grid_shape: [947, 1125]\n"
+           << "  free_cells: 34131\n  occupied_cells: 55762\n  unknown_cells: 975482\n"
+           << "  free_ratio: 0.032017\n  occupied_ratio: 0.052341\n  unknown_ratio: 0.915642\n"
+           << "  trajectory_footprint_model: rectangle_body_footprint\n  trajectory_swept_cells: 14158\n  trajectory_conflict_cells: 11846\n"
+           << "mq2_a1b:\n  source: /home/yangxuan/ros2_ws/agt_data/map_quality/mq2a1b_sparse_anchored_ground\n"
+           << "  resolution: 0.1\n  origin: [-21.563543, -54.144798, 0.0]\n  grid_shape: [947, 1125]\n"
+           << "  free_cells: 30244\n  occupied_cells: 45680\n  unknown_cells: 989451\n"
+           << "  free_ratio: 0.028373\n  occupied_ratio: 0.042878\n  unknown_ratio: 0.928749\n"
+           << "  trajectory_footprint_model: rectangle_body_footprint\n  trajectory_swept_cells: 14158\n  trajectory_conflict_cells: 11359\n"
+           << "mq3_patchwork_patchset:\n  resolution: " << grid.resolution << "\n  occupied_cells: " << blocked_count
+           << "\n  origin: [" << grid.origin_x << ", " << grid.origin_y << ", 0.0]\n  grid_shape: [" << grid.height << ", " << grid.width << "]"
+           << "\n  free_cells: " << free_count << "\n  unknown_cells: " << unknown_count
+           << "\n  free_ratio: " << static_cast<double>(free_count) / traversability.cells.size()
+           << "\n  occupied_ratio: " << static_cast<double>(blocked_count) / traversability.cells.size()
+           << "\n  unknown_ratio: " << static_cast<double>(unknown_count) / traversability.cells.size()
+           << "\n  ground_points: " << map_ground.size() << "\n  nonground_points: " << map_non_ground.size()
+           << "\n  trajectory_footprint_model: circular_radius_m_plus_inflation_m"
+           << "\n  trajectory_swept_cells: " << trajectory_swept
+           << "\n  trajectory_conflict_cells: " << trajectory_occupied + trajectory_unknown << "\n";
+    std::ofstream obstacle_review(mq3_root / "static_obstacle_review.csv");
+    obstacle_review << "region_id,bbox,mq2_state,mq3_state,ground_points,nonground_points,max_height_above_ground,status\n"
+                    << "mq1_trigger_143,\"[59.736,-17.445,60.736,-15.745]\",NOT_EVALUATED,NOT_EVALUATED,,,6.713,REVIEW\n"
+                    << "mq1_trigger_4,\"[56.836,-28.545,57.736,-27.345]\",NOT_EVALUATED,NOT_EVALUATED,,,6.787,REVIEW\n"
+                    << "mq1_trigger_164,\"[60.336,-15.645,61.036,-14.745]\",NOT_EVALUATED,NOT_EVALUATED,,,5.117,REVIEW\n"
+                    << "mq1_trigger_246,\"[62.536,-10.345,63.036,-8.645]\",NOT_EVALUATED,NOT_EVALUATED,,,6.095,REVIEW\n"
+                    << "mq1_trigger_11,\"[55.736,-27.845,56.736,-26.945]\",NOT_EVALUATED,NOT_EVALUATED,,,1.678,REVIEW\n";
+
     std::cout
       << "MQ3 OFFLINE TERRAIN PASS\n"
       << "patches=" << patch_count
@@ -428,7 +601,7 @@ int main(int argc, char ** argv)
       << "free=" << free_count
       << " occupied=" << blocked_count
       << " unknown=" << unknown_count << "\n"
-      << "output=" << (fs::absolute(options.output_root) / "terrain_package")
+      << "output=" << mq3_root
       << "\n";
     return 0;
   } catch (const std::exception & ex) {

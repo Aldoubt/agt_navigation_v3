@@ -66,3 +66,26 @@ then `ground` free, otherwise unknown).  MQ3 trajectory-conflict count is not
 available because this PCD-only phase accepts no trajectory input; it is
 consequently written as `null`.  MQ2's value is copied from its existing metadata when
 present.  This is a reported input limitation, not an acceptance judgement.
+
+## MQ3-B formal patch-set run
+
+The formal path is `terrain_offline_generate`, not
+`terrain_patchwork_offline`.  It invokes the native
+`PatchworkppGroundSegmenter` through the established `GroundSegmenter` API on
+each gravity-level mapping patch, and only then transforms its ground and
+non-ground outputs into map frame.  The global-PCD CLI remains an explicitly
+non-formal smoke-test compatibility tool.
+
+With `--output-root ROOT`, the MQ3-B evidence is written to
+`ROOT/mq3_patchwork_patchset/`.  It contains the terrain package layers plus
+`ground_map.pcd`, `nonground_map.pcd`, `patch_segmentation_stats.csv`,
+`mq3_ab_report.yaml`, and `static_obstacle_review.csv`.  Native Patchwork++
+uses only XYZ data: RNR is disabled, while RVPF and TGR remain enabled.  The
+frozen first-run parameters are sensor height 0.89 m and resolution 0.10 m.
+
+MQ3-B reports its circular trajectory evidence (`0.45 m` radius plus `0.20 m`
+inflation) separately.  MQ0/MQ2 use the non-symmetric rectangular Bunker
+footprint, so their trajectory counts are labelled as a different evidence
+contract and are not pixel-compared.  The static-obstacle CSV is intentionally
+REVIEW-only until a world-coordinate evaluator is added; it must never label a
+region `SAFE` automatically.
