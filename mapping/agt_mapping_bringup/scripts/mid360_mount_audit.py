@@ -13,6 +13,7 @@ import yaml
 from nav_msgs.msg import Odometry
 from rclpy.duration import Duration
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 from rclpy.time import Time
 from sensor_msgs.msg import Imu, PointCloud2
 from tf2_ros import Buffer, TransformException, TransformListener
@@ -145,15 +146,16 @@ class Mid360MountAudit(Node):
         self.finalized = False
 
         self.create_subscription(
-            Imu, str(self.get_parameter('imu_topic').value), self.on_imu, 200)
+            Imu, str(self.get_parameter('imu_topic').value),
+            self.on_imu, qos_profile_sensor_data)
         self.create_subscription(
             Odometry, str(self.get_parameter('odom_topic').value), self.on_odom, 100)
         self.create_subscription(
             PointCloud2, str(self.get_parameter('raw_cloud_topic').value),
-            self.on_raw_cloud, 20)
+            self.on_raw_cloud, qos_profile_sensor_data)
         self.create_subscription(
             PointCloud2, str(self.get_parameter('obstacle_cloud_topic').value),
-            self.on_obstacle_cloud, 20)
+            self.on_obstacle_cloud, qos_profile_sensor_data)
 
         tf_rate = max(0.2, float(self.get_parameter('tf_sample_rate_hz').value))
         self.create_timer(1.0 / tf_rate, self.sample_tf)
