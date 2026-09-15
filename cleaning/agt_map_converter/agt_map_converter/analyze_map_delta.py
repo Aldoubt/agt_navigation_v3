@@ -17,6 +17,7 @@ import numpy as np
 import yaml
 
 from .pcd_to_nav_map import (
+    fill_nearest,
     load_trajectory_poses,
     load_xyz,
     trajectory_conflict_regions,
@@ -86,6 +87,66 @@ def _transition_counts(reference_grid, candidate_grid):
                 (candidate_grid == candidate_value)
                 & (reference_grid == reference_value)))
     return result
+
+
+def _converter_projection_diagnostics(
+        xyz, origin, resolution, shape, *,
+        min_points, max_step, max_slope_deg):
+    """Recompute the current converter's pre-carve obstacle triggers exactly."""
+    height, width = shape
+    ix = np.clip(
+        ((xyz[:, 0] - origin[0]) / resolution).astype(np.int64),
+        0, width - 1)
+    iy = np.clip(
+        ((xyz[:, 1] - origin[1]) / resolution).astype(np.int64),
+        0, height - 1)
+
+    count = np.zeros((height, width), dtype=np.int32)
+    min_z = np.full((height, width), np.inf, dtype=np.float64)
+    max_z = np.full((height, width), -np.inf, dtype=np.float64)
+    np.add.at(count, (iy, ix), 1)
+    np.minimum.at(min_z, (iy, ix), xyz[:, 2])
+    np.maximum.at(max_z, (iy, ix), xyz[:, 2])
+
+    valid = count >= int(min_points)
+    elevation = np.where(valid, min_z, np.nan)
+    span = np.where(valid, max_z - min_z, np.nan)
+    filled = fill_nearest(elevation)
+
+    if filled.shape[0] < 2:
+        grad_y = np.zeros_like(filled)
+    else:
+        grad_y = np.gradient(filled, resolution, axis=0)
+    if filled.shape[1] < 2:
+        grad_x = np.zeros_like(filled)
+    else:
+        grad_x = np.gradient(filled, resolution, axis=1)
+    slope = np.degrees(np.arctan(np.hypot(grad_x, grad_y)))
+    slope[~np.isfinite(elevation)] = np.nan
+
+    span_trigger = valid & (span > float(max_step))
+    slope_trigger = valid & (slope > float(max_slope_deg))
+    return {
+        'count': count,
+        'min_z': min_z,
+        'max_z': max_z,
+        'elevation': elevation,
+        'filled_elevation': filled,
+        'span': span,
+        'slope_deg': slope,
+        'span_trigger': span_trigger,
+        'slope_trigger': slope_trigger,
+    }
+
+
+def _trigger_class(span_trigger: bool, slope_trigger: bool) -> str:
+    if span_trigger and slope_trigger:
+        return 'both'
+    if span_trigger:
+        return 'span_only'
+    if slope_trigger:
+        return 'slope_only'
+    return 'neither'
 
 
 def _dilate(mask: np.ndarray, radius: int) -> np.ndarray:
@@ -296,6 +357,16 @@ def analyze_map_delta(
     front_m = float(candidate_meta.get('trajectory_front_m', 0.40))
     rear_m = float(candidate_meta.get('trajectory_rear_m', 0.72))
     half_width_m = float(candidate_meta.get('trajectory_half_width_m', 0.46))
+    required_converter_keys = ('min_points', 'max_step', 'max_slope_deg')
+    missing_converter_keys = [
+        key for key in required_converter_keys if key not in candidate_meta]
+    if missing_converter_keys:
+        raise ValueError(
+            'candidate converter metadata missing exact trigger parameters: '
+            + ', '.join(missing_converter_keys))
+    min_points = int(candidate_meta['min_points'])
+    max_step = float(candidate_meta['max_step'])
+    max_slope_deg = float(candidate_meta['max_slope_deg'])
     poses = load_trajectory_poses(trajectory_poses)
 
     coverage = []
@@ -314,9 +385,15 @@ def analyze_map_delta(
         })
         expansion_masks.append((float(expansion), mask))
 
+    xyz = load_xyz(source_pcd)
+    converter_diag = _converter_projection_diagnostics(
+        xyz, origin, resolution, selected.shape,
+        min_points=min_points, max_step=max_step,
+        max_slope_deg=max_slope_deg)
+
     support_mask = _dilate(selected, ground_radius_cells)
     groups = _point_groups(
-        load_xyz(source_pcd), origin, resolution, selected.shape, support_mask)
+        xyz, origin, resolution, selected.shape, support_mask)
 
     cell_rows = []
     for gy, gx in np.argwhere(selected):
@@ -328,6 +405,20 @@ def analyze_map_delta(
             low_obstacle_height_m=low_obstacle_height_m,
             overhang_height_m=overhang_height_m)
         row['region_id'] = int(region_id_grid[gy, gx])
+        span_trigger = bool(converter_diag['span_trigger'][gy, gx])
+        slope_trigger = bool(converter_diag['slope_trigger'][gy, gx])
+        row.update({
+            'converter_point_count': int(converter_diag['count'][gy, gx]),
+            'converter_min_z': float(converter_diag['min_z'][gy, gx]),
+            'converter_max_z': float(converter_diag['max_z'][gy, gx]),
+            'converter_vertical_span_m': float(converter_diag['span'][gy, gx]),
+            'converter_filled_elevation_z': float(
+                converter_diag['filled_elevation'][gy, gx]),
+            'converter_slope_deg': float(converter_diag['slope_deg'][gy, gx]),
+            'span_trigger': span_trigger,
+            'slope_trigger': slope_trigger,
+            'trigger_class': _trigger_class(span_trigger, slope_trigger),
+        })
         row['minimum_trajectory_expansion_m'] = None
         for expansion, mask in expansion_masks:
             if bool(mask[gy, gx]):
@@ -356,6 +447,18 @@ def analyze_map_delta(
             'cells_with_points': int(sum(r['point_count'] > 0 for r in rows)),
             'pcd_points': int(sum(r['point_count'] for r in rows)),
             'median_points_per_cell': _aggregate(rows, 'point_count', 'median'),
+            'span_only_cells': int(sum(
+                r['trigger_class'] == 'span_only' for r in rows)),
+            'slope_only_cells': int(sum(
+                r['trigger_class'] == 'slope_only' for r in rows)),
+            'both_trigger_cells': int(sum(
+                r['trigger_class'] == 'both' for r in rows)),
+            'neither_trigger_cells': int(sum(
+                r['trigger_class'] == 'neither' for r in rows)),
+            'median_converter_vertical_span_m': _aggregate(
+                rows, 'converter_vertical_span_m', 'median'),
+            'median_converter_slope_deg': _aggregate(
+                rows, 'converter_slope_deg', 'median'),
             'median_z_robust_span_m': _aggregate(
                 rows, 'z_robust_span_p95_p05', 'median'),
             'median_local_ground_z': _aggregate(
@@ -381,6 +484,9 @@ def analyze_map_delta(
     cell_fields = [
         'region_id', 'grid_x', 'grid_y', 'map_x_m', 'map_y_m',
         'minimum_trajectory_expansion_m', 'point_count',
+        'converter_point_count', 'converter_min_z', 'converter_max_z',
+        'converter_vertical_span_m', 'converter_filled_elevation_z',
+        'converter_slope_deg', 'span_trigger', 'slope_trigger', 'trigger_class',
         'local_ground_z', 'z_min', 'z_p05', 'z_median', 'z_p95', 'z_max',
         'z_span', 'z_robust_span_p95_p05',
         'height_above_ground_p05_m', 'height_above_ground_median_m',
@@ -391,7 +497,10 @@ def analyze_map_delta(
         'region_id', 'cell_count', 'area_m2',
         'bbox_min_x_m', 'bbox_min_y_m', 'bbox_max_x_m', 'bbox_max_y_m',
         'centroid_x_m', 'centroid_y_m', 'cells_with_points', 'pcd_points',
-        'median_points_per_cell', 'median_z_robust_span_m',
+        'median_points_per_cell', 'span_only_cells', 'slope_only_cells',
+        'both_trigger_cells', 'neither_trigger_cells',
+        'median_converter_vertical_span_m', 'median_converter_slope_deg',
+        'median_z_robust_span_m',
         'median_local_ground_z', 'median_height_above_ground_p95_m',
         'max_height_above_ground_p95_m', 'mean_near_ground_fraction',
         'mean_low_obstacle_fraction', 'mean_tall_return_fraction',
@@ -403,9 +512,51 @@ def analyze_map_delta(
     (output / 'delta_regions.yaml').write_text(
         yaml.safe_dump({'regions': region_rows}, sort_keys=False), encoding='utf-8')
 
+    trigger_counts = {
+        name: int(sum(row['trigger_class'] == name for row in cell_rows))
+        for name in ('span_only', 'slope_only', 'both', 'neither')
+    }
+    attributed = (
+        trigger_counts['span_only'] + trigger_counts['slope_only']
+        + trigger_counts['both'])
+    trigger_summary = {
+        'min_points': min_points,
+        'max_step_m': max_step,
+        'max_slope_deg': max_slope_deg,
+        'span_only_cells': trigger_counts['span_only'],
+        'slope_only_cells': trigger_counts['slope_only'],
+        'both_trigger_cells': trigger_counts['both'],
+        'neither_trigger_cells': trigger_counts['neither'],
+        'attributed_cells': attributed,
+        'selected_cells': selected_count,
+        'attributed_ratio': float(attributed / selected_count),
+        'consistency_status': (
+            'PASS' if trigger_counts['neither'] == 0 else 'REVIEW'),
+        'slope_only_robust_span_le_max_step_cells': int(sum(
+            row['trigger_class'] == 'slope_only'
+            and row.get('z_robust_span_p95_p05') is not None
+            and float(row['z_robust_span_p95_p05']) <= max_step
+            for row in cell_rows)),
+        'interpretation_note': (
+            'Trigger attribution reproduces the current converter pre-carve '
+            'vertical-span and min-z-gradient slope rules; it is not a semantic '
+            'obstacle classification.'),
+    }
+
     write_pgm(
         output / 'delta_mask.pgm',
         np.where(np.flipud(selected), 0, 254).astype(np.uint8))
+    trigger_debug = np.full(selected.shape, 254, dtype=np.uint8)
+    trigger_debug[selected & converter_diag['span_trigger']
+                  & converter_diag['slope_trigger']] = 0
+    trigger_debug[selected & converter_diag['span_trigger']
+                  & ~converter_diag['slope_trigger']] = 80
+    trigger_debug[selected & ~converter_diag['span_trigger']
+                  & converter_diag['slope_trigger']] = 160
+    trigger_debug[selected & ~converter_diag['span_trigger']
+                  & ~converter_diag['slope_trigger']] = 205
+    write_pgm(output / 'delta_trigger_classes.pgm', np.flipud(trigger_debug))
+
     context = np.full(selected.shape, 254, dtype=np.uint8)
     context[expansion_masks[0][1]] = 160
     context[selected] = 0
@@ -441,6 +592,7 @@ def analyze_map_delta(
         },
         'transition_counts': _transition_counts(
             reference_grid, candidate_grid),
+        'converter_trigger_attribution': trigger_summary,
         'trajectory': {
             'pose_count': len(poses),
             'front_m': front_m,
@@ -467,6 +619,14 @@ def analyze_map_delta(
             'delta_regions_csv': 'delta_regions.csv',
             'delta_regions_yaml': 'delta_regions.yaml',
             'delta_mask_pgm': 'delta_mask.pgm',
+            'delta_trigger_classes_pgm': 'delta_trigger_classes.pgm',
+            'delta_trigger_classes_legend': {
+                '0': 'both span and slope trigger',
+                '80': 'span-only trigger',
+                '160': 'slope-only trigger',
+                '205': 'selected cell with neither trigger / consistency review',
+                '254': 'other cell',
+            },
             'delta_vs_trajectory_pgm': 'delta_vs_trajectory.pgm',
             'delta_vs_trajectory_legend': {
                 '0': 'selected map-delta cell',
@@ -513,6 +673,14 @@ def main(argv=None):
         f"candidate_{selected['candidate_state']} -> "
         f"reference_{selected['reference_state']}: "
         f"{selected['cell_count']} cells")
+    trigger = result['converter_trigger_attribution']
+    print(
+        'trigger attribution: '
+        f"span_only={trigger['span_only_cells']} "
+        f"slope_only={trigger['slope_only_cells']} "
+        f"both={trigger['both_trigger_cells']} "
+        f"neither={trigger['neither_trigger_cells']} "
+        f"status={trigger['consistency_status']}")
     print(
         f"report={Path(args.output).expanduser().resolve() / 'map_delta_analysis.yaml'}")
 

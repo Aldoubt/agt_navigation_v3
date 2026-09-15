@@ -52,6 +52,9 @@ def test_analyze_map_delta_exports_cell_region_and_pcd_evidence(tmp_path: Path):
     reference[1, 2] = 254
 
     metadata = {
+        'min_points': 2,
+        'max_step': 0.22,
+        'max_slope_deg': 20.0,
         'trajectory_front_m': 0.4,
         'trajectory_rear_m': 0.4,
         'trajectory_half_width_m': 0.4,
@@ -94,6 +97,12 @@ def test_analyze_map_delta_exports_cell_region_and_pcd_evidence(tmp_path: Path):
     assert cells[0]['point_count'] == 3
     assert cells[0]['height_above_ground_p95_m'] > 2.0
     assert cells[0]['near_ground_fraction'] > 0.0
+    trigger = result['converter_trigger_attribution']
+    assert trigger['selected_cells'] == 1
+    assert trigger['neither_trigger_cells'] == 0
+    assert trigger['attributed_cells'] == 1
+    assert trigger['consistency_status'] == 'PASS'
+    assert (output / 'delta_trigger_classes.pgm').is_file()
 
 
 def test_analyze_map_delta_rejects_geometry_mismatch(tmp_path: Path):
@@ -120,3 +129,57 @@ def test_analyze_map_delta_rejects_geometry_mismatch(tmp_path: Path):
     with pytest.raises(ValueError, match='resolution mismatch'):
         analyze_map_delta(
             reference_dir, candidate_dir, pcd, poses, tmp_path / 'analysis')
+
+
+def test_analyze_map_delta_attributes_slope_only_trigger(tmp_path: Path):
+    candidate = np.full((5, 5), 254, dtype=np.uint8)
+    candidate[0, 0] = 0
+    candidate[2, 2] = 0
+    reference = candidate.copy()
+    reference[2, 2] = 254
+
+    metadata = {
+        'min_points': 2,
+        'max_step': 0.22,
+        'max_slope_deg': 20.0,
+        'trajectory_front_m': 0.1,
+        'trajectory_rear_m': 0.1,
+        'trajectory_half_width_m': 0.1,
+    }
+    candidate_dir = tmp_path / 'candidate'
+    reference_dir = tmp_path / 'reference'
+    _make_map(candidate_dir, candidate, metadata)
+    _make_map(reference_dir, reference, metadata)
+
+    # Every grid cell has a very small vertical span (0.05 m), while elevation
+    # rises 0.5 m per x-cell. The current min-z gradient therefore produces a
+    # slope-only obstacle trigger at the selected cell.
+    points = []
+    for gy in range(5):
+        for gx in range(5):
+            z0 = 0.5 * gx
+            points.append((gx + 0.5, gy + 0.5, z0))
+            points.append((gx + 0.5, gy + 0.5, z0 + 0.05))
+    pcd = tmp_path / 'source.pcd'
+    _write_ascii_pcd(pcd, points)
+
+    poses = tmp_path / 'poses.txt'
+    poses.write_text(
+        '0.pcd 0.5 0.5 0 1 0 0 0\n',
+        encoding='utf-8')
+
+    output = tmp_path / 'analysis'
+    result = analyze_map_delta(
+        reference_dir, candidate_dir, pcd, poses, output)
+
+    trigger = result['converter_trigger_attribution']
+    assert trigger['span_only_cells'] == 0
+    assert trigger['slope_only_cells'] == 1
+    assert trigger['both_trigger_cells'] == 0
+    assert trigger['neither_trigger_cells'] == 0
+
+    cells = yaml.safe_load(
+        (output / 'delta_cells.yaml').read_text(encoding='utf-8'))['cells']
+    assert cells[0]['trigger_class'] == 'slope_only'
+    assert cells[0]['converter_vertical_span_m'] < 0.22
+    assert cells[0]['converter_slope_deg'] > 20.0

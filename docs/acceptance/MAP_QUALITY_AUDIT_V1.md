@@ -286,6 +286,29 @@ configured percentile over a small XY neighborhood.  The tool deliberately
 does not label a region as dynamic, canopy, vegetation, slope or a true
 obstacle.
 
+### MQ1.5 - Exact current-converter trigger attribution
+
+Before changing thresholds or terrain algorithms, the fixed delta audit now
+recomputes the current converter's **pre-carve** obstacle decision from the same
+source PCD and frozen converter metadata.
+
+For every selected delta cell it records:
+
+- converter point count, min-z, max-z and vertical span;
+- filled min-z elevation used by the current slope path;
+- exact computed slope in degrees;
+- `span_trigger`, `slope_trigger`, and one of
+  `span_only / slope_only / both / neither`.
+
+The report also emits global and per-region trigger counts plus
+`delta_trigger_classes.pgm`.  A non-zero `neither` count is a consistency
+REVIEW signal: the selected candidate occupied cell cannot be explained by the
+current converter's recorded span/slope rule and must not be used to tune MQ2.
+
+Stop MQ1 diagnosis after one frozen-field run confirms the trigger attribution.
+Use that measured `span_only / slope_only / both` split to choose the first MQ2
+algorithm change instead of tuning `max_step` or `max_slope_deg` blindly.
+
 ## MQ2 - Robust fallback converter
 
 Improve `agt_map_converter` conservatively before replacing it.
