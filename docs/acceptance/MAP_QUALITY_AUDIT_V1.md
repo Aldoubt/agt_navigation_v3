@@ -761,6 +761,16 @@ Activation safeguards:
 
 MQ3-P0 is not accepted until the frozen patch-set job builds/runs and its output is compared against the converter baselines.
 
+### MQ3-P0 build and asset gate result
+
+The isolated `agt_terrain_map_generator` test run passed: 32 tests, 0 errors, 0 failures. The frozen field asset set contains 292 pose records and 292 patch PCDs, with no missing patch names reported by the poses-to-patches contract check.
+
+Selected frozen MQ3 input:
+
+`/home/yangxuan/agt_data/maps/bunker_mid360_mapping_20260901_205036_formal`
+
+The remaining activation gate is Patchwork++ `sensor_height_m`. A reproducible evidence-only helper, `terrain_estimate_sensor_height`, now estimates the gravity-level body/patch-origin height from sampled patches. It does not modify assets and its result must still be checked against physical sensor/body geometry before the first accepted Patchwork++ run.
+
 ## MQ3 - Terrain-generator A/B candidate
 
 Run `agt_terrain_map_generator` on the same frozen mapping assets only after
