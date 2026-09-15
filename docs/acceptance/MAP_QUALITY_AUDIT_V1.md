@@ -1,0 +1,258 @@
+# Map Quality Audit V1
+
+Status: active development scope for `fix/map-quality`.
+
+## Objective
+
+Improve the Nav2 navigation-map quality produced from the existing 3D mapping
+assets without changing the localization contract that was validated on
+`fix/lidar-mount-yaw`.
+
+The branch addresses three concrete failure classes:
+
+1. dynamic/temporary clutter or LIO smear that is already present in the source
+   PCD;
+2. projection artifacts introduced while converting 3D structure to a 2D Nav2
+   occupancy grid, especially vegetation, overhangs, slopes and sparse vertical
+   returns;
+3. excessive or misplaced unknown/occupied regions that reduce planning
+   usability.
+
+The branch does **not** change controller tuning, MPPI, relocalization scoring,
+or the MID360 mount calibration.
+
+## Branch policy
+
+Keep only one long-lived baseline and one active development branch:
+
+```text
+main
+  -> validated runnable baseline
+
+fix/map-quality
+  -> active map-quality work
+  -> merge back to main when the gates below pass
+```
+
+Do not create parallel feature branches for individual experiments.  Record
+experiments as reproducible commands/artifacts under this branch and either keep
+or revert their commits.
+
+## Current production boundary
+
+The current production/fallback navigation-map path remains:
+
+```text
+final localization/global_map.pcd
+        |
+        v
+agt_map_converter
+  XY cell count/min_z/max_z
+  local fill + slope
+  vertical-span/slope obstacle rule
+  optional trajectory swept-footprint carve
+        |
+        v
+navigation/map.pgm + map.yaml
+        |
+        v
+agt_map_manager package/validation
+        |
+        v
+Nav2
+```
+
+`agt_terrain_map_generator` already contains terrain-aware building blocks,
+PatchSet/Patchwork++ integration points, provenance/static-confidence work and
+2.5D builders, but it remains an offline candidate.  It must not silently
+replace `agt_map_converter` until an A/B acceptance run demonstrates a clear
+improvement on the same frozen assets.
+
+Localization must continue to consume the frozen 3D localization map.  A
+navigation-only fix must never rewrite `localization/global_map.pcd`.
+
+## Known baseline observations
+
+The existing v003 audit already established:
+
+- the PGM/YAML structure and PCD-to-PGM provenance are readable;
+- the map contains a very large unknown background plus internal unknown areas;
+- the frozen trajectory-footprint audit reported 13,245 swept cells:
+  13,229 free, 11 unknown and 5 occupied;
+- those five occupied cells form three review regions;
+- visible thin black structures cannot be labelled dynamic solely from the PGM.
+
+These observations are the baseline.  They are not permission to auto-delete
+occupied cells.
+
+## Fault isolation rule
+
+Every visible map defect must first be classified into one of these layers:
+
+```text
+A. source PCD defect
+   ghost vehicle / person
+   LIO double edge / motion smear
+   self return
+   inconsistent accumulated geometry
+
+B. 3D -> 2D projection defect
+   canopy/overhang projected as wall
+   slope interpreted as obstacle
+   min_z/max_z span sensitive to outliers
+   sparse vertical return produces black line
+
+C. navigation semantics defect
+   unknown policy
+   footprint/trajectory carve
+   occupancy threshold / resolution
+
+D. Nav2 costmap/runtime defect
+   inflation
+   obstacle/voxel layer
+   footprint
+```
+
+Do not fix a D problem by editing the PCD, and do not fix an A problem by
+loosening Nav2 inflation.
+
+## MQ0 - Reproduce and freeze the current baseline
+
+Before changing algorithms:
+
+1. regenerate the current map from the exact frozen source PCD and converter
+   parameters;
+2. save converter metadata, validation output and hashes;
+3. record occupied/free/unknown counts and connected-component statistics;
+4. run the trajectory-corridor conflict audit;
+5. save a visual PGM plus the existing elevation/slope/obstacle debug layers.
+
+Acceptance:
+
+- regeneration is deterministic;
+- output provenance points to the exact input PCD;
+- no source map package is modified in place.
+
+## MQ1 - Source-vs-projection diagnosis
+
+For each major black-line/ghost review region, collect local evidence from the
+source 3D points:
+
+- point count/density;
+- min/max/median/percentile height;
+- vertical span;
+- local ground estimate;
+- height above ground;
+- trajectory intersection;
+- connected component geometry.
+
+The goal is to answer:
+
+```text
+Is this structure already wrong in 3D?
+or
+Is a reasonable 3D structure being projected badly into 2D?
+```
+
+No automatic dynamic-object deletion is allowed in MQ1.
+
+Acceptance:
+
+- every selected defect region has a reproducible classification/evidence
+  record;
+- the branch can point to at least one source-PCD defect and/or one projection
+  defect before algorithm changes begin.
+
+## MQ2 - Robust fallback converter
+
+Improve `agt_map_converter` conservatively before replacing it.
+
+Candidate changes, in order:
+
+1. replace pure `min_z` ground representation with robust local
+   median/percentile statistics;
+2. evaluate obstacles by height above a local ground surface rather than only
+   absolute cell vertical span;
+3. add support/density confidence so one sparse high return does not create a
+   long blocking wall;
+4. distinguish overhang/canopy evidence from ground-connected blocking
+   structure where the data supports it;
+5. preserve unknown for low-confidence cells;
+6. keep trajectory carve as explicit evidence-based clearing, with all cleared
+   conflicts recorded.
+
+Each change must have a synthetic unit test and an A/B result on the frozen
+field map.
+
+Acceptance:
+
+- no regression on deterministic map export/validation;
+- trajectory-corridor conflicts do not increase;
+- occupied artifacts decrease only where 3D evidence supports the change;
+- true static obstacles used in the review set remain occupied.
+
+## MQ3 - Terrain-generator A/B candidate
+
+Run `agt_terrain_map_generator` on the same frozen mapping assets only after
+MQ2 has a stable baseline.
+
+Preferred input when available:
+
+```text
+patches/*.pcd + poses.txt
+  -> patch-local ground segmentation
+  -> T_map_body aggregation
+  -> robust elevation/slope/obstacle layers
+```
+
+Compare against the fallback converter with the same:
+
+- grid bounds/resolution where practical;
+- trajectory review corridor;
+- selected static-obstacle regions;
+- selected canopy/vegetation regions;
+- selected dynamic/ghost regions.
+
+The terrain generator remains disabled in production unless it clearly wins the
+A/B and completes a deterministic package-generation job.
+
+## MQ4 - Navigation acceptance
+
+A candidate navigation map passes only when:
+
+1. `validate_nav_map` passes;
+2. Map Manager can package/validate/reseal it without weakening integrity
+   checks;
+3. offline global relocalization continues to use the matching localization
+   assets;
+4. `map -> odom -> base_link` remains valid;
+5. Nav2 global planning succeeds through known traversed corridors;
+6. the robot footprint does not intersect newly introduced false obstacles;
+7. review images show no obvious deletion of true walls/poles/terrain hazards.
+
+Controller tuning is explicitly outside this gate.  RPP/MPPI A/B starts only
+after this branch produces a trustworthy map.
+
+## Deliverables
+
+The branch should finish with:
+
+- one frozen baseline report;
+- region-level source-vs-projection evidence;
+- converter A/B metrics;
+- synthetic regression tests for each accepted converter change;
+- one candidate navigation map package;
+- an updated map-quality acceptance report;
+- no change to the validated localization PCD unless a separate, explicitly
+  versioned source-PCD cleanup is justified.
+
+## Stop conditions
+
+Stop and reclassify instead of continuing to tune thresholds when:
+
+- raw PCD visibly contains double walls/smear caused by mapping/LIO;
+- a proposed converter threshold fixes one region but deletes known static
+  obstacles elsewhere;
+- the candidate depends on manual undocumented PGM edits;
+- the terrain-generator path cannot reproduce a deterministic package;
+- Nav2 runtime costmap artifacts are being mistaken for offline map defects.
