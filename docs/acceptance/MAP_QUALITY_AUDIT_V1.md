@@ -165,11 +165,26 @@ The existing v003 report records 36,707 free, 53,186 occupied and 975,482
 unknown cells.  Unknown count is therefore unchanged while exactly 2,576 cells
 move between occupied/free in the regenerated final navigation map.
 
-This isolates the non-reproducibility to the final navigation occupancy product
-(or a post-generation edit/provenance difference), not to the source-PCD grid,
-elevation, slope or obstacle debug layers.  Do not change converter thresholds
-until the exact v003 `map.pgm` versus `obstacle.pgm`/regenerated-map delta is
-classified.
+The follow-up pixel-level comparison closed this ambiguity:
+
+- existing v003 `map.pgm` -> MQ0 regenerated `map.pgm`: exactly 2,576
+  `free -> occupied` cells;
+- existing v003 `obstacle.pgm` -> existing v003 `map.pgm`: exactly 2,576
+  `occupied -> free` cells;
+- MQ0 regenerated `obstacle.pgm` -> MQ0 regenerated `map.pgm`: 0 cells;
+- the v003 metadata does not contain a recorded manual patch history; its only
+  metadata delta versus the current rerun is the newer trajectory-conflict QA
+  fields.
+
+Therefore the source-PCD projection is reproducible and the historical v003
+navigation map contains a 2,576-cell free-space modification that is not
+represented by the current converter provenance.  The evidence proves a
+post-projection/final-map divergence, but it does **not** by itself prove
+whether the historical cause was manual editing, an older tool behavior, or
+another unrecorded post-process.
+
+Do not change converter thresholds until those 2,576 cells are grouped into
+map-frame regions and checked against the source PCD/trajectory evidence.
 
 ## MQ1 - Source-vs-projection diagnosis
 
