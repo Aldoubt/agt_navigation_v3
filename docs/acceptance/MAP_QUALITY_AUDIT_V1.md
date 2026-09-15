@@ -133,6 +133,44 @@ Acceptance:
 - output provenance points to the exact input PCD;
 - no source map package is modified in place.
 
+### MQ0 first reproduction result (2026-09-15)
+
+Using the frozen v003 converter parameters and the recorded v002-edited
+localization PCD, the regenerated output validated structurally but did **not**
+reproduce the existing v003 navigation map byte-for-byte.
+
+Observed reproduction:
+
+- grid: 947 x 1125 at 0.10 m;
+- free: 34,131 cells;
+- occupied: 55,762 cells;
+- unknown: 975,482 cells;
+- trajectory conflicts before carve: 11,846 / ~14,158 swept cells
+  (~83.67%);
+- those conflicts contain 5,439 occupied and 6,407 unknown cells across
+  7 regions;
+- `validate_nav_map`: PASS;
+- acceptance gate: REVIEW.
+
+Byte comparison against the existing v003 navigation directory:
+
+- `map.yaml`: SAME;
+- `elevation.pgm`: SAME;
+- `slope.pgm`: SAME;
+- `obstacle.pgm`: SAME;
+- `map.pgm`: DIFF;
+- `converter_metadata.yaml`: DIFF.
+
+The existing v003 report records 36,707 free, 53,186 occupied and 975,482
+unknown cells.  Unknown count is therefore unchanged while exactly 2,576 cells
+move between occupied/free in the regenerated final navigation map.
+
+This isolates the non-reproducibility to the final navigation occupancy product
+(or a post-generation edit/provenance difference), not to the source-PCD grid,
+elevation, slope or obstacle debug layers.  Do not change converter thresholds
+until the exact v003 `map.pgm` versus `obstacle.pgm`/regenerated-map delta is
+classified.
+
 ## MQ1 - Source-vs-projection diagnosis
 
 For each major black-line/ghost review region, collect local evidence from the
