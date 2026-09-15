@@ -195,7 +195,8 @@ def test_anchored_ground_confidence_rejects_disconnected_flat_high_surface():
         slope_surface_mode='anchored_ground_confidence',
         ground_radius_cells=1,
         ground_height_tolerance_m=0.25,
-        ground_connect_max_slope_deg=45.0)
+        ground_connect_max_slope_deg=45.0,
+        ground_connect_radius_cells=3)
 
     local_grid = np.flipud(local['occupancy'])
     anchored_grid = np.flipud(anchored['occupancy'])
@@ -226,8 +227,42 @@ def test_anchored_ground_confidence_keeps_connected_gentle_ground():
         slope_surface_mode='anchored_ground_confidence',
         ground_radius_cells=1,
         ground_height_tolerance_m=0.25,
-        ground_connect_max_slope_deg=45.0)
+        ground_connect_max_slope_deg=45.0,
+        ground_connect_radius_cells=3)
 
     assert anchored['floating_ground_candidate_cells'] == 0
     assert anchored['ground_confident_cells'] == anchored['raw_valid_cells']
     assert anchored['occupied_cells'] == 0
+
+
+def test_anchored_ground_confidence_bridges_sparse_gentle_ground_gap():
+    # Two observed ground patches are separated by one unobserved column.
+    # A radius-1 hard grid walk cannot cross this sampling gap, while the
+    # radius-3 candidate graph should connect them because the height change is
+    # gentle and consistent with the permissive connectivity slope bound.
+    xyz = []
+    for gy in range(5):
+        for gx in (0, 1, 2):
+            base = 0.02 * gx
+            xyz.append([gx + 0.05, gy + 0.05, base])
+            xyz.append([gx + 0.08, gy + 0.08, base + 0.01])
+        for gx in (4, 5, 6):
+            base = 0.02 * gx
+            xyz.append([gx + 0.05, gy + 0.05, base])
+            xyz.append([gx + 0.08, gy + 0.08, base + 0.01])
+    xyz = np.asarray(xyz, dtype=float)
+
+    anchored = convert(
+        xyz, resolution=1.0, margin=0.5, min_points=2,
+        max_step=0.22, max_slope_deg=20.0,
+        trajectory_poses=[(1.0, 2.0, 0.0)],
+        trajectory_front_m=0.4, trajectory_rear_m=0.4,
+        trajectory_half_width_m=0.4,
+        slope_surface_mode='anchored_ground_confidence',
+        ground_radius_cells=1,
+        ground_height_tolerance_m=0.25,
+        ground_connect_max_slope_deg=45.0,
+        ground_connect_radius_cells=3)
+
+    assert anchored['floating_ground_candidate_cells'] == 0
+    assert anchored['ground_confident_cells'] == anchored['raw_valid_cells']

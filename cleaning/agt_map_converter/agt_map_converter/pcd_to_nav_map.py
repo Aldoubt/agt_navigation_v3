@@ -176,7 +176,7 @@ def trusted_ground_elevation(
 
 def anchored_ground_connectivity(
         candidate_mask, elevation, seed_mask, resolution,
-        max_connect_slope_deg):
+        max_connect_slope_deg, connect_radius_cells=1):
     """Keep local-ground candidates connected to trajectory evidence.
 
     Connectivity is 8-neighbor and requires adjacent candidate elevations to be
@@ -185,6 +185,8 @@ def anchored_ground_connectivity(
     """
     if not (0.0 < max_connect_slope_deg < 90.0):
         raise ValueError('max_connect_slope_deg must be within (0, 90)')
+    if connect_radius_cells < 1:
+        raise ValueError('connect_radius_cells must be >= 1')
     if candidate_mask.shape != elevation.shape or seed_mask.shape != elevation.shape:
         raise ValueError('ground connectivity arrays must have identical shape')
 
@@ -197,16 +199,20 @@ def anchored_ground_connectivity(
         pending.append((int(gy), int(gx)))
 
     tan_limit = math.tan(math.radians(float(max_connect_slope_deg)))
+    radius = int(connect_radius_cells)
     while pending:
         cy, cx = pending.pop()
         current_z = float(elevation[cy, cx])
-        for ny in range(max(0, cy - 1), min(height, cy + 2)):
-            for nx in range(max(0, cx - 1), min(width, cx + 2)):
+        for ny in range(max(0, cy - radius), min(height, cy + radius + 1)):
+            for nx in range(max(0, cx - radius), min(width, cx + radius + 1)):
                 if (ny == cy and nx == cx) or connected[ny, nx]:
                     continue
                 if not candidate_mask[ny, nx] or not np.isfinite(elevation[ny, nx]):
                     continue
-                distance = resolution * math.hypot(nx - cx, ny - cy)
+                cell_distance = math.hypot(nx - cx, ny - cy)
+                if cell_distance > radius:
+                    continue
+                distance = resolution * cell_distance
                 max_dz = tan_limit * distance
                 if abs(float(elevation[ny, nx]) - current_z) <= max_dz:
                     connected[ny, nx] = True
@@ -372,7 +378,8 @@ def convert(xyz, resolution, margin, min_points, max_step, max_slope_deg,
             slope_surface_mode='legacy_min_z',
             ground_radius_cells=2,
             ground_height_tolerance_m=0.25,
-            ground_connect_max_slope_deg=45.0):
+            ground_connect_max_slope_deg=45.0,
+            ground_connect_radius_cells=3):
     min_x = float(np.min(xyz[:, 0]) - margin)
     min_y = float(np.min(xyz[:, 1]) - margin)
     max_x = float(np.max(xyz[:, 0]) + margin)
@@ -418,7 +425,8 @@ def convert(xyz, resolution, margin, min_points, max_step, max_slope_deg,
                 trajectory_half_width_m)
             ground_confident, ground_anchor_seed = anchored_ground_connectivity(
                 local_ground_candidate, raw_elevation, anchor_swept,
-                resolution, ground_connect_max_slope_deg)
+                resolution, ground_connect_max_slope_deg,
+                ground_connect_radius_cells)
         slope_elevation = np.where(
             ground_confident, raw_elevation, np.nan)
     else:
@@ -532,13 +540,15 @@ def generate_navigation_map(
     ground_radius_cells: int = 2,
     ground_height_tolerance_m: float = 0.25,
     ground_connect_max_slope_deg: float = 45.0,
+    ground_connect_radius_cells: int = 3,
 ) -> dict:
     """Generate one deterministic Nav2/terrain directory from a frozen PCD."""
     if (resolution <= 0 or margin < 0 or min_points < 1
             or trajectory_front_m < 0 or trajectory_rear_m < 0
             or trajectory_half_width_m < 0 or ground_radius_cells < 0
             or ground_height_tolerance_m < 0
-            or not (0.0 < ground_connect_max_slope_deg < 90.0)):
+            or not (0.0 < ground_connect_max_slope_deg < 90.0)
+            or ground_connect_radius_cells < 1):
         raise ValueError('invalid grid parameters')
     if slope_surface_mode not in {
             'legacy_min_z', 'ground_confidence',
@@ -567,6 +577,7 @@ def generate_navigation_map(
         ground_radius_cells=ground_radius_cells,
         ground_height_tolerance_m=ground_height_tolerance_m,
         ground_connect_max_slope_deg=ground_connect_max_slope_deg,
+        ground_connect_radius_cells=ground_connect_radius_cells,
     )
     write_pgm(output / 'map.pgm', layers['occupancy'])
     write_pgm(output / 'elevation.pgm', layers['elevation'])
@@ -639,6 +650,7 @@ def generate_navigation_map(
         'ground_radius_cells': int(ground_radius_cells),
         'ground_height_tolerance_m': float(ground_height_tolerance_m),
         'ground_connect_max_slope_deg': float(ground_connect_max_slope_deg),
+        'ground_connect_radius_cells': int(ground_connect_radius_cells),
         'grid_shape': layers['shape'],
         'valid_cells': layers['valid_cells'],
         'raw_valid_cells': layers['raw_valid_cells'],
@@ -709,8 +721,13 @@ def main(argv=None):
     parser.add_argument(
         '--ground-connect-max-slope-deg', type=float, default=45.0,
         help=(
-            'MQ2-A.1 max adjacent slope used only to propagate '
+            'MQ2-A.1 max slope used only to propagate '
             'trajectory-anchored ground support'))
+    parser.add_argument(
+        '--ground-connect-radius-cells', type=int, default=3,
+        help=(
+            'MQ2-A.1 candidate-graph bridge radius in cells; allows sparse '
+            'ground observations to connect without crossing steep height jumps'))
     parser.add_argument('--trajectory-poses', default='',
                         help='optional FAST-LIO poses.txt used as traversed free-space evidence')
     parser.add_argument('--trajectory-front-m', type=float, default=0.40,
@@ -739,6 +756,7 @@ def main(argv=None):
             ground_radius_cells=args.ground_radius_cells,
             ground_height_tolerance_m=args.ground_height_tolerance_m,
             ground_connect_max_slope_deg=args.ground_connect_max_slope_deg,
+            ground_connect_radius_cells=args.ground_connect_radius_cells,
         )
     except (OSError, ValueError) as exc:
         parser.error(str(exc))

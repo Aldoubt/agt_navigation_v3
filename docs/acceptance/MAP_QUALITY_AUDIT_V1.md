@@ -521,6 +521,54 @@ The production default remains `legacy_min_z`.  MQ2-B remains blocked until
 the frozen-map MQ2-A.1 A/B confirms that high floating surfaces are suppressed
 without collapsing known traversable ground.
 
+### MQ2-A.1 first frozen-map result: hard connectivity is too strict
+
+The first trajectory-anchored run used only 8-neighbor cell-to-cell
+connectivity.  It rejected floating surfaces, but it also collapsed too much
+known ground:
+
+- local ground candidates: 45,804;
+- trajectory anchor seeds: 6,232;
+- anchored ground: 16,986;
+- disconnected/floating candidates: 28,818;
+- low-confidence valid cells: 66,500.
+
+MQ2-A -> MQ2-A.1 map transitions:
+
+- occupied -> unknown: 994;
+- occupied -> free: 4;
+- free -> unknown: 15,070.
+
+Final free space fell from 34,209 to 19,143 cells (-44.0%).  This is not an
+acceptable planning baseline.  Importantly, trajectory pre-carve conflict
+statistics were unchanged from MQ2-A (4,188 occupied + 7,171 unknown =
+11,359), so the hard connectivity gate mostly removed off-corridor map
+usability rather than improving corridor evidence.
+
+Decision: **reject the radius-1 hard-connectivity result as too strict**.  Keep
+the anchored idea, but model candidate ground as a sparse graph instead of
+requiring contiguous 10 cm cells.
+
+### MQ2-A.1b - Sparse candidate-graph connectivity
+
+Refine the anchored mode with:
+
+```text
+--ground-connect-radius-cells 3
+```
+
+At 0.10 m resolution this permits a ground candidate to connect across up to
+~0.3 m of sparse sampling/unknown cells, while the existing
+`ground-connect-max-slope-deg` still limits allowed vertical change by metric
+distance.  A disconnected high surface therefore cannot bridge a large
+vertical jump merely because the XY graph radius is wider.
+
+The goal is to recover sparse but continuous traversable ground without
+re-admitting locally-flat floating surfaces.  This remains experimental; the
+production default is unchanged and MQ2-B stays blocked until the frozen-map
+A/B demonstrates materially better free-space retention than the radius-1
+result.
+
 ## MQ2 - Robust fallback converter
 
 Improve `agt_map_converter` conservatively before replacing it.
