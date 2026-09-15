@@ -457,6 +457,70 @@ Gate consequence:
   flat but vertically floating surface becomes unknown rather than free;
 - preserve the rule that insufficient ground evidence is unknown, not free.
 
+### MQ2-A released-cell distribution result
+
+The complete 1,294-cell release audit confirms that every
+`legacy occupied -> MQ2-A free` cell is **slope-only** under the legacy rule.
+
+Robust per-cell p05-p95 span:
+
+- p50: 0.0146 m;
+- p75: 0.0428 m;
+- p90: 0.1132 m;
+- p95: 0.1523 m;
+- p99: 0.1928 m;
+- all 1,294 cells are <= 0.22 m.
+
+Legacy slope on the same cells is extreme:
+
+- p50: 80.63 deg;
+- p75: 86.47 deg;
+- p90: 87.98 deg;
+- p95: 88.36 deg;
+- p99: 88.99 deg.
+
+988 / 1,294 cells meet the strict very-flat-like evidence rule and
+1,241 / 1,294 meet the broader ground-like evidence rule.  Only 438 / 1,294
+are within the recorded trajectory expanded by +0.5 m.
+
+The high-tail review proves the local-only self-consistency failure is real:
+some released cells have local-ground estimates around z=9-14 m while still
+showing small vertical span.  These cells are not evidence of navigable ground;
+they are exactly the floating-surface case that MQ2-A.1 must reject.
+
+### MQ2-A.1 - Trajectory-anchored ground connectivity
+
+Add a second opt-in mode:
+
+```text
+--slope-surface-mode anchored_ground_confidence
+--ground-radius-cells 2
+--ground-height-tolerance-m 0.25
+--ground-connect-max-slope-deg 45
+```
+
+The local MQ2-A ground candidates are unchanged.  MQ2-A.1 then keeps only
+candidates that are connected to candidate cells intersecting the recorded
+trajectory footprint.  Connectivity uses 8-neighbor propagation and requires
+adjacent candidate elevations to remain continuous under the configured
+permissive connection-slope bound.
+
+This is an evidence anchor, not a navigation-slope threshold.  The final
+20-degree obstacle slope rule is unchanged.  Candidate local ground that is not
+trajectory-connected is demoted to unknown unless the unchanged vertical-span
+rule marks it occupied.
+
+New debug/metadata outputs:
+
+- `ground_local_candidate.pgm`;
+- `ground_anchor_seed.pgm`;
+- `ground_confidence.pgm` (final anchored support);
+- local candidate, anchor seed, anchored ground and floating-candidate counts.
+
+The production default remains `legacy_min_z`.  MQ2-B remains blocked until
+the frozen-map MQ2-A.1 A/B confirms that high floating surfaces are suppressed
+without collapsing known traversable ground.
+
 ## MQ2 - Robust fallback converter
 
 Improve `agt_map_converter` conservatively before replacing it.

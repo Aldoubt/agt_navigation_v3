@@ -156,3 +156,75 @@ def test_ground_confidence_mode_keeps_gentle_ground_trusted():
 
     assert mq2['low_confidence_valid_cells'] == 0
     assert mq2['occupied_cells'] == 0
+
+
+def test_anchored_ground_confidence_rejects_disconnected_flat_high_surface():
+    # Ground is connected to the trajectory on the left. A flat high-only
+    # surface exists on the right, separated by an unobserved column. Local
+    # confidence alone can accept both; anchored confidence must keep the
+    # disconnected high surface unknown.
+    xyz = []
+    for gy in range(5):
+        for gx in (0, 1, 2):
+            xyz.append([gx + 0.05, gy + 0.05, 0.0])
+            xyz.append([gx + 0.08, gy + 0.08, 0.01])
+        for gx in (4, 5, 6):
+            xyz.append([gx + 0.05, gy + 0.05, 3.0])
+            xyz.append([gx + 0.08, gy + 0.08, 3.01])
+    xyz = np.asarray(xyz, dtype=float)
+
+    local = convert(
+        xyz, resolution=1.0, margin=0.0, min_points=2,
+        max_step=0.22, max_slope_deg=20.0,
+        trajectory_poses=[(1.0, 2.0, 0.0)],
+        trajectory_front_m=0.4, trajectory_rear_m=0.4,
+        trajectory_half_width_m=0.4,
+        slope_surface_mode='ground_confidence',
+        ground_radius_cells=1,
+        ground_height_tolerance_m=0.25)
+
+    anchored = convert(
+        xyz, resolution=1.0, margin=0.0, min_points=2,
+        max_step=0.22, max_slope_deg=20.0,
+        trajectory_poses=[(1.0, 2.0, 0.0)],
+        trajectory_front_m=0.4, trajectory_rear_m=0.4,
+        trajectory_half_width_m=0.4,
+        slope_surface_mode='anchored_ground_confidence',
+        ground_radius_cells=1,
+        ground_height_tolerance_m=0.25,
+        ground_connect_max_slope_deg=45.0)
+
+    local_grid = np.flipud(local['occupancy'])
+    anchored_grid = np.flipud(anchored['occupancy'])
+
+    assert local['ground_confident_cells'] > anchored['ground_confident_cells']
+    assert anchored['floating_ground_candidate_cells'] > 0
+    # A high-island cell is free under local-only confidence but unknown when
+    # it lacks trajectory-connected ground support.
+    assert local_grid[2, 5] == 254
+    assert anchored_grid[2, 5] == 205
+
+
+def test_anchored_ground_confidence_keeps_connected_gentle_ground():
+    xyz = []
+    for gy in range(5):
+        for gx in range(7):
+            base = 0.03 * gx
+            xyz.append([gx + 0.05, gy + 0.05, base])
+            xyz.append([gx + 0.08, gy + 0.08, base + 0.01])
+    xyz = np.asarray(xyz, dtype=float)
+
+    anchored = convert(
+        xyz, resolution=1.0, margin=0.0, min_points=2,
+        max_step=0.22, max_slope_deg=20.0,
+        trajectory_poses=[(1.0, 2.0, 0.0)],
+        trajectory_front_m=0.4, trajectory_rear_m=0.4,
+        trajectory_half_width_m=0.4,
+        slope_surface_mode='anchored_ground_confidence',
+        ground_radius_cells=1,
+        ground_height_tolerance_m=0.25,
+        ground_connect_max_slope_deg=45.0)
+
+    assert anchored['floating_ground_candidate_cells'] == 0
+    assert anchored['ground_confident_cells'] == anchored['raw_valid_cells']
+    assert anchored['occupied_cells'] == 0

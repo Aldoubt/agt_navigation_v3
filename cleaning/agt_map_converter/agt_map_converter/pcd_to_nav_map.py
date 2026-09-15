@@ -174,6 +174,46 @@ def trusted_ground_elevation(
     return trusted, confident, local_low
 
 
+def anchored_ground_connectivity(
+        candidate_mask, elevation, seed_mask, resolution,
+        max_connect_slope_deg):
+    """Keep local-ground candidates connected to trajectory evidence.
+
+    Connectivity is 8-neighbor and requires adjacent candidate elevations to be
+    vertically continuous under a permissive slope bound. This rejects
+    disconnected flat high surfaces without claiming they are obstacles.
+    """
+    if not (0.0 < max_connect_slope_deg < 90.0):
+        raise ValueError('max_connect_slope_deg must be within (0, 90)')
+    if candidate_mask.shape != elevation.shape or seed_mask.shape != elevation.shape:
+        raise ValueError('ground connectivity arrays must have identical shape')
+
+    height, width = candidate_mask.shape
+    connected = np.zeros_like(candidate_mask, dtype=bool)
+    pending = []
+    seed = candidate_mask & seed_mask & np.isfinite(elevation)
+    for gy, gx in np.argwhere(seed):
+        connected[gy, gx] = True
+        pending.append((int(gy), int(gx)))
+
+    tan_limit = math.tan(math.radians(float(max_connect_slope_deg)))
+    while pending:
+        cy, cx = pending.pop()
+        current_z = float(elevation[cy, cx])
+        for ny in range(max(0, cy - 1), min(height, cy + 2)):
+            for nx in range(max(0, cx - 1), min(width, cx + 2)):
+                if (ny == cy and nx == cx) or connected[ny, nx]:
+                    continue
+                if not candidate_mask[ny, nx] or not np.isfinite(elevation[ny, nx]):
+                    continue
+                distance = resolution * math.hypot(nx - cx, ny - cy)
+                max_dz = tan_limit * distance
+                if abs(float(elevation[ny, nx]) - current_z) <= max_dz:
+                    connected[ny, nx] = True
+                    pending.append((ny, nx))
+    return connected, seed
+
+
 def load_trajectory_poses(path: Path):
     """Load mapping poses.txt as planar body-frame poses (x, y, yaw).
 
@@ -331,13 +371,15 @@ def convert(xyz, resolution, margin, min_points, max_step, max_slope_deg,
             trajectory_rear_m=0.72, trajectory_half_width_m=0.46,
             slope_surface_mode='legacy_min_z',
             ground_radius_cells=2,
-            ground_height_tolerance_m=0.25):
+            ground_height_tolerance_m=0.25,
+            ground_connect_max_slope_deg=45.0):
     min_x = float(np.min(xyz[:, 0]) - margin)
     min_y = float(np.min(xyz[:, 1]) - margin)
     max_x = float(np.max(xyz[:, 0]) + margin)
     max_y = float(np.max(xyz[:, 1]) + margin)
     width = max(1, int(math.ceil((max_x - min_x) / resolution)))
     height = max(1, int(math.ceil((max_y - min_y) / resolution)))
+    origin = [min_x, min_y, 0.0]
     ix = np.clip(((xyz[:, 0] - min_x) / resolution).astype(np.int64), 0, width - 1)
     iy = np.clip(((xyz[:, 1] - min_y) / resolution).astype(np.int64), 0, height - 1)
 
@@ -352,29 +394,48 @@ def convert(xyz, resolution, margin, min_points, max_step, max_slope_deg,
     raw_elevation = np.where(valid, min_z, np.nan)
     span = np.where(valid, max_z - min_z, np.nan)
 
+    local_ground_candidate = valid.copy()
+    ground_anchor_seed = np.zeros_like(valid, dtype=bool)
     if slope_surface_mode == 'legacy_min_z':
         slope_elevation = raw_elevation
         ground_confident = valid.copy()
         local_ground_reference = raw_elevation.copy()
-    elif slope_surface_mode == 'ground_confidence':
-        slope_elevation, ground_confident, local_ground_reference = (
+    elif slope_surface_mode in {
+            'ground_confidence', 'anchored_ground_confidence'}:
+        local_trusted, local_ground_candidate, local_ground_reference = (
             trusted_ground_elevation(
                 raw_elevation, valid, ground_radius_cells,
                 ground_height_tolerance_m))
+        if slope_surface_mode == 'ground_confidence':
+            ground_confident = local_ground_candidate
+        else:
+            if not trajectory_poses:
+                raise ValueError(
+                    'anchored_ground_confidence requires trajectory poses')
+            anchor_swept = trajectory_swept_mask(
+                valid.shape, origin, resolution, trajectory_poses,
+                trajectory_front_m, trajectory_rear_m,
+                trajectory_half_width_m)
+            ground_confident, ground_anchor_seed = anchored_ground_connectivity(
+                local_ground_candidate, raw_elevation, anchor_swept,
+                resolution, ground_connect_max_slope_deg)
+        slope_elevation = np.where(
+            ground_confident, raw_elevation, np.nan)
     else:
         raise ValueError(
-            'slope_surface_mode must be legacy_min_z or ground_confidence')
+            'slope_surface_mode must be legacy_min_z, ground_confidence, '
+            'or anchored_ground_confidence')
 
     slope, filled = slope_from_elevation(slope_elevation, resolution)
     span_trigger = valid & (span > max_step)
     slope_trigger = ground_confident & (slope > max_slope_deg)
     obstacle = span_trigger | slope_trigger
 
-    # In MQ2-A ground-confidence mode, a valid cell that does not contain a
-    # trusted low-surface return is intentionally unknown unless vertical-span
-    # evidence already marks it occupied. This avoids silently turning
-    # high-only/canopy returns into free space.
-    if slope_surface_mode == 'ground_confidence':
+    # In MQ2 ground-confidence modes, valid cells without trusted/anchored
+    # ground support remain unknown unless vertical-span evidence already marks
+    # them occupied. This never turns uncertain high-only surfaces directly free.
+    if slope_surface_mode in {
+            'ground_confidence', 'anchored_ground_confidence'}:
         free = ground_confident & ~obstacle
     else:
         free = valid & ~obstacle
@@ -384,7 +445,6 @@ def convert(xyz, resolution, margin, min_points, max_step, max_slope_deg,
     pgm[free] = 254
     pgm[obstacle] = 0
 
-    origin = [min_x, min_y, 0.0]
     occupancy_before_trajectory_carve = pgm.copy()
     trajectory_swept = trajectory_swept_mask(
         pgm.shape, origin, resolution, trajectory_poses,
@@ -420,6 +480,10 @@ def convert(xyz, resolution, margin, min_points, max_step, max_slope_deg,
         'slope': np.flipud(normalized_layer(slope, invert=True)),
         'ground_confidence': np.flipud(
             np.where(ground_confident, 254, 205).astype(np.uint8)),
+        'ground_local_candidate': np.flipud(
+            np.where(local_ground_candidate, 254, 205).astype(np.uint8)),
+        'ground_anchor_seed': np.flipud(
+            np.where(ground_anchor_seed, 254, 205).astype(np.uint8)),
         'obstacle': np.flipud(obstacle_image),
         'shape': [height, width],
         # Historical field kept for compatibility: this is the final count of
@@ -429,7 +493,11 @@ def convert(xyz, resolution, margin, min_points, max_step, max_slope_deg,
         'raw_valid_cells': int(valid.sum()),
         'final_known_cells': int(known.sum()),
         'occupied_cells': int(final_obstacle.sum()),
+        'ground_local_candidate_cells': int(local_ground_candidate.sum()),
+        'ground_anchor_seed_cells': int(ground_anchor_seed.sum()),
         'ground_confident_cells': int(ground_confident.sum()),
+        'floating_ground_candidate_cells': int(
+            (local_ground_candidate & ~ground_confident).sum()),
         'low_confidence_valid_cells': int((valid & ~ground_confident).sum()),
         'span_trigger_cells': int(span_trigger.sum()),
         'slope_trigger_cells': int(slope_trigger.sum()),
@@ -463,16 +531,21 @@ def generate_navigation_map(
     slope_surface_mode: str = 'legacy_min_z',
     ground_radius_cells: int = 2,
     ground_height_tolerance_m: float = 0.25,
+    ground_connect_max_slope_deg: float = 45.0,
 ) -> dict:
     """Generate one deterministic Nav2/terrain directory from a frozen PCD."""
     if (resolution <= 0 or margin < 0 or min_points < 1
             or trajectory_front_m < 0 or trajectory_rear_m < 0
             or trajectory_half_width_m < 0 or ground_radius_cells < 0
-            or ground_height_tolerance_m < 0):
+            or ground_height_tolerance_m < 0
+            or not (0.0 < ground_connect_max_slope_deg < 90.0)):
         raise ValueError('invalid grid parameters')
-    if slope_surface_mode not in {'legacy_min_z', 'ground_confidence'}:
+    if slope_surface_mode not in {
+            'legacy_min_z', 'ground_confidence',
+            'anchored_ground_confidence'}:
         raise ValueError(
-            'slope_surface_mode must be legacy_min_z or ground_confidence')
+            'slope_surface_mode must be legacy_min_z, ground_confidence, '
+            'or anchored_ground_confidence')
     pcd = pcd.expanduser().resolve()
     output = output.expanduser().resolve()
     if not pcd.is_file():
@@ -493,12 +566,19 @@ def generate_navigation_map(
         slope_surface_mode=slope_surface_mode,
         ground_radius_cells=ground_radius_cells,
         ground_height_tolerance_m=ground_height_tolerance_m,
+        ground_connect_max_slope_deg=ground_connect_max_slope_deg,
     )
     write_pgm(output / 'map.pgm', layers['occupancy'])
     write_pgm(output / 'elevation.pgm', layers['elevation'])
     write_pgm(output / 'slope.pgm', layers['slope'])
     write_pgm(output / 'obstacle.pgm', layers['obstacle'])
     write_pgm(output / 'ground_confidence.pgm', layers['ground_confidence'])
+    write_pgm(
+        output / 'ground_local_candidate.pgm',
+        layers['ground_local_candidate'])
+    write_pgm(
+        output / 'ground_anchor_seed.pgm',
+        layers['ground_anchor_seed'])
     map_yaml = {
         'image': 'map.pgm',
         'mode': 'trinary',
@@ -558,12 +638,17 @@ def generate_navigation_map(
         'slope_surface_mode': slope_surface_mode,
         'ground_radius_cells': int(ground_radius_cells),
         'ground_height_tolerance_m': float(ground_height_tolerance_m),
+        'ground_connect_max_slope_deg': float(ground_connect_max_slope_deg),
         'grid_shape': layers['shape'],
         'valid_cells': layers['valid_cells'],
         'raw_valid_cells': layers['raw_valid_cells'],
         'final_known_cells': layers['final_known_cells'],
         'occupied_cells': layers['occupied_cells'],
+        'ground_local_candidate_cells': layers['ground_local_candidate_cells'],
+        'ground_anchor_seed_cells': layers['ground_anchor_seed_cells'],
         'ground_confident_cells': layers['ground_confident_cells'],
+        'floating_ground_candidate_cells': layers[
+            'floating_ground_candidate_cells'],
         'low_confidence_valid_cells': layers['low_confidence_valid_cells'],
         'span_trigger_cells': layers['span_trigger_cells'],
         'slope_trigger_cells': layers['slope_trigger_cells'],
@@ -608,15 +693,24 @@ def main(argv=None):
                         help='max terrain slope before occupied; field-tune on Bunker')
     parser.add_argument(
         '--slope-surface-mode',
-        choices=('legacy_min_z', 'ground_confidence'),
+        choices=(
+            'legacy_min_z', 'ground_confidence',
+            'anchored_ground_confidence'),
         default='legacy_min_z',
-        help='legacy min-z slope or MQ2-A conservative ground-confidence slope')
+        help=(
+            'legacy min-z, local ground-confidence, or MQ2-A.1 '
+            'trajectory-anchored ground-confidence slope'))
     parser.add_argument(
         '--ground-radius-cells', type=int, default=2,
         help='MQ2-A local low-surface neighborhood radius in grid cells')
     parser.add_argument(
         '--ground-height-tolerance-m', type=float, default=0.25,
         help='MQ2-A max min-z height above local low surface to trust as ground')
+    parser.add_argument(
+        '--ground-connect-max-slope-deg', type=float, default=45.0,
+        help=(
+            'MQ2-A.1 max adjacent slope used only to propagate '
+            'trajectory-anchored ground support'))
     parser.add_argument('--trajectory-poses', default='',
                         help='optional FAST-LIO poses.txt used as traversed free-space evidence')
     parser.add_argument('--trajectory-front-m', type=float, default=0.40,
@@ -644,6 +738,7 @@ def main(argv=None):
             slope_surface_mode=args.slope_surface_mode,
             ground_radius_cells=args.ground_radius_cells,
             ground_height_tolerance_m=args.ground_height_tolerance_m,
+            ground_connect_max_slope_deg=args.ground_connect_max_slope_deg,
         )
     except (OSError, ValueError) as exc:
         parser.error(str(exc))
