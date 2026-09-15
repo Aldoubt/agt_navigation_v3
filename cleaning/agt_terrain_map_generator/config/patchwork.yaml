@@ -1,0 +1,4 @@
+# MQ3-A offline PatchworkInterface adapter configuration.
+sensor_height_m: 0.89
+resolution_m: 0.10
+ground_tolerance_m: 0.20

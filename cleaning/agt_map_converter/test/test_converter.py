@@ -103,3 +103,244 @@ def test_zero_conflict_trajectory_is_pass_evidence():
         trajectory_half_width_m=0.15)
     assert layers['trajectory_cleared_cells'] == 0
     assert layers['trajectory_conflict_regions'] == []
+
+
+def test_ground_confidence_mode_suppresses_high_only_slope_wall_without_freeing_it():
+    # A flat observed ground occupies the left half. The right half contains
+    # only elevated returns with small per-cell vertical span. Legacy min-z
+    # slope sees a sharp cliff; MQ2-A should reject those high-only cells from
+    # the slope surface and keep them unknown instead of silently free.
+    xyz = []
+    for gy in range(5):
+        for gx in range(6):
+            base = 0.0 if gx < 3 else 2.0
+            xyz.append([gx + 0.05, gy + 0.05, base])
+            xyz.append([gx + 0.08, gy + 0.08, base + 0.05])
+    xyz = np.asarray(xyz, dtype=float)
+
+    legacy = convert(
+        xyz, resolution=1.0, margin=0.5, min_points=2,
+        max_step=0.22, max_slope_deg=20.0,
+        slope_surface_mode='legacy_min_z')
+    mq2 = convert(
+        xyz, resolution=1.0, margin=0.5, min_points=2,
+        max_step=0.22, max_slope_deg=20.0,
+        slope_surface_mode='ground_confidence',
+        ground_radius_cells=2,
+        ground_height_tolerance_m=0.25)
+
+    legacy_occ = np.flipud(legacy['occupancy'])
+    mq2_occ = np.flipud(mq2['occupancy'])
+
+    assert legacy['slope_trigger_cells'] > mq2['slope_trigger_cells']
+    assert mq2['low_confidence_valid_cells'] > 0
+    assert 205 in mq2_occ
+    assert mq2['span_trigger_cells'] == 0
+
+
+def test_ground_confidence_mode_keeps_gentle_ground_trusted():
+    xyz = []
+    for gy in range(5):
+        for gx in range(6):
+            base = 0.05 * gx
+            xyz.append([gx + 0.05, gy + 0.05, base])
+            xyz.append([gx + 0.08, gy + 0.08, base + 0.01])
+    xyz = np.asarray(xyz, dtype=float)
+
+    mq2 = convert(
+        xyz, resolution=1.0, margin=0.5, min_points=2,
+        max_step=0.22, max_slope_deg=20.0,
+        slope_surface_mode='ground_confidence',
+        ground_radius_cells=2,
+        ground_height_tolerance_m=0.25)
+
+    assert mq2['low_confidence_valid_cells'] == 0
+    assert mq2['occupied_cells'] == 0
+
+
+def test_anchored_ground_confidence_rejects_disconnected_flat_high_surface():
+    # Keep samples away from exact grid boundaries. The production converter
+    # intentionally preserves its legacy float-to-int binning for frozen-map
+    # reproducibility; this test targets connectivity, not bin-edge rounding.
+    # Ground is connected to the trajectory on the left. A flat high-only
+    # surface exists on the right, separated by an unobserved column. Local
+    # confidence alone can accept both; anchored confidence must keep the
+    # disconnected high surface unknown.
+    xyz = []
+    for gy in range(5):
+        for gx in (0, 1, 2):
+            xyz.append([gx + 0.05, gy + 0.05, 0.0])
+            xyz.append([gx + 0.08, gy + 0.08, 0.01])
+        for gx in (4, 5, 6):
+            xyz.append([gx + 0.05, gy + 0.05, 3.0])
+            xyz.append([gx + 0.08, gy + 0.08, 3.01])
+    xyz = np.asarray(xyz, dtype=float)
+
+    local = convert(
+        xyz, resolution=1.0, margin=0.5, min_points=2,
+        max_step=0.22, max_slope_deg=20.0,
+        trajectory_poses=[(1.0, 2.0, 0.0)],
+        trajectory_front_m=0.4, trajectory_rear_m=0.4,
+        trajectory_half_width_m=0.4,
+        slope_surface_mode='ground_confidence',
+        ground_radius_cells=1,
+        ground_height_tolerance_m=0.25)
+
+    anchored = convert(
+        xyz, resolution=1.0, margin=0.5, min_points=2,
+        max_step=0.22, max_slope_deg=20.0,
+        trajectory_poses=[(1.0, 2.0, 0.0)],
+        trajectory_front_m=0.4, trajectory_rear_m=0.4,
+        trajectory_half_width_m=0.4,
+        slope_surface_mode='anchored_ground_confidence',
+        ground_radius_cells=1,
+        ground_height_tolerance_m=0.25,
+        ground_connect_max_slope_deg=45.0,
+        ground_connect_radius_cells=3)
+
+    local_grid = np.flipud(local['occupancy'])
+    anchored_grid = np.flipud(anchored['occupancy'])
+
+    assert local['ground_confident_cells'] > anchored['ground_confident_cells']
+    assert anchored['floating_ground_candidate_cells'] > 0
+    # A high-island cell is free under local-only confidence but unknown when
+    # it lacks trajectory-connected ground support.
+    assert local_grid[2, 5] == 254
+    assert anchored_grid[2, 5] == 205
+
+
+def test_anchored_ground_confidence_keeps_connected_gentle_ground():
+    xyz = []
+    for gy in range(5):
+        for gx in range(7):
+            base = 0.03 * gx
+            xyz.append([gx + 0.05, gy + 0.05, base])
+            xyz.append([gx + 0.08, gy + 0.08, base + 0.01])
+    xyz = np.asarray(xyz, dtype=float)
+
+    anchored = convert(
+        xyz, resolution=1.0, margin=0.5, min_points=2,
+        max_step=0.22, max_slope_deg=20.0,
+        trajectory_poses=[(1.0, 2.0, 0.0)],
+        trajectory_front_m=0.4, trajectory_rear_m=0.4,
+        trajectory_half_width_m=0.4,
+        slope_surface_mode='anchored_ground_confidence',
+        ground_radius_cells=1,
+        ground_height_tolerance_m=0.25,
+        ground_connect_max_slope_deg=45.0,
+        ground_connect_radius_cells=3)
+
+    assert anchored['floating_ground_candidate_cells'] == 0
+    assert anchored['ground_confident_cells'] == anchored['raw_valid_cells']
+    assert anchored['occupied_cells'] == 0
+
+
+def test_anchored_ground_confidence_bridges_sparse_gentle_ground_gap():
+    # Two observed ground patches are separated by one unobserved column.
+    # A radius-1 hard grid walk cannot cross this sampling gap, while the
+    # radius-3 candidate graph should connect them because the height change is
+    # gentle and consistent with the permissive connectivity slope bound.
+    xyz = []
+    for gy in range(5):
+        for gx in (0, 1, 2):
+            base = 0.02 * gx
+            xyz.append([gx + 0.05, gy + 0.05, base])
+            xyz.append([gx + 0.08, gy + 0.08, base + 0.01])
+        for gx in (4, 5, 6):
+            base = 0.02 * gx
+            xyz.append([gx + 0.05, gy + 0.05, base])
+            xyz.append([gx + 0.08, gy + 0.08, base + 0.01])
+    xyz = np.asarray(xyz, dtype=float)
+
+    anchored = convert(
+        xyz, resolution=1.0, margin=0.5, min_points=2,
+        max_step=0.22, max_slope_deg=20.0,
+        trajectory_poses=[(1.0, 2.0, 0.0)],
+        trajectory_front_m=0.4, trajectory_rear_m=0.4,
+        trajectory_half_width_m=0.4,
+        slope_surface_mode='anchored_ground_confidence',
+        ground_radius_cells=1,
+        ground_height_tolerance_m=0.25,
+        ground_connect_max_slope_deg=45.0,
+        ground_connect_radius_cells=3)
+
+    assert anchored['floating_ground_candidate_cells'] == 0
+    assert anchored['ground_confident_cells'] == anchored['raw_valid_cells']
+
+
+def _mq2b_ground_points(extra_points):
+    points = []
+    for gy in range(5):
+        for gx in range(5):
+            points.append([gx + 0.05, gy + 0.05, 0.0])
+            points.append([gx + 0.08, gy + 0.08, 0.01])
+    points.extend(extra_points)
+    return np.asarray(points, dtype=float)
+
+
+def test_ground_relative_band_ignores_high_canopy_over_supported_ground():
+    xyz = _mq2b_ground_points([
+        [2.05, 2.05, 3.0],
+        [2.08, 2.08, 3.2],
+    ])
+    legacy = convert(
+        xyz, resolution=1.0, margin=0.5, min_points=2,
+        max_step=0.22, max_slope_deg=20.0,
+        slope_surface_mode='ground_confidence',
+        obstacle_mode='legacy_span')
+    band = convert(
+        xyz, resolution=1.0, margin=0.5, min_points=2,
+        max_step=0.22, max_slope_deg=20.0,
+        slope_surface_mode='ground_confidence',
+        obstacle_mode='ground_relative_band',
+        collision_band_min_height_m=0.15,
+        collision_band_max_height_m=1.50,
+        collision_band_min_points=2,
+        collision_band_min_fraction=0.20)
+
+    legacy_grid = np.flipud(legacy['occupancy'])
+    band_grid = np.flipud(band['occupancy'])
+    assert legacy_grid[2, 2] == 0
+    assert band_grid[2, 2] == 254
+    assert band['collision_band_overhang_only_cells'] >= 1
+
+
+def test_ground_relative_band_keeps_supported_low_obstacle_occupied():
+    xyz = _mq2b_ground_points([
+        [2.05, 2.05, 0.45],
+        [2.06, 2.06, 0.55],
+        [2.08, 2.08, 0.65],
+    ])
+    band = convert(
+        xyz, resolution=1.0, margin=0.5, min_points=2,
+        max_step=0.22, max_slope_deg=20.0,
+        slope_surface_mode='ground_confidence',
+        obstacle_mode='ground_relative_band',
+        collision_band_min_height_m=0.15,
+        collision_band_max_height_m=1.50,
+        collision_band_min_points=2,
+        collision_band_min_fraction=0.20)
+
+    grid = np.flipud(band['occupancy'])
+    assert grid[2, 2] == 0
+    assert band['collision_band_obstacle_cells'] >= 1
+
+
+def test_ground_relative_band_keeps_single_low_return_ambiguous_unknown():
+    xyz = _mq2b_ground_points([
+        [2.05, 2.05, 0.50],
+        [2.08, 2.08, 3.00],
+    ])
+    band = convert(
+        xyz, resolution=1.0, margin=0.5, min_points=2,
+        max_step=0.22, max_slope_deg=20.0,
+        slope_surface_mode='ground_confidence',
+        obstacle_mode='ground_relative_band',
+        collision_band_min_height_m=0.15,
+        collision_band_max_height_m=1.50,
+        collision_band_min_points=2,
+        collision_band_min_fraction=0.20)
+
+    grid = np.flipud(band['occupancy'])
+    assert grid[2, 2] == 205
+    assert band['collision_band_ambiguous_cells'] >= 1

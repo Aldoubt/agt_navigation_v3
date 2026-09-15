@@ -27,7 +27,7 @@ v002-edited/localization/global_map.pcd
 | PGM `0`（Nav2 occupied） | 53,186（**4.99%**） |
 | PGM `205`（Nav2 unknown） | 975,482（**91.56%**） |
 
-转换 metadata 的 `valid_cells=89,893` 与 PGM 中 free + occupied = 89,893 一致。这证明 unknown 的高比例来自稀疏/未观测栅格，而不是 PGM payload 计数错误。
+转换 metadata 的历史字段 `valid_cells=89,893` 与 PGM 中 free + occupied = 89,893 一致，但该字段实际表示 trajectory carve **之后的最终 non-unknown cell 数**，并不是原始 `count>=min_points` 的 cell 数。MQ2 审计确认同一源 PCD 的 raw valid cell 数应单独记录；后续 converter 已新增 `raw_valid_cells` 与 `final_known_cells`，并仅为兼容保留 `valid_cells`。因此 91.56% unknown 的 PGM 统计仍成立，但不能再用该历史字段推断全部 unknown 都来自原始稀疏/未观测栅格；trajectory carve 会把部分原始 unknown 显式改为 free。
 
 ## Unknown、线状 occupied 与残影判断
 
