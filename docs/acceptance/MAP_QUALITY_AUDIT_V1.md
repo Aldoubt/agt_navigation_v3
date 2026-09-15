@@ -569,6 +569,69 @@ production default is unchanged and MQ2-B stays blocked until the frozen-map
 A/B demonstrates materially better free-space retention than the radius-1
 result.
 
+### MQ2-A.1b frozen-map result
+
+The sparse candidate-graph refinement materially recovers map usability while
+retaining an anchored-ground filter.
+
+Ground-support counters:
+
+- local ground candidates: 45,804;
+- anchor seeds: 6,232;
+- anchored ground: 33,349;
+- disconnected/floating candidates: 12,455;
+- low-confidence valid cells: 50,137.
+
+Compared with MQ2-A, the A.1b map transitions are:
+
+- occupied -> unknown: 743;
+- occupied -> free: 1;
+- free -> unknown: 3,966.
+
+Final free space is 30,244 cells versus 34,209 in MQ2-A (-11.6%), a large
+improvement over the radius-1 hard-connectivity result (19,143 free).  The
+trajectory conflict evidence is unchanged at 11,359 cells (4,188 occupied +
+7,171 unknown), so A.1b is best interpreted as an **off-corridor floating
+surface safety filter**, not a trajectory-quality improvement.
+
+Decision: keep A.1b as the preferred experimental slope baseline.  It remains
+more conservative than MQ2-A and is not yet production-default, but it retains
+88.4% of MQ2-A free space while rejecting 12,455 locally-plausible candidates
+that lack trajectory-connected ground support.
+
+### MQ2-B - Ground-relative collision-band obstacle experiment
+
+With the slope path isolated, add an opt-in obstacle rule that no longer marks
+an entire cell occupied merely because `max_z-min_z > 0.22 m`.
+
+New mode:
+
+```text
+--obstacle-mode ground_relative_band
+--collision-band-min-height-m 0.15
+--collision-band-max-height-m 1.50
+--collision-band-min-points 2
+--collision-band-min-fraction 0.20
+```
+
+This experiment requires a ground-confidence slope mode.  It uses the filled
+trusted/anchored ground surface as a reference and counts source-PCD returns
+inside a configurable height-above-ground collision band.
+
+Decision logic:
+
+- supported in-band returns -> occupied;
+- one/sparse in-band return without enough support -> unknown;
+- high-only returns above the collision band do not become occupied merely
+  because vertical span is large;
+- a cell can become free only when it has trusted/anchored ground support and
+  no slope obstacle or ambiguous collision-band evidence.
+
+The legacy vertical-span rule remains the production/default obstacle mode.
+MQ2-B adds `collision_band.pgm` plus metadata counts for supported obstacles,
+ambiguous cells and high-only/overhang evidence.  The 0.15-1.50 m band is an
+engineering starting point for A/B, not yet a frozen vehicle collision envelope.
+
 ## MQ2 - Robust fallback converter
 
 Improve `agt_map_converter` conservatively before replacing it.

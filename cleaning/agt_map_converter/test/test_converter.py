@@ -266,3 +266,81 @@ def test_anchored_ground_confidence_bridges_sparse_gentle_ground_gap():
 
     assert anchored['floating_ground_candidate_cells'] == 0
     assert anchored['ground_confident_cells'] == anchored['raw_valid_cells']
+
+
+def _mq2b_ground_points(extra_points):
+    points = []
+    for gy in range(5):
+        for gx in range(5):
+            points.append([gx + 0.05, gy + 0.05, 0.0])
+            points.append([gx + 0.08, gy + 0.08, 0.01])
+    points.extend(extra_points)
+    return np.asarray(points, dtype=float)
+
+
+def test_ground_relative_band_ignores_high_canopy_over_supported_ground():
+    xyz = _mq2b_ground_points([
+        [2.05, 2.05, 3.0],
+        [2.08, 2.08, 3.2],
+    ])
+    legacy = convert(
+        xyz, resolution=1.0, margin=0.5, min_points=2,
+        max_step=0.22, max_slope_deg=20.0,
+        slope_surface_mode='ground_confidence',
+        obstacle_mode='legacy_span')
+    band = convert(
+        xyz, resolution=1.0, margin=0.5, min_points=2,
+        max_step=0.22, max_slope_deg=20.0,
+        slope_surface_mode='ground_confidence',
+        obstacle_mode='ground_relative_band',
+        collision_band_min_height_m=0.15,
+        collision_band_max_height_m=1.50,
+        collision_band_min_points=2,
+        collision_band_min_fraction=0.20)
+
+    legacy_grid = np.flipud(legacy['occupancy'])
+    band_grid = np.flipud(band['occupancy'])
+    assert legacy_grid[2, 2] == 0
+    assert band_grid[2, 2] == 254
+    assert band['collision_band_overhang_only_cells'] >= 1
+
+
+def test_ground_relative_band_keeps_supported_low_obstacle_occupied():
+    xyz = _mq2b_ground_points([
+        [2.05, 2.05, 0.45],
+        [2.06, 2.06, 0.55],
+        [2.08, 2.08, 0.65],
+    ])
+    band = convert(
+        xyz, resolution=1.0, margin=0.5, min_points=2,
+        max_step=0.22, max_slope_deg=20.0,
+        slope_surface_mode='ground_confidence',
+        obstacle_mode='ground_relative_band',
+        collision_band_min_height_m=0.15,
+        collision_band_max_height_m=1.50,
+        collision_band_min_points=2,
+        collision_band_min_fraction=0.20)
+
+    grid = np.flipud(band['occupancy'])
+    assert grid[2, 2] == 0
+    assert band['collision_band_obstacle_cells'] >= 1
+
+
+def test_ground_relative_band_keeps_single_low_return_ambiguous_unknown():
+    xyz = _mq2b_ground_points([
+        [2.05, 2.05, 0.50],
+        [2.08, 2.08, 3.00],
+    ])
+    band = convert(
+        xyz, resolution=1.0, margin=0.5, min_points=2,
+        max_step=0.22, max_slope_deg=20.0,
+        slope_surface_mode='ground_confidence',
+        obstacle_mode='ground_relative_band',
+        collision_band_min_height_m=0.15,
+        collision_band_max_height_m=1.50,
+        collision_band_min_points=2,
+        collision_band_min_fraction=0.20)
+
+    grid = np.flipud(band['occupancy'])
+    assert grid[2, 2] == 205
+    assert band['collision_band_ambiguous_cells'] >= 1

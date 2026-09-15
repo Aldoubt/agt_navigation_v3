@@ -220,6 +220,61 @@ def anchored_ground_connectivity(
     return connected, seed
 
 
+def collision_band_evidence(
+        xyz, ix, iy, ground_reference, valid,
+        min_height_m, max_height_m,
+        min_points, min_fraction):
+    """Accumulate per-cell obstacle support in a ground-relative height band."""
+    if min_height_m < 0.0 or max_height_m <= min_height_m:
+        raise ValueError('invalid collision-band height limits')
+    if min_points < 1:
+        raise ValueError('collision_band_min_points must be >= 1')
+    if not (0.0 <= min_fraction <= 1.0):
+        raise ValueError('collision_band_min_fraction must be within [0, 1]')
+
+    height, width = valid.shape
+    total = np.zeros((height, width), dtype=np.int32)
+    band = np.zeros((height, width), dtype=np.int32)
+    max_hag = np.full((height, width), -np.inf, dtype=np.float64)
+
+    reference = ground_reference[iy, ix]
+    usable = np.isfinite(reference)
+    if np.any(usable):
+        ux = ix[usable]
+        uy = iy[usable]
+        heights = xyz[usable, 2] - reference[usable]
+        np.add.at(total, (uy, ux), 1)
+        in_band = (
+            (heights >= float(min_height_m))
+            & (heights <= float(max_height_m)))
+        if np.any(in_band):
+            np.add.at(band, (uy[in_band], ux[in_band]), 1)
+        np.maximum.at(max_hag, (uy, ux), heights)
+
+    fraction = np.zeros((height, width), dtype=np.float64)
+    np.divide(
+        band, total, out=fraction, where=total > 0)
+
+    obstacle = (
+        valid
+        & (band >= int(min_points))
+        & (fraction >= float(min_fraction)))
+    ambiguous = valid & (band > 0) & ~obstacle
+    overhang_only = (
+        valid & (total > 0) & (band == 0)
+        & np.isfinite(max_hag)
+        & (max_hag > float(max_height_m)))
+    return {
+        'total_points': total,
+        'band_points': band,
+        'band_fraction': fraction,
+        'max_height_above_ground': max_hag,
+        'obstacle': obstacle,
+        'ambiguous': ambiguous,
+        'overhang_only': overhang_only,
+    }
+
+
 def load_trajectory_poses(path: Path):
     """Load mapping poses.txt as planar body-frame poses (x, y, yaw).
 
@@ -379,7 +434,12 @@ def convert(xyz, resolution, margin, min_points, max_step, max_slope_deg,
             ground_radius_cells=2,
             ground_height_tolerance_m=0.25,
             ground_connect_max_slope_deg=45.0,
-            ground_connect_radius_cells=3):
+            ground_connect_radius_cells=3,
+            obstacle_mode='legacy_span',
+            collision_band_min_height_m=0.15,
+            collision_band_max_height_m=1.50,
+            collision_band_min_points=2,
+            collision_band_min_fraction=0.20):
     min_x = float(np.min(xyz[:, 0]) - margin)
     min_y = float(np.min(xyz[:, 1]) - margin)
     max_x = float(np.max(xyz[:, 0]) + margin)
@@ -437,16 +497,48 @@ def convert(xyz, resolution, margin, min_points, max_step, max_slope_deg,
     slope, filled = slope_from_elevation(slope_elevation, resolution)
     span_trigger = valid & (span > max_step)
     slope_trigger = ground_confident & (slope > max_slope_deg)
-    obstacle = span_trigger | slope_trigger
 
-    # In MQ2 ground-confidence modes, valid cells without trusted/anchored
-    # ground support remain unknown unless vertical-span evidence already marks
-    # them occupied. This never turns uncertain high-only surfaces directly free.
-    if slope_surface_mode in {
-            'ground_confidence', 'anchored_ground_confidence'}:
-        free = ground_confident & ~obstacle
+    collision = {
+        'total_points': np.zeros(valid.shape, dtype=np.int32),
+        'band_points': np.zeros(valid.shape, dtype=np.int32),
+        'band_fraction': np.zeros(valid.shape, dtype=np.float64),
+        'max_height_above_ground': np.full(
+            valid.shape, -np.inf, dtype=np.float64),
+        'obstacle': np.zeros(valid.shape, dtype=bool),
+        'ambiguous': np.zeros(valid.shape, dtype=bool),
+        'overhang_only': np.zeros(valid.shape, dtype=bool),
+    }
+
+    if obstacle_mode == 'legacy_span':
+        obstacle = span_trigger | slope_trigger
+        if slope_surface_mode in {
+                'ground_confidence', 'anchored_ground_confidence'}:
+            free = ground_confident & ~obstacle
+        else:
+            free = valid & ~obstacle
+    elif obstacle_mode == 'ground_relative_band':
+        if slope_surface_mode == 'legacy_min_z':
+            raise ValueError(
+                'ground_relative_band requires a ground-confidence slope mode')
+        collision = collision_band_evidence(
+            xyz, ix, iy, filled, valid,
+            collision_band_min_height_m,
+            collision_band_max_height_m,
+            collision_band_min_points,
+            collision_band_min_fraction)
+        obstacle = slope_trigger | collision['obstacle']
+
+        # Conservative ambiguity rule: if a cell contains collision-band
+        # evidence but lacks enough support to call it occupied, keep it
+        # unknown rather than free. Pure high-overhang evidence may be free
+        # only when the cell itself has anchored ground support.
+        free = (
+            ground_confident
+            & ~obstacle
+            & ~collision['ambiguous'])
     else:
-        free = valid & ~obstacle
+        raise ValueError(
+            'obstacle_mode must be legacy_span or ground_relative_band')
 
     # Nav2 trinary map convention: black occupied, white free, gray unknown.
     pgm = np.full((height, width), 205, dtype=np.uint8)
@@ -492,6 +584,12 @@ def convert(xyz, resolution, margin, min_points, max_step, max_slope_deg,
             np.where(local_ground_candidate, 254, 205).astype(np.uint8)),
         'ground_anchor_seed': np.flipud(
             np.where(ground_anchor_seed, 254, 205).astype(np.uint8)),
+        'collision_band': np.flipud(
+            np.where(
+                collision['obstacle'], 0,
+                np.where(collision['ambiguous'], 160,
+                         np.where(collision['overhang_only'], 80, 254))
+            ).astype(np.uint8)),
         'obstacle': np.flipud(obstacle_image),
         'shape': [height, width],
         # Historical field kept for compatibility: this is the final count of
@@ -509,6 +607,10 @@ def convert(xyz, resolution, margin, min_points, max_step, max_slope_deg,
         'low_confidence_valid_cells': int((valid & ~ground_confident).sum()),
         'span_trigger_cells': int(span_trigger.sum()),
         'slope_trigger_cells': int(slope_trigger.sum()),
+        'collision_band_obstacle_cells': int(collision['obstacle'].sum()),
+        'collision_band_ambiguous_cells': int(collision['ambiguous'].sum()),
+        'collision_band_overhang_only_cells': int(
+            collision['overhang_only'].sum()),
         'trajectory_cleared_cells': trajectory_cleared_cells,
         'trajectory_swept_cells': int(trajectory_swept.sum()),
         'trajectory_conflicts': trajectory_conflicts,
@@ -541,6 +643,11 @@ def generate_navigation_map(
     ground_height_tolerance_m: float = 0.25,
     ground_connect_max_slope_deg: float = 45.0,
     ground_connect_radius_cells: int = 3,
+    obstacle_mode: str = 'legacy_span',
+    collision_band_min_height_m: float = 0.15,
+    collision_band_max_height_m: float = 1.50,
+    collision_band_min_points: int = 2,
+    collision_band_min_fraction: float = 0.20,
 ) -> dict:
     """Generate one deterministic Nav2/terrain directory from a frozen PCD."""
     if (resolution <= 0 or margin < 0 or min_points < 1
@@ -548,8 +655,15 @@ def generate_navigation_map(
             or trajectory_half_width_m < 0 or ground_radius_cells < 0
             or ground_height_tolerance_m < 0
             or not (0.0 < ground_connect_max_slope_deg < 90.0)
-            or ground_connect_radius_cells < 1):
+            or ground_connect_radius_cells < 1
+            or collision_band_min_height_m < 0.0
+            or collision_band_max_height_m <= collision_band_min_height_m
+            or collision_band_min_points < 1
+            or not (0.0 <= collision_band_min_fraction <= 1.0)):
         raise ValueError('invalid grid parameters')
+    if obstacle_mode not in {'legacy_span', 'ground_relative_band'}:
+        raise ValueError(
+            'obstacle_mode must be legacy_span or ground_relative_band')
     if slope_surface_mode not in {
             'legacy_min_z', 'ground_confidence',
             'anchored_ground_confidence'}:
@@ -578,6 +692,11 @@ def generate_navigation_map(
         ground_height_tolerance_m=ground_height_tolerance_m,
         ground_connect_max_slope_deg=ground_connect_max_slope_deg,
         ground_connect_radius_cells=ground_connect_radius_cells,
+        obstacle_mode=obstacle_mode,
+        collision_band_min_height_m=collision_band_min_height_m,
+        collision_band_max_height_m=collision_band_max_height_m,
+        collision_band_min_points=collision_band_min_points,
+        collision_band_min_fraction=collision_band_min_fraction,
     )
     write_pgm(output / 'map.pgm', layers['occupancy'])
     write_pgm(output / 'elevation.pgm', layers['elevation'])
@@ -590,6 +709,7 @@ def generate_navigation_map(
     write_pgm(
         output / 'ground_anchor_seed.pgm',
         layers['ground_anchor_seed'])
+    write_pgm(output / 'collision_band.pgm', layers['collision_band'])
     map_yaml = {
         'image': 'map.pgm',
         'mode': 'trinary',
@@ -651,6 +771,11 @@ def generate_navigation_map(
         'ground_height_tolerance_m': float(ground_height_tolerance_m),
         'ground_connect_max_slope_deg': float(ground_connect_max_slope_deg),
         'ground_connect_radius_cells': int(ground_connect_radius_cells),
+        'obstacle_mode': obstacle_mode,
+        'collision_band_min_height_m': float(collision_band_min_height_m),
+        'collision_band_max_height_m': float(collision_band_max_height_m),
+        'collision_band_min_points': int(collision_band_min_points),
+        'collision_band_min_fraction': float(collision_band_min_fraction),
         'grid_shape': layers['shape'],
         'valid_cells': layers['valid_cells'],
         'raw_valid_cells': layers['raw_valid_cells'],
@@ -664,6 +789,12 @@ def generate_navigation_map(
         'low_confidence_valid_cells': layers['low_confidence_valid_cells'],
         'span_trigger_cells': layers['span_trigger_cells'],
         'slope_trigger_cells': layers['slope_trigger_cells'],
+        'collision_band_obstacle_cells': layers[
+            'collision_band_obstacle_cells'],
+        'collision_band_ambiguous_cells': layers[
+            'collision_band_ambiguous_cells'],
+        'collision_band_overhang_only_cells': layers[
+            'collision_band_overhang_only_cells'],
         'trajectory_poses': str(trajectory_path) if trajectory_path else '',
         'trajectory_pose_count': len(trajectory_poses) if trajectory_poses else 0,
         'trajectory_front_m': float(trajectory_front_m),
@@ -728,6 +859,23 @@ def main(argv=None):
         help=(
             'MQ2-A.1 candidate-graph bridge radius in cells; allows sparse '
             'ground observations to connect without crossing steep height jumps'))
+    parser.add_argument(
+        '--obstacle-mode',
+        choices=('legacy_span', 'ground_relative_band'),
+        default='legacy_span',
+        help='legacy vertical-span obstacle rule or MQ2-B collision-band evidence')
+    parser.add_argument(
+        '--collision-band-min-height-m', type=float, default=0.15,
+        help='MQ2-B lower height-above-ground bound for blocking returns')
+    parser.add_argument(
+        '--collision-band-max-height-m', type=float, default=1.50,
+        help='MQ2-B upper height-above-ground bound for blocking returns')
+    parser.add_argument(
+        '--collision-band-min-points', type=int, default=2,
+        help='MQ2-B minimum returns in collision height band')
+    parser.add_argument(
+        '--collision-band-min-fraction', type=float, default=0.20,
+        help='MQ2-B minimum in-band return fraction per cell')
     parser.add_argument('--trajectory-poses', default='',
                         help='optional FAST-LIO poses.txt used as traversed free-space evidence')
     parser.add_argument('--trajectory-front-m', type=float, default=0.40,
@@ -757,6 +905,11 @@ def main(argv=None):
             ground_height_tolerance_m=args.ground_height_tolerance_m,
             ground_connect_max_slope_deg=args.ground_connect_max_slope_deg,
             ground_connect_radius_cells=args.ground_connect_radius_cells,
+            obstacle_mode=args.obstacle_mode,
+            collision_band_min_height_m=args.collision_band_min_height_m,
+            collision_band_max_height_m=args.collision_band_max_height_m,
+            collision_band_min_points=args.collision_band_min_points,
+            collision_band_min_fraction=args.collision_band_min_fraction,
         )
     except (OSError, ValueError) as exc:
         parser.error(str(exc))
