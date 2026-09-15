@@ -103,3 +103,56 @@ def test_zero_conflict_trajectory_is_pass_evidence():
         trajectory_half_width_m=0.15)
     assert layers['trajectory_cleared_cells'] == 0
     assert layers['trajectory_conflict_regions'] == []
+
+
+def test_ground_confidence_mode_suppresses_high_only_slope_wall_without_freeing_it():
+    # A flat observed ground occupies the left half. The right half contains
+    # only elevated returns with small per-cell vertical span. Legacy min-z
+    # slope sees a sharp cliff; MQ2-A should reject those high-only cells from
+    # the slope surface and keep them unknown instead of silently free.
+    xyz = []
+    for gy in range(5):
+        for gx in range(6):
+            base = 0.0 if gx < 3 else 2.0
+            xyz.append([gx + 0.05, gy + 0.05, base])
+            xyz.append([gx + 0.08, gy + 0.08, base + 0.05])
+    xyz = np.asarray(xyz, dtype=float)
+
+    legacy = convert(
+        xyz, resolution=1.0, margin=0.5, min_points=2,
+        max_step=0.22, max_slope_deg=20.0,
+        slope_surface_mode='legacy_min_z')
+    mq2 = convert(
+        xyz, resolution=1.0, margin=0.5, min_points=2,
+        max_step=0.22, max_slope_deg=20.0,
+        slope_surface_mode='ground_confidence',
+        ground_radius_cells=2,
+        ground_height_tolerance_m=0.25)
+
+    legacy_occ = np.flipud(legacy['occupancy'])
+    mq2_occ = np.flipud(mq2['occupancy'])
+
+    assert legacy['slope_trigger_cells'] > mq2['slope_trigger_cells']
+    assert mq2['low_confidence_valid_cells'] > 0
+    assert 205 in mq2_occ
+    assert mq2['span_trigger_cells'] == 0
+
+
+def test_ground_confidence_mode_keeps_gentle_ground_trusted():
+    xyz = []
+    for gy in range(5):
+        for gx in range(6):
+            base = 0.05 * gx
+            xyz.append([gx + 0.05, gy + 0.05, base])
+            xyz.append([gx + 0.08, gy + 0.08, base + 0.01])
+    xyz = np.asarray(xyz, dtype=float)
+
+    mq2 = convert(
+        xyz, resolution=1.0, margin=0.5, min_points=2,
+        max_step=0.22, max_slope_deg=20.0,
+        slope_surface_mode='ground_confidence',
+        ground_radius_cells=2,
+        ground_height_tolerance_m=0.25)
+
+    assert mq2['low_confidence_valid_cells'] == 0
+    assert mq2['occupied_cells'] == 0

@@ -114,6 +114,66 @@ def fill_nearest(grid):
     return out
 
 
+def neighborhood_min(grid, radius_cells):
+    """Low-memory square-neighborhood minimum for finite elevation cells."""
+    if radius_cells < 0:
+        raise ValueError('radius_cells must be >= 0')
+    base = np.where(np.isfinite(grid), grid, np.inf)
+    out = np.full_like(base, np.inf)
+    height, width = base.shape
+    for dy in range(-radius_cells, radius_cells + 1):
+        y_src0 = max(0, -dy)
+        y_src1 = min(height, height - dy)
+        y_dst0 = y_src0 + dy
+        y_dst1 = y_src1 + dy
+        for dx in range(-radius_cells, radius_cells + 1):
+            x_src0 = max(0, -dx)
+            x_src1 = min(width, width - dx)
+            x_dst0 = x_src0 + dx
+            x_dst1 = x_src1 + dx
+            np.minimum(
+                out[y_dst0:y_dst1, x_dst0:x_dst1],
+                base[y_src0:y_src1, x_src0:x_src1],
+                out=out[y_dst0:y_dst1, x_dst0:x_dst1])
+    out[~np.isfinite(out)] = np.nan
+    return out
+
+
+def slope_from_elevation(elevation, resolution):
+    """Return slope degrees while preserving unknown/NaN cells."""
+    filled = fill_nearest(elevation)
+    if filled.shape[0] < 2:
+        gy = np.zeros_like(filled)
+    else:
+        gy = np.gradient(filled, resolution, axis=0)
+    if filled.shape[1] < 2:
+        gx = np.zeros_like(filled)
+    else:
+        gx = np.gradient(filled, resolution, axis=1)
+    slope = np.degrees(np.arctan(np.hypot(gx, gy)))
+    slope[~np.isfinite(elevation)] = np.nan
+    return slope, filled
+
+
+def trusted_ground_elevation(
+        elevation, valid, radius_cells, height_tolerance_m):
+    """Select min-z cells that are locally consistent with the low surface.
+
+    This is intentionally a conservative MQ2-A heuristic, not semantic ground
+    segmentation. Cells whose min-z sits far above the local low surface are
+    treated as low-confidence terrain rather than directly shaping the slope
+    surface.
+    """
+    if height_tolerance_m < 0.0:
+        raise ValueError('height_tolerance_m must be >= 0')
+    local_low = neighborhood_min(elevation, radius_cells)
+    confident = (
+        valid & np.isfinite(elevation) & np.isfinite(local_low)
+        & ((elevation - local_low) <= float(height_tolerance_m)))
+    trusted = np.where(confident, elevation, np.nan)
+    return trusted, confident, local_low
+
+
 def load_trajectory_poses(path: Path):
     """Load mapping poses.txt as planar body-frame poses (x, y, yaw).
 
@@ -268,7 +328,10 @@ def trajectory_conflict_debug_image(original, swept, conflicts):
 
 def convert(xyz, resolution, margin, min_points, max_step, max_slope_deg,
             trajectory_poses=None, trajectory_front_m=0.40,
-            trajectory_rear_m=0.72, trajectory_half_width_m=0.46):
+            trajectory_rear_m=0.72, trajectory_half_width_m=0.46,
+            slope_surface_mode='legacy_min_z',
+            ground_radius_cells=2,
+            ground_height_tolerance_m=0.25):
     min_x = float(np.min(xyz[:, 0]) - margin)
     min_y = float(np.min(xyz[:, 1]) - margin)
     max_x = float(np.max(xyz[:, 0]) + margin)
@@ -286,25 +349,35 @@ def convert(xyz, resolution, margin, min_points, max_step, max_slope_deg,
     np.maximum.at(max_z, (iy, ix), xyz[:, 2])
 
     valid = count >= int(min_points)
-    elevation = np.where(valid, min_z, np.nan)
+    raw_elevation = np.where(valid, min_z, np.nan)
     span = np.where(valid, max_z - min_z, np.nan)
-    filled = fill_nearest(elevation)
-    # numpy.gradient requires at least two samples along every axis. Small
-    # commissioning maps can legitimately collapse to one row or column;
-    # there is no measurable slope along that axis, so use zero there.
-    if filled.shape[0] < 2:
-        gy = np.zeros_like(filled)
-    else:
-        gy = np.gradient(filled, resolution, axis=0)
-    if filled.shape[1] < 2:
-        gx = np.zeros_like(filled)
-    else:
-        gx = np.gradient(filled, resolution, axis=1)
-    slope = np.degrees(np.arctan(np.hypot(gx, gy)))
-    slope[~np.isfinite(elevation)] = np.nan
 
-    obstacle = valid & ((span > max_step) | (slope > max_slope_deg))
-    free = valid & ~obstacle
+    if slope_surface_mode == 'legacy_min_z':
+        slope_elevation = raw_elevation
+        ground_confident = valid.copy()
+        local_ground_reference = raw_elevation.copy()
+    elif slope_surface_mode == 'ground_confidence':
+        slope_elevation, ground_confident, local_ground_reference = (
+            trusted_ground_elevation(
+                raw_elevation, valid, ground_radius_cells,
+                ground_height_tolerance_m))
+    else:
+        raise ValueError(
+            'slope_surface_mode must be legacy_min_z or ground_confidence')
+
+    slope, filled = slope_from_elevation(slope_elevation, resolution)
+    span_trigger = valid & (span > max_step)
+    slope_trigger = ground_confident & (slope > max_slope_deg)
+    obstacle = span_trigger | slope_trigger
+
+    # In MQ2-A ground-confidence mode, a valid cell that does not contain a
+    # trusted low-surface return is intentionally unknown unless vertical-span
+    # evidence already marks it occupied. This avoids silently turning
+    # high-only/canopy returns into free space.
+    if slope_surface_mode == 'ground_confidence':
+        free = ground_confident & ~obstacle
+    else:
+        free = valid & ~obstacle
 
     # Nav2 trinary map convention: black occupied, white free, gray unknown.
     pgm = np.full((height, width), 205, dtype=np.uint8)
@@ -343,12 +416,18 @@ def convert(xyz, resolution, margin, min_points, max_step, max_slope_deg,
     return {
         'origin': origin,
         'occupancy': np.flipud(pgm),
-        'elevation': np.flipud(normalized_layer(elevation)),
+        'elevation': np.flipud(normalized_layer(raw_elevation)),
         'slope': np.flipud(normalized_layer(slope, invert=True)),
+        'ground_confidence': np.flipud(
+            np.where(ground_confident, 254, 205).astype(np.uint8)),
         'obstacle': np.flipud(obstacle_image),
         'shape': [height, width],
         'valid_cells': int(known.sum()),
         'occupied_cells': int(final_obstacle.sum()),
+        'ground_confident_cells': int(ground_confident.sum()),
+        'low_confidence_valid_cells': int((valid & ~ground_confident).sum()),
+        'span_trigger_cells': int(span_trigger.sum()),
+        'slope_trigger_cells': int(slope_trigger.sum()),
         'trajectory_cleared_cells': trajectory_cleared_cells,
         'trajectory_swept_cells': int(trajectory_swept.sum()),
         'trajectory_conflicts': trajectory_conflicts,
@@ -376,12 +455,19 @@ def generate_navigation_map(
     trajectory_front_m: float = 0.40,
     trajectory_rear_m: float = 0.72,
     trajectory_half_width_m: float = 0.46,
+    slope_surface_mode: str = 'legacy_min_z',
+    ground_radius_cells: int = 2,
+    ground_height_tolerance_m: float = 0.25,
 ) -> dict:
     """Generate one deterministic Nav2/terrain directory from a frozen PCD."""
     if (resolution <= 0 or margin < 0 or min_points < 1
             or trajectory_front_m < 0 or trajectory_rear_m < 0
-            or trajectory_half_width_m < 0):
+            or trajectory_half_width_m < 0 or ground_radius_cells < 0
+            or ground_height_tolerance_m < 0):
         raise ValueError('invalid grid parameters')
+    if slope_surface_mode not in {'legacy_min_z', 'ground_confidence'}:
+        raise ValueError(
+            'slope_surface_mode must be legacy_min_z or ground_confidence')
     pcd = pcd.expanduser().resolve()
     output = output.expanduser().resolve()
     if not pcd.is_file():
@@ -399,11 +485,15 @@ def generate_navigation_map(
         trajectory_front_m=trajectory_front_m,
         trajectory_rear_m=trajectory_rear_m,
         trajectory_half_width_m=trajectory_half_width_m,
+        slope_surface_mode=slope_surface_mode,
+        ground_radius_cells=ground_radius_cells,
+        ground_height_tolerance_m=ground_height_tolerance_m,
     )
     write_pgm(output / 'map.pgm', layers['occupancy'])
     write_pgm(output / 'elevation.pgm', layers['elevation'])
     write_pgm(output / 'slope.pgm', layers['slope'])
     write_pgm(output / 'obstacle.pgm', layers['obstacle'])
+    write_pgm(output / 'ground_confidence.pgm', layers['ground_confidence'])
     map_yaml = {
         'image': 'map.pgm',
         'mode': 'trinary',
@@ -460,9 +550,16 @@ def generate_navigation_map(
         'min_points': int(min_points),
         'max_step': float(max_step),
         'max_slope_deg': float(max_slope_deg),
+        'slope_surface_mode': slope_surface_mode,
+        'ground_radius_cells': int(ground_radius_cells),
+        'ground_height_tolerance_m': float(ground_height_tolerance_m),
         'grid_shape': layers['shape'],
         'valid_cells': layers['valid_cells'],
         'occupied_cells': layers['occupied_cells'],
+        'ground_confident_cells': layers['ground_confident_cells'],
+        'low_confidence_valid_cells': layers['low_confidence_valid_cells'],
+        'span_trigger_cells': layers['span_trigger_cells'],
+        'slope_trigger_cells': layers['slope_trigger_cells'],
         'trajectory_poses': str(trajectory_path) if trajectory_path else '',
         'trajectory_pose_count': len(trajectory_poses) if trajectory_poses else 0,
         'trajectory_front_m': float(trajectory_front_m),
@@ -502,6 +599,17 @@ def main(argv=None):
                         help='max vertical span in a grid cell before occupied; field-tune on Bunker')
     parser.add_argument('--max-slope-deg', type=float, default=20.0,
                         help='max terrain slope before occupied; field-tune on Bunker')
+    parser.add_argument(
+        '--slope-surface-mode',
+        choices=('legacy_min_z', 'ground_confidence'),
+        default='legacy_min_z',
+        help='legacy min-z slope or MQ2-A conservative ground-confidence slope')
+    parser.add_argument(
+        '--ground-radius-cells', type=int, default=2,
+        help='MQ2-A local low-surface neighborhood radius in grid cells')
+    parser.add_argument(
+        '--ground-height-tolerance-m', type=float, default=0.25,
+        help='MQ2-A max min-z height above local low surface to trust as ground')
     parser.add_argument('--trajectory-poses', default='',
                         help='optional FAST-LIO poses.txt used as traversed free-space evidence')
     parser.add_argument('--trajectory-front-m', type=float, default=0.40,
@@ -526,6 +634,9 @@ def main(argv=None):
             trajectory_front_m=args.trajectory_front_m,
             trajectory_rear_m=args.trajectory_rear_m,
             trajectory_half_width_m=args.trajectory_half_width_m,
+            slope_surface_mode=args.slope_surface_mode,
+            ground_radius_cells=args.ground_radius_cells,
+            ground_height_tolerance_m=args.ground_height_tolerance_m,
         )
     except (OSError, ValueError) as exc:
         parser.error(str(exc))

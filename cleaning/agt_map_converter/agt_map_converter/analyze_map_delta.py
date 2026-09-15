@@ -357,6 +357,12 @@ def analyze_map_delta(
     front_m = float(candidate_meta.get('trajectory_front_m', 0.40))
     rear_m = float(candidate_meta.get('trajectory_rear_m', 0.72))
     half_width_m = float(candidate_meta.get('trajectory_half_width_m', 0.46))
+    slope_surface_mode = str(
+        candidate_meta.get('slope_surface_mode', 'legacy_min_z'))
+    if slope_surface_mode != 'legacy_min_z':
+        raise ValueError(
+            'exact MQ1.5 trigger attribution currently requires '
+            'candidate slope_surface_mode=legacy_min_z')
     required_converter_keys = ('min_points', 'max_step', 'max_slope_deg')
     missing_converter_keys = [
         key for key in required_converter_keys if key not in candidate_meta]

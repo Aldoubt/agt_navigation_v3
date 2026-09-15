@@ -309,6 +309,58 @@ Stop MQ1 diagnosis after one frozen-field run confirms the trigger attribution.
 Use that measured `span_only / slope_only / both` split to choose the first MQ2
 algorithm change instead of tuning `max_step` or `max_slope_deg` blindly.
 
+### MQ1.5 frozen-field result
+
+The frozen v003 delta is now fully attributable to the current converter rule:
+
+- span-only: 681 / 2,576 (26.4%);
+- slope-only: 797 / 2,576 (30.9%);
+- both span+slope: 1,098 / 2,576 (42.6%);
+- neither: 0;
+- exact attribution coverage: 100%.
+
+All 797 slope-only cells have robust per-cell p05-p95 span <= the existing
+0.22 m step threshold.  Therefore they are pure slope-path decisions rather
+than hidden vertical-span decisions.  Slope participates in 1,895 / 2,576
+selected cells (73.6%), while span participates in 1,779 / 2,576 (69.1%).
+
+Several of the largest regions have median legacy computed slopes around
+80-88 degrees while their source-PCD evidence contains either high-only returns
+or mixed ground/high structure.  This closes MQ1 diagnosis: do not tune the
+20-degree threshold upward to hide the symptom.
+
+### MQ2-A - Conservative ground-confidence slope surface
+
+The first MQ2 experiment changes only the **slope surface**, not the vertical
+span rule and not the default production behavior.
+
+New opt-in mode:
+
+```text
+--slope-surface-mode ground_confidence
+--ground-radius-cells 2
+--ground-height-tolerance-m 0.25
+```
+
+Algorithm:
+
+```text
+valid cell min-z
+  -> local square-neighborhood low surface
+  -> trust cell only when min-z is within tolerance of local low
+  -> build/fill slope surface from trusted cells only
+  -> apply slope threshold only to trusted cells
+```
+
+A valid but low-confidence cell is left **unknown** unless the unchanged
+vertical-span rule already marks it occupied.  The experiment deliberately
+does not infer free space beneath high-only/canopy returns.
+
+The default remains `legacy_min_z`; field/mainline behavior cannot change until
+the frozen-map A/B and static-obstacle review pass.  The converter also exports
+`ground_confidence.pgm` plus metadata counters for trusted cells, low-confidence
+valid cells, span triggers and slope triggers.
+
 ## MQ2 - Robust fallback converter
 
 Improve `agt_map_converter` conservatively before replacing it.
