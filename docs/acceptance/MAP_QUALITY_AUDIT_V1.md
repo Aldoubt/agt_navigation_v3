@@ -431,6 +431,32 @@ and inspect the 19 free->occupied regressions.  The 1,197 free->unknown cells
 are primarily a planning-usability regression and should be quantified by
 region/corridor before promotion.
 
+### MQ2-A released-cell review: flat-ground wins and floating-surface risk
+
+The first focused review of the 1,294 `legacy occupied -> MQ2-A free` cells
+shows that the largest release regions are dominated by **slope-only** legacy
+decisions.  Typical cells have very small vertical span (millimeters to a few
+centimeters), `near_ground_fraction=1.0`, zero low/tall/overhang fractions,
+and legacy computed slopes around 80-88 degrees.  This strongly supports the
+original diagnosis that the legacy min-z gradient path created false cliff
+boundaries on otherwise locally flat returns.
+
+However, the same review exposes a second MQ2-A failure mode: some small
+released regions have similarly small vertical span and
+`near_ground_fraction=1.0`, but their local ground reference itself sits at
+high map z (examples around z ~= 2.38 m and z ~= 3.29 m).  A 0.2 m local
+neighborhood can therefore self-consistently label a flat high-only surface as
+"ground".  This may represent canopy/roof/vehicle-top structure and must not be
+promoted to free solely from local consistency.
+
+Gate consequence:
+
+- keep the current MQ2-A result as evidence that slope-surface gating is useful;
+- do **not** promote `ground_confidence` to production yet;
+- before MQ2-B, add a multi-scale / anchored ground-support check so a locally
+  flat but vertically floating surface becomes unknown rather than free;
+- preserve the rule that insufficient ground evidence is unknown, not free.
+
 ## MQ2 - Robust fallback converter
 
 Improve `agt_map_converter` conservatively before replacing it.
