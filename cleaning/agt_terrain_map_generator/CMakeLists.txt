@@ -149,6 +149,8 @@ install(PROGRAMS tools/estimate_patch_sensor_height.py
   RENAME terrain_estimate_sensor_height)
 install(PROGRAMS tools/terrain_map_align_audit.py
   DESTINATION lib/${PROJECT_NAME})
+install(PROGRAMS tools/terrain_ground_reference_audit.py
+  DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
