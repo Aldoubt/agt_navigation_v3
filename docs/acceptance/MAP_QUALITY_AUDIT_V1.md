@@ -256,6 +256,36 @@ and obstacle cells.  Before changing converter rules, MQ1 must compute
 then aggregate those per-cell features by region.  This is required to
 distinguish canopy/overhang from ground-connected obstacles and slopes.
 
+### MQ1 fixed audit command
+
+The temporary analysis is now fixed as an installed, evidence-only command:
+
+\`\`\`bash
+ros2 run agt_map_converter analyze_map_delta \
+  --reference "$REF" \
+  --candidate "$OUT" \
+  --source-pcd "$PCD" \
+  --trajectory-poses "$POSES" \
+  --output ~/ros2_ws/agt_data/map_quality/mq1_delta_analysis
+\`\`\`
+
+Default selected transition is \`candidate occupied -> reference free\`.
+The command requires reference/candidate map geometry to match and writes:
+
+- \`map_delta_analysis.yaml\`: hashes, transition matrix, trajectory-expansion
+  coverage and top region summaries;
+- \`delta_cells.yaml/csv\`: per-cell point count, z profile, local-ground
+  estimate, height-above-ground distribution and trajectory proximity;
+- \`delta_regions.yaml/csv\`: aggregated region evidence;
+- \`delta_mask.pgm\`: selected occupancy delta;
+- \`delta_vs_trajectory.pgm\`: selected delta versus the recorded swept
+  footprint.
+
+The local-ground estimate is diagnostic, not a classifier: it uses the
+configured percentile over a small XY neighborhood.  The tool deliberately
+does not label a region as dynamic, canopy, vegetation, slope or a true
+obstacle.
+
 ## MQ2 - Robust fallback converter
 
 Improve `agt_map_converter` conservatively before replacing it.

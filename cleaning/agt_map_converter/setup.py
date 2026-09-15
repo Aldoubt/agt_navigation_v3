@@ -21,5 +21,6 @@ setup(
         'validate_nav_map = agt_map_converter.validate_nav_map:main',
         'patch_nav_map = agt_map_converter.patch_nav_map:main',
         'audit_existing_nav_map = agt_map_converter.audit_existing_nav_map:main',
+        'analyze_map_delta = agt_map_converter.analyze_map_delta:main',
     ]},
 )
