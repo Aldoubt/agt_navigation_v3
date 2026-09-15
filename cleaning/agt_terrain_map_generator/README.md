@@ -88,3 +88,25 @@ An existing Patchwork++ `ground_map.pcd` may be supplied as a read-only prior:
 matching voxels receive its confidence, while unknown/non-ground voxels use the
 specified neutral 0.5 ground score. It does not trigger a new segmentation,
 modify a point cloud, or classify low confidence as dynamic.
+
+## MQ3-P0 offline one-shot generator
+
+`terrain_offline_generate` wires the existing terrain components into a deterministic offline patch-set job without enabling the ROS runtime pipeline.
+
+Required inputs are a mapping directory with `poses.txt` + `patches/*.pcd` and a **measured** body-frame patch-origin height above local ground. The tool does not guess this height.
+
+Example:
+
+```bash
+ros2 run agt_terrain_map_generator terrain_offline_generate \
+  --map-directory /path/to/mapping_run \
+  --output-root /tmp/mq3_p0 \
+  --sensor-height-m <MEASURED_HEIGHT> \
+  --resolution-m 0.10
+```
+
+The result is written under `OUTPUT_ROOT/terrain_package/` and includes Nav2 `map.pgm` + `map.yaml` alongside elevation, slope, obstacle, confidence, trajectory and traversability layers.
+
+MQ3-P0 currently uses elevation-cell confidence for the one-shot traversability build. Static-confidence / voxel-persistence evidence remains an offline analysis layer and is not silently folded into this first runnable pipeline.
+
+If the package was built without native Patchwork++, the executable remains available but exits with an explicit build-time dependency error instead of silently falling back to a different segmenter.

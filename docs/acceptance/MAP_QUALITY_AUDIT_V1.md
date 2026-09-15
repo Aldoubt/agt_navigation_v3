@@ -731,6 +731,36 @@ Required first MQ3 inputs/gates:
 5. deterministic output package plus counts/hashes suitable for the existing
    map-quality A/B report.
 
+### MQ3-P0 implementation: offline one-shot patch pipeline
+
+A standalone `terrain_offline_generate` executable now wires the existing terrain components without enabling the ROS runtime node:
+
+```text
+PclPatchSetSource
+  -> GravityLevelPatchPreprocessor
+  -> TerrainPreprocessor
+  -> Patchwork++ per patch
+  -> transform ground/non-ground back to map
+  -> MedianElevationBuilder
+  -> CentralDifferenceSlopeBuilder
+  -> HeightObstacleBuilder
+  -> trajectory evidence
+  -> TraversabilityBuilder
+  -> TerrainPackageExporter
+```
+
+The exporter also writes Nav2 `map.pgm + map.yaml` from traversability state (blocked=occupied, free=free, otherwise unknown) and records free/occupied/unknown counts in metadata. Existing terrain debug layers are preserved.
+
+Activation safeguards:
+
+- the ROS `pipeline.enabled` default remains false;
+- the localization/global PCD is never modified;
+- the offline command requires an explicit measured `--sensor-height-m > 0`;
+- if native Patchwork++ is unavailable at build time, the executable fails explicitly rather than substituting another algorithm;
+- MQ3-P0 uses elevation-cell confidence only; static-confidence and persistence evidence remain separate until a later A/B proves they should participate.
+
+MQ3-P0 is not accepted until the frozen patch-set job builds/runs and its output is compared against the converter baselines.
+
 ## MQ3 - Terrain-generator A/B candidate
 
 Run `agt_terrain_map_generator` on the same frozen mapping assets only after

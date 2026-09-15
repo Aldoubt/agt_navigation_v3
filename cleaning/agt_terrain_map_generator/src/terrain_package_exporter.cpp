@@ -92,6 +92,10 @@ bool TerrainPackageExporter::export_package(
   std::vector<std::uint8_t> confidence_image(expected, 205U);
   std::vector<std::uint8_t> corridor(expected, 0U);
   std::vector<std::uint8_t> traversability_image(expected, 205U);
+  std::vector<std::uint8_t> nav_map(expected, 205U);
+  std::size_t nav_free = 0U;
+  std::size_t nav_occupied = 0U;
+  std::size_t nav_unknown = 0U;
   for (std::size_t index = 0U; index < expected; ++index) {
     if (std::isfinite(slope_deg[index])) {
       slope[index] = static_cast<std::uint8_t>(std::clamp(
@@ -112,13 +116,21 @@ bool TerrainPackageExporter::export_package(
     const auto & cell = traversability.cells[index];
     if (cell.state == TraversabilityState::BLOCKED) {
       traversability_image[index] = 0U;
+      nav_map[index] = 0U;
+      ++nav_occupied;
     } else if (cell.state == TraversabilityState::FREE) {
       traversability_image[index] = static_cast<std::uint8_t>(std::clamp(
         (1.0 - static_cast<double>(cell.cost)) * 254.0, 0.0, 254.0));
+      nav_map[index] = 254U;
+      ++nav_free;
+    } else {
+      nav_map[index] = 205U;
+      ++nav_unknown;
     }
   }
 
-  if (!write_pgm(package_root / "elevation.pgm", geometry, elevation_pixels(elevation)) ||
+  if (!write_pgm(package_root / "map.pgm", geometry, nav_map) ||
+    !write_pgm(package_root / "elevation.pgm", geometry, elevation_pixels(elevation)) ||
     !write_pgm(package_root / "slope.pgm", geometry, slope) ||
     !write_pgm(package_root / "obstacle.pgm", geometry, obstacle) ||
     !write_pgm(package_root / "confidence.pgm", geometry, confidence_image) ||
@@ -126,6 +138,23 @@ bool TerrainPackageExporter::export_package(
     !write_pgm(package_root / "traversability.pgm", geometry, traversability_image))
   {
     error = "failed to write one or more terrain package PGM layers";
+    return false;
+  }
+
+  std::ofstream map_yaml(package_root / "map.yaml");
+  if (!map_yaml) {
+    error = "failed to write Nav2 map.yaml";
+    return false;
+  }
+  map_yaml << "image: map.pgm\n"
+           << "mode: trinary\n"
+           << "resolution: " << geometry.resolution << "\n"
+           << "origin: [" << geometry.origin_x << ", " << geometry.origin_y << ", 0.0]\n"
+           << "negate: 0\n"
+           << "occupied_thresh: 0.65\n"
+           << "free_thresh: 0.196\n";
+  if (!map_yaml) {
+    error = "failed while writing Nav2 map.yaml";
     return false;
   }
 
@@ -140,6 +169,11 @@ bool TerrainPackageExporter::export_package(
            << "frame: " << geometry.frame_id << "\n"
            << "map_id: " << context.map_id << "\n"
            << "map_version: " << context.map_version << "\n"
+           << "source_pcd: " << context.source_pcd << "\n"
+           << "grid_shape: [" << geometry.height << ", " << geometry.width << "]\n"
+           << "free_cells: " << nav_free << "\n"
+           << "occupied_cells: " << nav_occupied << "\n"
+           << "unknown_cells: " << nav_unknown << "\n"
            << "parameters: " << parameter_summary << "\n";
   if (!metadata) {
     error = "failed while writing terrain package metadata";

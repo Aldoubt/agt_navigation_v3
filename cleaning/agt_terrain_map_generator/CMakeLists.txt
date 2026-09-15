@@ -47,6 +47,13 @@ target_include_directories(agt_pcl_patch_set_source PUBLIC
 target_link_libraries(agt_pcl_patch_set_source PRIVATE ${PCL_LIBRARIES})
 
 add_executable(terrain_generator_node src/terrain_generator_node.cpp)
+add_executable(terrain_offline_generate tools/terrain_offline_generate.cpp)
+target_include_directories(terrain_offline_generate PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(terrain_offline_generate
+  agt_terrain_core
+  agt_pcl_patch_set_source)
+
 target_include_directories(terrain_generator_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
@@ -81,6 +88,7 @@ target_link_libraries(static_confidence_exporter
 
 set(AGT_TERRAIN_INSTALL_TARGETS
   terrain_generator_node
+  terrain_offline_generate
   robot_mesh_filter_test
   voxel_persistence_analyzer
   static_confidence_exporter
@@ -97,6 +105,8 @@ if(AGT_ENABLE_PATCHWORKPP)
       $<INSTALL_INTERFACE:include>)
     target_compile_features(agt_patchworkpp_ground_segmenter PRIVATE cxx_std_20)
     target_link_libraries(agt_patchworkpp_ground_segmenter PRIVATE patchworkpp::ground_seg_cores)
+    target_compile_definitions(terrain_offline_generate PRIVATE AGT_HAS_PATCHWORKPP=1)
+    target_link_libraries(terrain_offline_generate agt_patchworkpp_ground_segmenter)
     list(APPEND AGT_TERRAIN_INSTALL_TARGETS agt_patchworkpp_ground_segmenter)
     message(STATUS "AGT terrain: Patchwork++ adapter enabled")
   else()

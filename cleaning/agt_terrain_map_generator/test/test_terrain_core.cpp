@@ -360,6 +360,8 @@ TEST(TerrainV03, TerrainPackageExporterWritesAllRequiredLayers)
   ASSERT_TRUE(exporter.export_package(
     elevation, {0.0F}, {0.0F}, {1.0F}, corridor, traversability, context, "unit_test=true", error)) << error;
   const auto package = root / "terrain_package";
+  EXPECT_TRUE(std::filesystem::exists(package / "map.pgm"));
+  EXPECT_TRUE(std::filesystem::exists(package / "map.yaml"));
   EXPECT_TRUE(std::filesystem::exists(package / "elevation.pgm"));
   EXPECT_TRUE(std::filesystem::exists(package / "slope.pgm"));
   EXPECT_TRUE(std::filesystem::exists(package / "obstacle.pgm"));
