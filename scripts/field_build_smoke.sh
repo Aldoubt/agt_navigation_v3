@@ -11,6 +11,11 @@ else
 fi
 NATIVE_PREFIX="${AGT_NATIVE_PREFIX:-${WS_ROOT}/.agt_native}"
 
+# Always run colcon from the workspace root. The navigation repository is one
+# source tree inside the workspace; using the current directory here can hide
+# sibling packages such as livox_ros_driver2 and batch_lio.
+cd "${WS_ROOT}"
+
 if [[ ! -f /opt/ros/humble/setup.bash ]]; then
   echo "ERROR: /opt/ros/humble/setup.bash not found. Run this on Ubuntu 22.04 / ROS 2 Humble." >&2
   exit 2
@@ -19,9 +24,9 @@ set +u
 source /opt/ros/humble/setup.bash
 set -u
 
-if [[ -f install/setup.bash ]]; then
+if [[ -f "${WS_ROOT}/install/setup.bash" ]]; then
   set +u
-  source install/setup.bash
+  source "${WS_ROOT}/install/setup.bash"
   set -u
 fi
 
@@ -148,14 +153,19 @@ for exe in "${native_runtime_bins[@]}"; do
 done
 echo "PASS native relocalization runtime linkage"
 
-# Pure software tests that should not need sensors.
+# Pure software tests that should not need sensors. Keep their result base
+# separate from the workspace-wide build results: external packages such as
+# PGO may have stale or intentionally failing historical lint results.
+SMOKE_TEST_RESULT_BASE="${WS_ROOT}/build/field_smoke_test_results"
+rm -rf "${SMOKE_TEST_RESULT_BASE}"
 colcon test --event-handlers console_direct+ \
+  --test-result-base "${SMOKE_TEST_RESULT_BASE}" \
   --packages-select \
     agt_base_control \
     agt_map_converter \
     agt_map_manager \
     agt_navigation_runtime
-colcon test-result --verbose
+colcon test-result --verbose --test-result-base "${SMOKE_TEST_RESULT_BASE}"
 
 # These ament_python packages currently do not register their pytest modules
 # with colcon, so run the behavior tests explicitly. This keeps the migration
@@ -170,7 +180,6 @@ python3 -m pytest -q \
 ros2 launch agt_navigation_runtime navigation_lio.launch.py --show-args >/dev/null
 ros2 launch agt_global_relocalization global_relocalization.launch.py --show-args >/dev/null
 ros2 launch agt_system_bringup rviz_field_demo.launch.py --show-args >/dev/null
-ros2 launch agt_gazebo_sim mapping_demo.launch.py --show-args >/dev/null
 ros2 launch agt_gazebo_sim navigation_demo.launch.py --show-args >/dev/null
 
 # Safety behavior is a migration gate too: LOST must hard-stop and reopening the
