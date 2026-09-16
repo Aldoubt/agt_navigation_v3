@@ -36,6 +36,7 @@ that files have been moved or deleted.
 | [ADVANCED_DESIGN_V2.md](ADVANCED_DESIGN_V2.md) | architecture | Terrain and map-manager design decisions |
 | [architecture/TARGET_FUNCTIONAL_ARCHITECTURE.md](architecture/TARGET_FUNCTIONAL_ARCHITECTURE.md) | architecture | Target functional topology |
 | [architecture/RUNTIME_ARCHITECTURE.md](architecture/RUNTIME_ARCHITECTURE.md) | architecture | Process-level runtime topology |
+| [architecture/V3_NODE_GRAPH_AND_MAP_CONTRACT.md](architecture/V3_NODE_GRAPH_AND_MAP_CONTRACT.md) | architecture | Current node graph, ROS interfaces, and Map Package runtime contract |
 | [architecture/map_pipeline_design.md](architecture/map_pipeline_design.md) | architecture | Map generation pipeline |
 | [design/map_manager_architecture.md](design/map_manager_architecture.md) | architecture | Map manager architecture baseline |
 | [design/operator_mode_upgrade.md](design/operator_mode_upgrade.md) | architecture | Operator-mode workflow design and task log |

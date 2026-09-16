@@ -117,7 +117,7 @@ new machine should recreate it using the committed simulation harness rather
 than copying a hidden local workspace dependency:
 
 ```bash
-ros2 launch agt_gazebo_sim mapping_demo.launch.py
+ros2 launch agt_gazebo_sim navigation_demo.launch.py
 ```
 
 Then use the production map-save/conversion/relocalization-asset tools documented

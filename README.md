@@ -1,7 +1,9 @@
 # AGT Navigation V3
 
 AGT Navigation V3 是面向 Bunker 类履带底盘与 Livox MID360 的 ROS 2 Humble
-导航栈：连续 LIO 里程计、3D 全局重定位、单一全局校正 TF，以及 Nav2 导航。
+导航栈：连续 Batch-LIO 局部里程计、3D 全局重定位、单一全局校正 TF，以及 Nav2
+导航。FAST-LIO2、PGO、地图保存和重定位资产生成属于独立的
+`agt-lio-pgo-mapping` producer，不在本仓库启动。
 
 当前里程碑：**v0.3.0 定位合同冻结**。下一阶段为 P3 运行时验收、Nav2 现场验证与
 操作员工作流。
@@ -61,24 +63,143 @@ bash src/agt_navigation_v3/scripts/field_build_smoke.sh
 [docs/BOOTSTRAP_AND_ROSBAG_GATE.md](docs/BOOTSTRAP_AND_ROSBAG_GATE.md) 与
 [docs/MIGRATION.md](docs/MIGRATION.md)。
 
-### 启动现场软件链
+### 离线启动导航与重定位
 
-必须先**单独**启动并验证 MID360 驱动、Bunker 驱动、URDF/static TF 与 C1
-能力。AGT 现场 launch 刻意不启动这些硬件驱动。
+离线验证不要使用现场入口 `hmi_field_demo.launch.py`：现场入口假定 MID360、URDF、底盘
+和外部硬件已经单独启动。离线入口会自己启动 robot description、Batch-LIO、PointCloud2
+桥、全局重定位和 Nav2，再只回放 bag 中的原始 LiDAR/IMU：
 
 ```bash
 cd ~/ros2_ws
 source /opt/ros/humble/setup.bash
 source install/setup.bash
 
+ros2 launch agt_system_bringup acceptance_offline_replay.launch.py \
+  bag:=/home/yangxuan/ros2_ws/experiments/data/rosbag/bunker_mid360_mapping_20260901_205036 \
+  navigation_map:=/home/yangxuan/ros2_ws/maps/bunker_mid360_mapping_20260901_205036/v003-indexed/navigation/map.yaml \
+  localization_map:=/home/yangxuan/ros2_ws/maps/bunker_mid360_mapping_20260901_205036/v003-indexed/localization/global_map.pcd \
+  relocalization_assets:=/home/yangxuan/ros2_ws/maps/bunker_mid360_mapping_20260901_205036/v003-indexed/localization/relocalization \
+  relocalization_executable:=global_relocalization \
+  auto_relocalize:=true \
+  launch_rviz:=true
+```
+
+这里的 bag、`global_map.pcd`、Polar/BBS 资产和 `map.yaml/map.pgm` 必须来自同一张地图
+的同一版本。启动成功的判据不是 Nav2 进程出现，而是：
+
+1. Map Server 成功加载 `map.yaml`。
+2. Batch-LIO 输出 `/agt/odometry/local`。
+3. 重定位进入 `LOCALIZED`，不再持续输出 `REJECTED`。
+4. `tf2_echo map base_link` 能看到稳定的 `map -> odom -> base_link`。
+5. Nav2 costmap 不再持续报等待 `map/base_link` TF。
+
+当前工作区的 `bunker_mid360_mapping_20260901_211105` 只有旧式 PGO/重定位散件，尚未
+导出为当前正式 Map Package；不能直接与 `205036/v003-indexed` 交叉拼接。直接把
+`211105` bag 和 `205036` 地图包混用时，我实际看到的结果是：Nav2 地图可以加载，
+但 BBS/GICP 返回 `small_gicp did not converge`，没有发布 `map -> odom`，所以 Nav2
+一直等待 TF。这至少说明问题不在 Nav2 的 PGM/YAML 加载；在 211105 的正式 Map Package
+尚未生成前，不能把这次结果当成完整导航验收，也不能把旧式 loose assets 和正式包混用。
+
+要验证 211105，先在 mapping producer 中用对应的 `20260901_211105-pgo-v4` 导出完整
+Map Package，再把它的导航地图、最终 PGO PCD 和重定位资产作为一组传入本入口。
+
+### 现场启动导航（默认不接入 HMI）
+
+现场流程固定为：
+
+```text
+建图 producer
+  -> PGO 优化并确认最终 global_map.pcd
+  -> 生成 navigation/map.yaml + map.pgm
+  -> 生成 Polar Context / BBS 重定位资产
+  -> 创建并校验 Map Package
+  -> 选择 map_id/map_version
+  -> RViz 启动导航
+```
+
+这里的“已经校验过的 Map Package”不是手工约定，而是通过
+`create_map_package` 原子生成并自校验的目录。建图完成后，在 mapping producer
+输出最终 PGO PCD 和导航地图目录，再执行：
+
+```bash
+cd ~/ros2_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+
+# 1. 从同一份最终 PGO PCD 生成重定位资产
+ros2 run agt_global_relocalization_native build_relocalization_assets \
+  --map /path/to/final/global_map.pcd \
+  --output /tmp/site_v1_relocalization \
+  --map-leaf 0.5 --bbs-min-level-res 0.5 --bbs-max-level 5
+
+# 2. 创建新的不可变 Map Package；不要覆盖已有版本
+ros2 run agt_map_manager create_map_package \
+  --map-root /home/yangxuan/ros2_ws/maps \
+  --map-id site_name \
+  --map-version v001 \
+  --source-pcd /path/to/final/global_map.pcd \
+  --navigation-dir /path/to/pgo-consistent-navigation \
+  --relocalization-assets-dir /tmp/site_v1_relocalization
+
+# 3. 查看有效包；这里能列出的才是可选地图
+export AGT_MAP_ROOT=/home/yangxuan/ros2_ws/maps
+ros2 run agt_map_manager list_map_packages
+```
+
+确认地图时至少检查：PCD 与 PGM 在 RViz 中重合、`map.yaml` 能加载、重定位资产来自
+同一份最终 PGO PCD，并完成一次静止全局重定位。确认通过后，选择版本：
+
+```bash
+ros2 run agt_map_manager select_map_package \
+  --map-root "$AGT_MAP_ROOT" \
+  --map-id site_name \
+  --map-version v001
+
+ros2 run agt_map_manager validate_active_map \
+  --active-state-file "$AGT_MAP_ROOT/active_map.yaml"
+```
+
+最后，必须先**单独**启动并验证 MID360 驱动、Bunker 驱动和 URDF/static TF。AGT
+导航 launch 不负责启动这些硬件驱动：
+
+```bash
+ros2 launch agt_system_bringup sensor_session.launch.py
+```
+
+传感器运行后，另一个终端使用选定地图启动 RViz 导航：
+
+```bash
+ros2 launch agt_system_bringup rviz_field_demo.launch.py \
+  map:=$AGT_MAP_ROOT/site_name/v001/navigation/map.yaml \
+  global_map:=$AGT_MAP_ROOT/site_name/v001/localization/global_map.pcd \
+  relocalization_assets:=$AGT_MAP_ROOT/site_name/v001/localization/relocalization \
+  map_id:=site_name_v001
+```
+
+当前默认不启动 `hmi_field_demo.launch.py`。HMI 仅作为后续可选入口；它不参与建图、
+地图确认或首次导航验收。`rviz_field_demo.launch.py` 只启动导航和定位消费者，绝不
+启动 FAST-LIO2、PGO、mapping session 或 OctoMap。
+
+```text
+Map Package
+  ├─ navigation/map.yaml + map.pgm       -> Nav2 map_server
+  ├─ localization/global_map.pcd         -> 全局重定位 / map tracker
+  └─ localization/relocalization/        -> Polar Context + BBS 候选资产
+```
+
+地图包目录、文件约束和 frame contract 见
+[docs/architecture/V3_NODE_GRAPH_AND_MAP_CONTRACT.md](docs/architecture/V3_NODE_GRAPH_AND_MAP_CONTRACT.md)。
+
+显式三路径只用于当前 RViz 现场入口；三个路径必须来自同一个已校验 Map Package。
+
+```bash
 ros2 launch agt_system_bringup rviz_field_demo.launch.py \
   map:=/data/site/navigation/map.yaml \
   global_map:=/data/site/localization/global_map.pcd \
   relocalization_assets:=/data/site/localization/relocalization \
   map_id:=site_v1
 ```
-
-导航和定位资产必须来自同一个已批准 map package。现场流程、preflight 与首条路线
+导航和定位资产必须来自同一个已批准 Map Package。现场流程、preflight 与首条路线
 顺序见 [docs/RVIZ_FIELD_ACCEPTANCE.md](docs/RVIZ_FIELD_ACCEPTANCE.md)。
 
 ### 运行确定性离线回放
@@ -132,6 +253,20 @@ ros2 run agt_navigation_runtime demo_preflight
 只有在定位状态为 `LOCALIZED`、全局校正有效、RViz 中
 `map -> odom -> base_link` 合理且稳定、并且现场 preflight 通过后，才允许发送
 导航目标。
+
+## 节点图与数据接口
+
+当前 v3 的完整运行时拓扑、节点职责、topic/service/TF，以及导航和重定位所需的
+地图文件格式，统一见
+[docs/architecture/V3_NODE_GRAPH_AND_MAP_CONTRACT.md](docs/architecture/V3_NODE_GRAPH_AND_MAP_CONTRACT.md)。
+
+最关键的启动前检查是：
+
+- 传感器提供 Livox `CustomMsg` 和 `sensor_msgs/Imu`，并已启动真实安装位姿的 URDF/static TF。
+- `Batch-LIO` 输出 `/agt/odometry/local`，形成 `odom -> base_link` 连续局部运动。
+- PointCloud2 bridge 输出 `/agt/livox/points`，只供障碍物、全局重定位和可选 tracker 使用。
+- Map Package 同时提供 Nav2 `map.yaml`、最终 PGO `global_map.pcd` 和 Polar/BBS 资产。
+- 全局定位成功后，只有 `agt_localization_manager` 发布 `map -> odom`。
 
 ## 能力状态
 

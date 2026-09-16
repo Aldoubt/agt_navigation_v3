@@ -23,8 +23,8 @@ Goals:
  |              |              |                 |
 Map Manager  Perception   Localization     Navigation
  |              |              |                 |
-PCD/PGM     PointCloud    map->odom          Nav2
-Storage     Pipeline      Owner
+Map Package PointCloud    map->odom          Nav2
+consumer     Pipeline      Owner
                   |
                Sensors
                   |
@@ -62,13 +62,13 @@ Rules:
 Raw LIO path must remain unchanged.
 
 ```
-MID360
+MID360 / Livox driver
  |
  +---------------------------+
  |                           |
-LIO path                PointCloud2 path
+Batch-LIO path          PointCloud2 path
  |                           |
-FAST-LIO/Batch-LIO     preprocessing
+local odometry         preprocessing
                              |
               +--------------+--------------+
               |                             |
@@ -87,25 +87,30 @@ Filtering rules:
 
 ## 5. Map Package Standard
 
-Future map output:
+Current Map Package consumed by navigation:
 
 ```
-maps/latest/
+maps/<map_id>/<map_version>/
 
-map.pcd
-map.pgm
-map.yaml
-elevation.yaml
-metadata.json
-relocalization_assets/
+metadata.yaml
+localization/global_map.pcd
+localization/relocalization/
+navigation/map.yaml
+navigation/map.pgm
+navigation/elevation.pgm       # optional
+navigation/slope.pgm           # optional
+navigation/obstacle.pgm        # optional
 ```
 
-Map manager responsibilities:
+Navigation-side Map Manager responsibilities:
 
-- Save map.
-- Load active map.
-- Maintain latest map.
-- Support scene profiles.
+- Discover and validate immutable map packages.
+- Activate one map ID/version through `active_map.yaml`.
+- Publish the selected package to runtime consumers.
+- Keep localization and navigation map IDs synchronized.
+
+FAST-LIO2, PGO, map saving, and relocalization asset generation are owned by
+the separate mapping producer and are not started by this repository.
 
 ---
 
@@ -113,14 +118,11 @@ Map manager responsibilities:
 
 Recommended interfaces:
 
-### Mapping
+### Mapping boundary
 
-```
-start_mapping()
-stop_mapping()
-save_map()
-status()
-```
+Mapping control (`start_mapping`, `stop_mapping`, `save_map`) belongs to the
+separate mapping producer. V3 exposes no mapping runtime and only consumes a
+validated Map Package.
 
 ### Localization
 
