@@ -16,7 +16,7 @@ from .edit_session import assert_navigation_maps_compatible
 from .map_package import PackageInfo, validate_package
 
 
-DEFAULT_MAP_ROOT = Path('/home/yangxuan/ros2_ws/agt_data/maps')
+DEFAULT_MAP_ROOT = Path('/home/yangxuan/ros2_ws/maps')
 DEFAULT_ACTIVE_STATE = DEFAULT_MAP_ROOT / 'active_map.yaml'
 
 

@@ -34,7 +34,7 @@ def generate_launch_description():
     default_nav2_params = str(
         Path(get_package_share_directory('agt_nav2_bringup')) / 'config' / 'nav2_params.yaml')
     default_batch_config = str(
-        Path(get_package_share_directory('agt_mapping_bringup')) / 'config' / 'batch_lio_mid360.yaml')
+        Path(get_package_share_directory('agt_navigation_runtime')) / 'config' / 'batch_lio_mid360.yaml')
 
     return LaunchDescription([
         DeclareLaunchArgument('map', default_value='', description='Absolute path to derived Nav2 map YAML; required when enable_nav2=true.'),

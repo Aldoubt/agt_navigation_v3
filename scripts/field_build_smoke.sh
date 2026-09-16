@@ -47,9 +47,6 @@ required_ros_pkgs=(
   livox_ros_driver2
   ros2_livox_simulation
   batch_lio
-  fastlio2
-  pgo
-  hba
   camera_gimbal_interfaces
   agt_asensing_driver
 )
@@ -170,8 +167,7 @@ python3 -m pytest -q \
 # Parse launch descriptions without starting hardware. These commands catch
 # package discovery/import/launch-file errors; real sensor/action availability
 # is checked later by demo_preflight on the robot.
-ros2 launch agt_mapping_bringup mapping_mode.launch.py --show-args >/dev/null
-ros2 launch agt_mapping_bringup navigation_lio.launch.py --show-args >/dev/null
+ros2 launch agt_navigation_runtime navigation_lio.launch.py --show-args >/dev/null
 ros2 launch agt_global_relocalization global_relocalization.launch.py --show-args >/dev/null
 ros2 launch agt_system_bringup rviz_field_demo.launch.py --show-args >/dev/null
 ros2 launch agt_gazebo_sim mapping_demo.launch.py --show-args >/dev/null

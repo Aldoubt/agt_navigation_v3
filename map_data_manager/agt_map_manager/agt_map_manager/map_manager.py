@@ -59,10 +59,10 @@ class MapManager(Node):
 
     def __init__(self) -> None:
         super().__init__('agt_map_manager')
-        self.declare_parameter('map_root', '/home/yangxuan/ros2_ws/agt_data/maps')
+        self.declare_parameter('map_root', '/home/yangxuan/ros2_ws/maps')
         self.declare_parameter(
-            'active_state_file', '/home/yangxuan/ros2_ws/agt_data/maps/active_map.yaml')
-        self.declare_parameter('edit_root', '/home/yangxuan/ros2_ws/agt_data/map_edits')
+            'active_state_file', '/home/yangxuan/ros2_ws/maps/active_map.yaml')
+        self.declare_parameter('edit_root', '/home/yangxuan/ros2_ws/map_edits')
         self.declare_parameter('verify_hashes_on_discovery', False)
         self.declare_parameter('verify_hashes_on_load', True)
         self.declare_parameter('status_topic', '/agt/map/status')
@@ -72,7 +72,7 @@ class MapManager(Node):
         self.declare_parameter('publish_edit_service', '/agt/map/edit/publish')
         self.declare_parameter('cancel_edit_service', '/agt/map/edit/cancel')
         self.declare_parameter('generate_action', '/agt/map/generate')
-        self.declare_parameter('registry_file', '/home/yangxuan/ros2_ws/agt_data/maps/map_registry.yaml')
+        self.declare_parameter('registry_file', '/home/yangxuan/ros2_ws/maps/map_registry.yaml')
         self.declare_parameter('events_topic', '/agt/map/events')
         self.declare_parameter('validate_service', '/agt/map/validate')
         self.declare_parameter('activate_service', '/agt/map/activate')

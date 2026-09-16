@@ -21,7 +21,7 @@ def generate_launch_description():
     bag_lidar = LaunchConfiguration('lidar_topic')
     batch_config = LaunchConfiguration('batch_config')
     description_share = Path(get_package_share_directory('tracked_chassis_description'))
-    mapping_share = Path(get_package_share_directory('agt_mapping_bringup'))
+    runtime_share = Path(get_package_share_directory('agt_navigation_runtime'))
 
     return LaunchDescription([
         DeclareLaunchArgument('global_map', description='Path to global_map.pcd'),
@@ -30,7 +30,7 @@ def generate_launch_description():
         DeclareLaunchArgument('auto_relocalize', default_value='true'),
         DeclareLaunchArgument(
             'batch_config',
-            default_value=str(mapping_share / 'config' / 'batch_lio_mid360.yaml'),
+            default_value=str(runtime_share / 'config' / 'batch_lio_mid360.yaml'),
             description='Canonical Batch-LIO runtime config shared with adapter/relocalization.'),
         DeclareLaunchArgument(
             'robot_description_calibration_file',
@@ -73,7 +73,7 @@ def generate_launch_description():
             'start_rviz': 'false',
         }),
 
-        include('agt_mapping_bringup', 'navigation_lio.launch.py', {
+        include('agt_navigation_runtime', 'navigation_lio.launch.py', {
             'use_sim_time': 'true',
             'launch_batch_rviz': 'false',
             'batch_config': batch_config,

@@ -9,55 +9,12 @@ import signal
 import subprocess
 import sys
 import time
-from datetime import datetime
 
 from .processes import ManagedProcess
 from .profile import Profile, load_profile, mode_is_ready, readiness_rows
 
 
-DEFAULT_ACTIVE_STATE = Path('/home/yangxuan/ros2_ws/agt_data/maps/active_map.yaml')
-DEFAULT_MAPPING_ROOT = Path('/home/yangxuan/ros2_ws/agt_data/mapping_runs')
-
-
-def pgo_save_command(destination: Path) -> tuple[str, ...]:
-    request = f"{{file_path: '{destination}', save_patches: true}}"
-    return ('ros2', 'service', 'call', '/pgo/save_maps', 'interface/srv/SaveMaps', request)
-
-
-def relocalization_assets_command(source_pcd: Path, output: Path) -> tuple[str, ...]:
-    return (
-        'ros2', 'run', 'agt_global_relocalization_native', 'build_relocalization_assets',
-        '--map', str(source_pcd), '--output', str(output),
-    )
-
-
-def relocalization_candidates_command(mapping_dir: Path, output: Path) -> tuple[str, ...]:
-    return (
-        'ros2', 'run', 'agt_global_relocalization_native', 'build_relocalization_candidates',
-        '--map-dir', str(mapping_dir), '--output', str(output),
-    )
-
-
-def package_generation_command(
-    profile: Profile,
-    map_id: str,
-    map_version: str,
-    source_pcd: Path,
-    relocalization_assets: Path,
-    trajectory_poses: Path,
-) -> tuple[str, ...]:
-    return (
-        'ros2', 'run', 'agt_map_manager', 'generate_map_package',
-        '--map-root', str(profile.map_root),
-        '--map-id', map_id,
-        '--map-version', map_version,
-        '--source-pcd', str(source_pcd),
-        '--pipeline-config', str(profile.pipeline_config),
-        '--relocalization-assets-dir', str(relocalization_assets),
-        '--trajectory-poses', str(trajectory_poses),
-    )
-
-
+DEFAULT_ACTIVE_STATE = Path('/home/yangxuan/ros2_ws/maps/active_map.yaml')
 def map_selection_command(profile: Profile, map_id: str, map_version: str) -> tuple[str, ...]:
     return (
         'ros2', 'run', 'agt_map_manager', 'select_map_package',
@@ -94,21 +51,6 @@ def parse_map_list(output: str) -> list[tuple[str, str]]:
         if map_id and map_version:
             packages.append((map_id, map_version))
     return packages
-
-
-def wait_for_stable_files(paths: list[Path], timeout_sec: float = 20.0) -> None:
-    """Require two consecutive unchanged samples before using PGO output."""
-    deadline = time.monotonic() + timeout_sec
-    previous = None
-    while time.monotonic() < deadline:
-        if all(path.is_file() for path in paths):
-            snapshot = tuple((path.stat().st_size, path.stat().st_mtime_ns) for path in paths)
-            if snapshot == previous and all(size > 0 for size, _ in snapshot):
-                return
-            previous = snapshot
-        time.sleep(0.5)
-    missing = [str(path) for path in paths if not path.is_file()]
-    raise RuntimeError(f'PGO artifacts did not stabilize; missing={missing}')
 
 
 class OperatorConsole:
@@ -153,7 +95,7 @@ class OperatorConsole:
                 subprocess.run(command, check=True)
         return ready
 
-    def _run_child(self, name: str, command: tuple[str, ...], *, mapping: bool = False) -> str:
+    def _run_child(self, name: str, command: tuple[str, ...]) -> str:
         child = ManagedProcess(name, command)
         self._interrupt_requested = False
 
@@ -169,80 +111,12 @@ class OperatorConsole:
                 if not self._interrupt_requested:
                     continue
                 self._interrupt_requested = False
-                if not mapping:
-                    child.stop()
-                    return 'stopped'
-                decision = self._mapping_interrupt_menu()
-                if decision == 'continue':
-                    continue
-                if decision == 'save':
-                    self._save_mapping()
-                    child.stop()
-                    return 'saved'
                 child.stop()
-                return 'discarded'
+                return 'stopped'
             return 'exited'
         finally:
             signal.signal(signal.SIGINT, previous)
             child.stop()
-
-    def _mapping_interrupt_menu(self) -> str:
-        while True:
-            answer = self.input('\nMapping interrupted: [s]ave, [d]iscard, [c]ontinue: ').strip().lower()
-            if answer in ('s', 'save'):
-                return 'save'
-            if answer in ('d', 'discard'):
-                return 'discard'
-            if answer in ('c', 'continue', ''):
-                return 'continue'
-            print('Choose s, d, or c.')
-
-    def _save_mapping(self) -> None:
-        stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        default_dir = DEFAULT_MAPPING_ROOT / stamp
-        raw_dir = self.input(f'PGO output directory [{default_dir}]: ').strip()
-        output_dir = Path(raw_dir).expanduser() if raw_dir else default_dir
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        print('[mapping] requesting final PGO save')
-        subprocess.run(pgo_save_command(output_dir), check=True)
-        source_pcd = output_dir / 'map.pcd'
-        poses = output_dir / 'poses.txt'
-        wait_for_stable_files([source_pcd, poses])
-
-        relocalization = output_dir / 'relocalization'
-        print('[mapping] building relocalization assets from final PGO PCD')
-        subprocess.run(relocalization_assets_command(source_pcd, relocalization), check=True)
-        patches = output_dir / 'patches'
-        if not patches.is_dir() or not any(patches.glob('*.pcd')):
-            raise RuntimeError(
-                'PGO save did not produce patches/*.pcd required for relocalization candidates')
-        print('[mapping] building relocalization candidate database from PGO keyframes')
-        subprocess.run(relocalization_candidates_command(output_dir, relocalization), check=True)
-
-        map_id = self.input('Map ID: ').strip()
-        map_version = self.input('Generated map version [v001-generated]: ').strip() or 'v001-generated'
-        if not map_id:
-            raise RuntimeError('Map ID is required; generated package was not published')
-        if not self.profile.pipeline_config.is_file():
-            raise RuntimeError(f'pipeline config does not exist: {self.profile.pipeline_config}')
-
-        print('[mapping] generating immutable, non-active Map Package')
-        subprocess.run(
-            package_generation_command(
-                self.profile, map_id, map_version, source_pcd, relocalization, poses),
-            check=True,
-        )
-        print(
-            f'[mapping] package {map_id}/{map_version} is ready but not active. '
-            'Create an HMI Edit Session, publish an approved version, then select it before navigation.')
-
-    def mapping(self) -> int:
-        if not self.preflight('mapping'):
-            return 2
-        result = self._run_child('mapping', self.profile.mode_commands['mapping'], mapping=True)
-        print(f'[mapping] {result}')
-        return 0 if result in ('saved', 'discarded', 'stopped', 'exited') else 1
 
     def navigation(
         self,
@@ -305,7 +179,7 @@ class OperatorConsole:
         self.start_sensors()
         try:
             while True:
-                self.preflight('mapping', run_mode_checks=False)
+                self.preflight('navigation', run_mode_checks=False)
                 print(
                     '[sensors] Next connection check in '
                     f'{watch_interval_sec:g}s. Ctrl-C stops the sensor session.')
@@ -326,7 +200,7 @@ def _default_profile_path() -> Path:
 
 def main(argv=None) -> None:
     parser = argparse.ArgumentParser(
-        description='Start the sensor session, mapping, or an AGT field mode.')
+        description='Start the sensor session or an AGT navigation field mode.')
     parser.add_argument('--profile', type=Path, default=_default_profile_path())
     parser.add_argument('--map-id', default='', help='Exact package ID to select before navigation.')
     parser.add_argument('--map-version', default='', help='Exact package version to select before navigation.')
@@ -334,7 +208,7 @@ def main(argv=None) -> None:
         '--watch-interval-sec', type=float, default=8.0,
         help='Sensor connection status refresh interval (default: 8).')
     parser.add_argument(
-        'mode', nargs='?', choices=('sensors', 'mapping', 'edit', 'navigation', 'inspection'), default='sensors')
+        'mode', nargs='?', choices=('sensors', 'edit', 'navigation', 'inspection'), default='sensors')
     args = parser.parse_args(argv)
     if args.watch_interval_sec <= 0:
         parser.error('--watch-interval-sec must be greater than zero')
@@ -343,8 +217,6 @@ def main(argv=None) -> None:
         try:
             if args.mode == 'sensors':
                 result = console.sensors(args.watch_interval_sec)
-            elif args.mode == 'mapping':
-                result = console.mapping()
             elif args.mode == 'edit':
                 result = console.edit(map_id=args.map_id.strip(), map_version=args.map_version.strip())
             else:

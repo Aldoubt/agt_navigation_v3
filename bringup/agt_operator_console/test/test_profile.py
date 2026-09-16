@@ -19,15 +19,15 @@ def _check(name, required_for):
 
 
 def test_required_failure_blocks_only_required_mode():
-    checks = [_check('lidar', ['mapping', 'navigation']), _check('rtk', [])]
+    checks = [_check('lidar', ['navigation']), _check('rtk', [])]
     results = [CheckResult('lidar', True, 'ok'), CheckResult('rtk', False, 'missing')]
-    rows = readiness_rows(checks, results, 'mapping')
+    rows = readiness_rows(checks, results, 'navigation')
     assert [(row.name, row.state) for row in rows] == [('lidar', 'READY'), ('rtk', 'WARN')]
     assert mode_is_ready(rows)
 
 
 def test_missing_required_result_blocks_mode():
-    rows = readiness_rows([_check('lidar', ['mapping'])], [], 'mapping')
+    rows = readiness_rows([_check('lidar', ['navigation'])], [], 'navigation')
     assert rows[0].state == 'BLOCKED'
     assert not mode_is_ready(rows)
 
@@ -37,9 +37,9 @@ def test_profile_rejects_shell_command(tmp_path: Path):
     profile.write_text(
         'schema_version: 1\n'
         'drivers: []\nchecks: []\n'
-        'mode_commands:\n  mapping: "ros2 launch x y"\n  navigation: [ros2, launch, x, y]\n'
+        'mode_commands:\n  navigation: "ros2 launch x y"\n'
         'map_root: /tmp/maps\npipeline_config: /tmp/pipeline.yaml\n',
         encoding='utf-8',
     )
-    with pytest.raises(ValueError, match='mode mapping command'):
+    with pytest.raises(ValueError, match='mode navigation command'):
         load_profile(profile)

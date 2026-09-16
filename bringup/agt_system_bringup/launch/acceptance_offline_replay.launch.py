@@ -95,7 +95,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'map_package_dir',
             default_value=(
-                '/home/yangxuan/ros2_ws/agt_data/maps/'
+                '/home/yangxuan/ros2_ws/maps/'
                 'bunker_mid360_mapping_20260901_205036/v003-indexed'),
             description='Frozen v003-indexed package audited by replay_audit.'),
         DeclareLaunchArgument(

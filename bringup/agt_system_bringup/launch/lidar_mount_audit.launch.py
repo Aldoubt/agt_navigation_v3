@@ -37,7 +37,7 @@ def _include(package: str, launch_file: str, arguments=None, condition=None, lau
 
 
 def generate_launch_description():
-    mapping_share = Path(get_package_share_directory('agt_mapping_bringup'))
+    runtime_share = Path(get_package_share_directory('agt_navigation_runtime'))
     description_share = Path(get_package_share_directory('tracked_chassis_description'))
 
     use_sim_time = LaunchConfiguration('use_sim_time')
@@ -63,7 +63,7 @@ def generate_launch_description():
         DeclareLaunchArgument('imu_topic', default_value='/livox/imu'),
         DeclareLaunchArgument(
             'batch_config',
-            default_value=str(mapping_share / 'config' / 'batch_lio_mid360.yaml')),
+            default_value=str(runtime_share / 'config' / 'batch_lio_mid360.yaml')),
         DeclareLaunchArgument(
             'robot_description_calibration_file',
             default_value=str(description_share / 'config' / 'field_acceptance.yaml')),
@@ -95,7 +95,7 @@ def generate_launch_description():
         ),
 
         # Canonical local LIO + body/base adapter.
-        _include('agt_mapping_bringup', 'navigation_lio.launch.py', {
+        _include('agt_navigation_runtime', 'navigation_lio.launch.py', {
             'use_sim_time': use_sim_time,
             'launch_batch_rviz': 'false',
             'batch_config': LaunchConfiguration('batch_config'),
@@ -127,7 +127,7 @@ def generate_launch_description():
 
         # Read-only automatic YAML report.
         Node(
-            package='agt_mapping_bringup',
+            package='agt_navigation_runtime',
             executable='mid360_mount_audit.py',
             name='mid360_mount_audit',
             output='screen',

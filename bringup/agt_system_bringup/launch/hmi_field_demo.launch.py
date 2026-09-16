@@ -13,7 +13,7 @@ from launch.substitutions import LaunchConfiguration
 from agt_map_manager.runtime_binding import resolve_active_map
 
 
-DEFAULT_ACTIVE_STATE = '/home/yangxuan/ros2_ws/agt_data/maps/active_map.yaml'
+DEFAULT_ACTIVE_STATE = '/home/yangxuan/ros2_ws/maps/active_map.yaml'
 DEFAULT_MISSION_ROOT = '/home/yangxuan/ros2_ws/agt_data/missions'
 DEFAULT_HMI_RUNTIME_ROOT = '/home/yangxuan/ros2_ws/agt_data/hmi_runtime'
 

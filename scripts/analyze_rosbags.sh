@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BAG_ROOT="$(cd "${REPO_ROOT}/../rosbag" && pwd)"
+BAG_ROOT="$(cd "${REPO_ROOT}/../../experiments/data/rosbag" && pwd)"
 OUT="${REPO_ROOT}/docs/ROSBAG_ANALYSIS.md"
 TMP="$(mktemp)"; trap 'rm -f "$TMP"' EXIT
 for bag in "${BAG_ROOT}"/*; do [[ -d "$bag" ]] || continue; echo "### $(basename "$bag")" >> "$TMP"; ros2 bag info "$bag" >> "$TMP"; echo >> "$TMP"; done

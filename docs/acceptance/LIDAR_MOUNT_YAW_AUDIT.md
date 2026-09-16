@@ -169,10 +169,8 @@ which derive it from the Batch-LIO config plus `livox_frame <- base_link`.
 
 Run the existing preflight with the robot stationary:
 
-```bash
-ros2 run agt_mapping_bringup mid360_imu_preflight.py --ros-args \
-  -p duration_sec:=10.0
-```
+Run the MID360 IMU preflight supplied by the separate mapping-producer
+workspace with the sensor stationary before freezing the mapping configuration.
 
 Record the recommended `acc_norm`, sample rate, acceleration norm stability,
 and any clipping/unit warning before interpreting an LIO result.
@@ -299,7 +297,7 @@ The branch now contains:
   containing only chassis TF, optional MID360 driver or raw bag replay,
   Batch-LIO, the body/base adapter, Livox PointCloud2 bridge, obstacle
   preprocessor, and the audit reporter;
-- `agt_mapping_bringup/mid360_mount_audit.py`: read-only YAML reporting for
+- The mapping-producer mount-audit script: read-only YAML reporting for
   IMU rate/noise, LIO rate/start-to-end motion, point-cloud rates/counts, and
   software-observed mount-TF lookup health;
 - obstacle-preprocessor counters for input-frame mismatch and TF lookup
@@ -313,7 +311,7 @@ For the existing MID360 bag:
 ros2 launch agt_system_bringup lidar_mount_audit.launch.py \
   replay_bag:=true \
   use_sim_time:=true \
-  bag:=/home/yangxuan/ros2_ws/src/rosbag/bunker_mid360_mapping_20260901_205036 \
+  bag:=/home/yangxuan/ros2_ws/experiments/data/rosbag/bunker_mid360_mapping_20260901_205036 \
   lidar_topic:=/agt/sensors/lidar/custom \
   imu_topic:=/agt/sensors/imu/data \
   audit_duration_sec:=60.0

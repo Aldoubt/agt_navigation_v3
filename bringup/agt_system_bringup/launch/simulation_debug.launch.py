@@ -36,7 +36,7 @@ def generate_launch_description():
     share = Path(get_package_share_directory('agt_system_bringup'))
     demo_share = Path(get_package_share_directory('agt_demo_task'))
     default_map = (
-        '/home/yangxuan/ros2_ws/agt_data/maps/'
+        '/home/yangxuan/ros2_ws/maps/'
         'bunker_mid360_mapping_20260901_205036/v003-indexed/navigation/map.yaml'
     )
 

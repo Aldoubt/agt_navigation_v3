@@ -112,7 +112,7 @@ ros2 launch agt_system_bringup acceptance_offline_replay.launch.py \
 
 ```bash
 # 建图或导航前，进行静止 MID360/IMU preflight。
-ros2 run agt_mapping_bringup mid360_imu_preflight.py --ros-args -p duration_sec:=10.0
+ros2 run agt_operator_console operator_console sensors
 
 # 仅在车辆静止时请求手动全局重定位。
 ros2 service call /agt/localization/relocalize std_srvs/srv/Trigger "{}"

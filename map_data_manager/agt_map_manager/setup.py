@@ -28,6 +28,7 @@ setup(
         'select_map_package = agt_map_manager.select_map_package:main',
         'list_map_packages = agt_map_manager.select_map_package:main_list',
         'generate_map_package = agt_map_manager.map_pipeline:main',
+        'load_mapping_package = agt_map_manager.mapping_package:main',
         'validate_active_map = agt_map_manager.runtime_binding:main',
     ]},
 )

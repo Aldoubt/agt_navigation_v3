@@ -2,11 +2,11 @@
 
 ## Boundary
 
-The test-stage mapping front end is `FAST-LIO2 + PGO`, launched through
-`agt_mapping_bringup/mapping_mode.launch.py`. Its default is exactly one LIO
-node and one PGO node; the OctoMap branch is opt-in. It preserves raw Livox
-timing and the PGO result is the authoritative full-map PCD, trajectory and
-keyframe set for relocalization.
+The mapping front end is `FAST-LIO2 + PGO`, launched and exported by the
+separate mapping-producer workspace. `agt_navigation_v3` does not launch the
+mapping front end or the OctoMap branch. The PGO result is the authoritative
+full-map PCD, trajectory and keyframe set consumed through a validated Map
+Package.
 
 The test route is deliberately fixed. A mapping run must cover that route
 before its artifacts are accepted as a replacement candidate. It does not

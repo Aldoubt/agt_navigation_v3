@@ -9,7 +9,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(
         description='Convert robotics-laboratory/fast-lio2 PGO patches + poses.txt into benchmark cases.csv.')
     parser.add_argument('map_dir', type=Path,
-                        help='directory produced by /pgo/save_maps with save_patches=true')
+                        help='mapping Map Package or compatible PGO artifact directory with patches')
     parser.add_argument('--stride', type=int, default=5,
                         help='keep every Nth PGO keyframe for a fast first sweep')
     parser.add_argument('--output', type=Path, default=None,

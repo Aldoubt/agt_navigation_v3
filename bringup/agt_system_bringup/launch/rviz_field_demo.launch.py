@@ -63,7 +63,7 @@ def generate_launch_description():
     default_nav2_params = os.path.join(
         get_package_share_directory('agt_nav2_bringup'), 'config', 'nav2_params.yaml')
     default_batch_config = os.path.join(
-        get_package_share_directory('agt_mapping_bringup'), 'config', 'batch_lio_mid360.yaml')
+        get_package_share_directory('agt_navigation_runtime'), 'config', 'batch_lio_mid360.yaml')
     default_livox_bridge_params = os.path.join(
         get_package_share_directory('agt_livox_tools'), 'config', 'custom_to_pointcloud2.yaml')
 
@@ -121,7 +121,7 @@ def generate_launch_description():
         #   and Autolabor-C1 capability. This launch is the AGT software chain.
 
         # Navigation odometry: Batch-LIO + frame adapter.
-        include('agt_mapping_bringup', 'navigation_lio.launch.py', arguments={
+        include('agt_navigation_runtime', 'navigation_lio.launch.py', arguments={
             'use_sim_time': use_sim_time,
             'batch_config': batch_config,
             'lidar_topic': lidar_topic,

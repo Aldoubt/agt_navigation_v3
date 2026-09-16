@@ -18,11 +18,8 @@ Record at minimum:
 - `/tf`
 - `/tf_static`
 
-Helper:
-
-```bash
-bash $(ros2 pkg prefix agt_mapping_bringup)/share/agt_mapping_bringup/scripts/record_vibration_bag.sh
-```
+The recording helper is owned by the separate mapping-producer workspace. Do
+not source or launch `agt_mapping_bringup` from this navigation repository.
 
 Recommended single-session sequence:
 

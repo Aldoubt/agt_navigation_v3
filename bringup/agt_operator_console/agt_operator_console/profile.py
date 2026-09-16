@@ -9,7 +9,7 @@ from typing import Any, Iterable
 import yaml
 
 
-VALID_MODES = frozenset({'mapping', 'navigation', 'inspection'})
+VALID_MODES = frozenset({'navigation', 'inspection'})
 VALID_CHECK_KINDS = frozenset({'topic', 'action'})
 
 
@@ -136,7 +136,7 @@ def load_profile(path: Path) -> Profile:
         if mode not in VALID_MODES:
             raise ValueError(f'unsupported mode command: {mode!r}')
         mode_commands[mode] = _command(command, f'mode {mode} command')
-    for required in ('mapping', 'navigation'):
+    for required in ('navigation',):
         if required not in mode_commands:
             raise ValueError(f'operator profile is missing mode command: {required}')
 

@@ -3,9 +3,10 @@ agt_map_manager:
     # Released Map Packages are immutable. HMI edits are staged separately and
     # can only become visible under map_root after contract validation creates a
     # new map_id/map_version directory.
-    map_root: /home/yangxuan/ros2_ws/agt_data/maps
-    active_state_file: /home/yangxuan/ros2_ws/agt_data/maps/active_map.yaml
-    edit_root: /home/yangxuan/ros2_ws/agt_data/map_edits
+    # The launch file overrides these defaults from AGT_MAP_ROOT.
+    map_root: /home/yangxuan/ros2_ws/maps
+    active_state_file: /home/yangxuan/ros2_ws/maps/active_map.yaml
+    edit_root: /home/yangxuan/ros2_ws/map_edits
 
     # Discovery should stay responsive even for very large PCD files.
     # Full declared hashes are checked at load/start-edit/publish boundaries.
@@ -19,7 +20,7 @@ agt_map_manager:
     publish_edit_service: /agt/map/edit/publish
     cancel_edit_service: /agt/map/edit/cancel
     generate_action: /agt/map/generate
-    registry_file: /home/yangxuan/ros2_ws/agt_data/maps/map_registry.yaml
+    registry_file: /home/yangxuan/ros2_ws/maps/map_registry.yaml
     events_topic: /agt/map/events
     validate_service: /agt/map/validate
     activate_service: /agt/map/activate

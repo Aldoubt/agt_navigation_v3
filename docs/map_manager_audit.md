@@ -1,5 +1,9 @@
 # AGT Navigation V3 Map Manager Audit
 
+> Historical audit snapshot. The mapping packages described in the original
+> topology table were removed from this repository during the separate-mapping
+> refactor. Current navigation consumes mapping-owned Map Packages instead.
+
 ## Scope and snapshot
 
 This is a read-only architecture audit of the local `agt_navigation_v3` tree.

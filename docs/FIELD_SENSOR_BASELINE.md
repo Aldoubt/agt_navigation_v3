@@ -51,10 +51,8 @@ Before the first mapping/navigation field run and after any driver/firmware chan
 2. Start the MID360 driver.
 3. Run:
 
-```bash
-ros2 run agt_mapping_bringup mid360_imu_preflight.py --ros-args \
-  -p duration_sec:=10.0
-```
+Run the MID360 IMU preflight supplied by the separate mapping-producer
+workspace with the sensor stationary before freezing the mapping configuration.
 
 Expected output is JSON with `result: PASS` and `recommended_batch_lio_acc_norm`.
 

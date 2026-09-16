@@ -35,7 +35,7 @@ names were changed in R1.1.
 
 ## Rosbag evidence
 
-Inspected `src/rosbag/bunker_mid360_mapping_20260901_205036` (482.3 s,
+Inspected `experiments/data/rosbag/bunker_mid360_mapping_20260901_205036` (482.3 s,
 268427 messages). It contains `/agt/sensors/lidar/custom` (9578),
 `/agt/sensors/imu/data` (96018), chassis odometry (47934) and one `/tf_static`.
 It has zero dynamic `/tf` messages. Asset/input availability is therefore

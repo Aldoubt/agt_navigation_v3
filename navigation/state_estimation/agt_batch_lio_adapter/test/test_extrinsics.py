@@ -12,7 +12,7 @@ from agt_batch_lio_adapter.extrinsics import (
 
 def test_checked_in_batch_config_is_internal_extrinsic_source():
     root = Path(__file__).resolve().parents[4]
-    config = root / 'mapping/agt_mapping_bringup/config/batch_lio_mid360.yaml'
+    config = root / 'navigation/nav2/agt_navigation_runtime/config/batch_lio_mid360.yaml'
     translation, quaternion = load_batch_lio_body_to_lidar(config)
     assert translation == pytest.approx((0.011, 0.02329, -0.04412), abs=1e-12)
     assert quaternion == pytest.approx((0.0, 0.0, 0.0, 1.0), abs=1e-12)

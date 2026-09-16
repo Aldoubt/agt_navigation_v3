@@ -13,7 +13,7 @@
   <exec_depend>rviz2</exec_depend>
   <exec_depend>agt_map_manager</exec_depend>
   <exec_depend>agt_rtk_manager</exec_depend>
-  <exec_depend>agt_mapping_bringup</exec_depend>
+  <exec_depend>agt_navigation_runtime</exec_depend>
   <exec_depend>agt_livox_tools</exec_depend>
   <exec_depend>agt_fastlio_adapter</exec_depend>
   <exec_depend>agt_batch_lio_adapter</exec_depend>

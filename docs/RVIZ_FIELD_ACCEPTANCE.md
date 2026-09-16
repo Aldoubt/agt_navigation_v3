@@ -34,10 +34,8 @@ Start and verify these before the AGT software launch:
 
 Run with the robot fully stationary:
 
-```bash
-ros2 run agt_mapping_bringup mid360_imu_preflight.py --ros-args \
-  -p duration_sec:=10.0
-```
+Run the MID360 IMU preflight supplied by the separate mapping-producer
+workspace with the robot stationary before freezing the mapping configuration.
 
 For Batch-LIO:
 
@@ -50,11 +48,9 @@ The tool now reports both `batch_lio_unit_ready` and
 
 Before using the pinned mapping front-end, run the stricter check:
 
-```bash
-ros2 run agt_mapping_bringup mid360_imu_preflight.py --ros-args \
-  -p duration_sec:=10.0 \
-  -p require_fastlio2_mapping_compatible:=true
-```
+Run the stricter mapping-side preflight with
+`require_fastlio2_mapping_compatible:=true` before freezing the producer
+configuration.
 
 The currently pinned `robotics-laboratory/fast-lio2` source multiplies incoming
 Livox linear acceleration by `10.0`. Therefore the unmodified mapping baseline is
@@ -80,25 +76,15 @@ FIELD BUILD SMOKE PASS
 This performs the full current software-chain build, selected pure-software tests,
 and launch-description parsing. It is not a hardware acceptance result.
 
-## Mapping
+## Mapping boundary
 
-The AGT wrapper now launches exactly one FAST-LIO2 node and one optional PGO node.
-It intentionally does not include the upstream `lio_launch.py` and `pgo_launch.py`
-together because the upstream PGO launch starts another FAST-LIO2 instance.
+Mapping is performed in the separate mapping-producer workspace. This repository
+does not start FAST-LIO2, PGO, mapping sessions, or OctoMap. Navigation consumes
+only a validated Map Package through `AGT_MAP_ROOT`.
 
-```bash
-ros2 launch agt_mapping_bringup mapping_mode.launch.py
-```
-
-Explicit versioned configs used by default:
-
-```text
-agt_mapping_bringup/config/fastlio2_mid360.yaml
-agt_mapping_bringup/config/pgo_mid360.yaml
-```
-
-After mapping, save/refine the final PCD, then run `agt_map_converter` and optionally
-`build_relocalization_assets` as documented in the main README.
+The producer must export the optimized PGO map, poses, body-frame patches and
+relocalization assets before this acceptance flow is started. Use the producer
+workspace documentation for sensor preflight, mapping and export commands.
 
 ## Navigation / field demo startup
 

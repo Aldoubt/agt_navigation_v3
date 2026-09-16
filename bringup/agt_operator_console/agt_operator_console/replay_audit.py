@@ -456,7 +456,7 @@ def inspect_frozen_map(package_dir: Path, navigation_map: Path, evidence_path: P
 class ReplayAuditNode(Node):
     def __init__(self) -> None:
         super().__init__('agt_replay_audit')
-        default_package = '/home/yangxuan/ros2_ws/agt_data/maps/bunker_mid360_mapping_20260901_205036/v003-indexed'
+        default_package = '/home/yangxuan/ros2_ws/maps/bunker_mid360_mapping_20260901_205036/v003-indexed'
         for name, value in {
             'report_dir': '', 'navigation_map': '', 'map_package_dir': default_package,
             'map_gate_evidence': '', 'map_gate_status': PASS,

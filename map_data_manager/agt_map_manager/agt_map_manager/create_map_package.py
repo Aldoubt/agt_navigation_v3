@@ -252,7 +252,7 @@ def build_package(
 def main(argv=None) -> None:
     parser = argparse.ArgumentParser(
         description='Atomically build a versioned AGT Map Package from a source PCD and converter output.')
-    parser.add_argument('--map-root', default='/home/yangxuan/ros2_ws/agt_data/maps')
+    parser.add_argument('--map-root', default='/home/yangxuan/ros2_ws/maps')
     parser.add_argument('--map-id', required=True)
     parser.add_argument('--map-version', required=True)
     parser.add_argument('--source-pcd', required=True)

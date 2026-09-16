@@ -15,7 +15,7 @@ from launch_ros.actions import Node
 from agt_map_manager.map_package import discover_packages, validate_package
 
 
-DEFAULT_MAP_ROOT = '/home/yangxuan/ros2_ws/agt_data/maps'
+DEFAULT_MAP_ROOT = '/home/yangxuan/ros2_ws/maps'
 DEFAULT_HMI_RUNTIME_ROOT = '/home/yangxuan/ros2_ws/agt_data/hmi_runtime/editor'
 
 

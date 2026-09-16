@@ -136,7 +136,7 @@ def generate_map_package(
 def main(argv=None) -> None:
     parser = argparse.ArgumentParser(
         description='Generate, validate and publish an immutable AGT Map Package.')
-    parser.add_argument('--map-root', default='/home/yangxuan/ros2_ws/agt_data/maps')
+    parser.add_argument('--map-root', default='/home/yangxuan/ros2_ws/maps')
     parser.add_argument('--map-id', required=True)
     parser.add_argument('--map-version', required=True)
     parser.add_argument('--source-pcd', required=True)

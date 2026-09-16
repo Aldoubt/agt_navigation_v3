@@ -16,7 +16,7 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
-DEFAULT_MAP_ROOT = Path('/home/yangxuan/ros2_ws/agt_data/maps')
+DEFAULT_MAP_ROOT = Path('/home/yangxuan/ros2_ws/maps')
 DEFAULT_PACKAGE_ROOT = DEFAULT_MAP_ROOT / 'bunker_mid360_mapping_20260901_205036' / 'v003-indexed'
 
 
