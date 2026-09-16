@@ -1,0 +1,26 @@
+contract_version: 1
+test: straight_8_to_10m
+required:
+  odom: /agt/odometry/local
+  raw_command: /cmd_vel
+  smoothed_command: /cmd_vel_smoothed
+  final_command: /mux/cmd_vel
+  global_path: /plan
+recommended:
+  - /tf
+  - /tf_static
+  - /wheel/odom
+  - /local_plan
+  - /navigate_to_pose/_action/feedback
+  - /agt/navigation/points_obstacles
+  - /local_costmap/costmap
+  - /local_costmap/costmap_updates
+  - /local_costmap/costmap_raw
+  - /local_costmap/published_footprint
+  - /global_costmap/costmap
+  - /agt/localization/status
+  - /bunker_status
+notes:
+  - Verify all names and publisher counts with `ros2 topic info -v` before recording.
+  - /cmd_vel is controller raw; /cmd_vel_smoothed is smoother output; /mux/cmd_vel is guard output and Bunker input.
+  - Bunker measured velocity is NOT_AVAILABLE unless a driver feedback topic with measured twist is verified.

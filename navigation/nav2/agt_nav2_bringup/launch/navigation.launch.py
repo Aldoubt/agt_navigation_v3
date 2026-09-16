@@ -8,10 +8,21 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
+def _profile_params(context):
+    profile = LaunchConfiguration('controller_profile').perform(context)
+    if profile not in ('rpp', 'mppi'):
+        raise RuntimeError(f'controller_profile must be rpp or mppi, got {profile!r}')
+    share = Path(get_package_share_directory('agt_nav2_bringup'))
+    legacy_params = LaunchConfiguration('nav2_params_file').perform(context)
+    if profile == 'rpp' and legacy_params:
+        return legacy_params
+    return str(share / 'config' / f'nav2_params_{profile}.yaml')
+
+
 def _validate_files(context):
     checks = {
         'map': LaunchConfiguration('map').perform(context),
-        'nav2_params_file': LaunchConfiguration('nav2_params_file').perform(context),
+        'nav2_params_file': _profile_params(context),
     }
     for label, value in checks.items():
         path = Path(value).expanduser()
@@ -30,7 +41,7 @@ def _include_navigation(context):
     launch_arguments = {
         'use_sim_time': LaunchConfiguration('use_sim_time').perform(context),
         'autostart': LaunchConfiguration('autostart').perform(context),
-        'params_file': LaunchConfiguration('nav2_params_file').perform(context),
+        'params_file': _profile_params(context),
         'use_composition': 'False',
     }
     return [
@@ -42,19 +53,19 @@ def _include_navigation(context):
 
 
 def generate_launch_description():
-    agt_share = Path(get_package_share_directory('agt_nav2_bringup'))
-
     map_yaml = LaunchConfiguration('map')
-    nav2_params_file = LaunchConfiguration('nav2_params_file')
     use_sim_time = LaunchConfiguration('use_sim_time')
     autostart = LaunchConfiguration('autostart')
 
     return LaunchDescription([
         DeclareLaunchArgument('map', description='Absolute path to the derived Nav2 map YAML'),
         DeclareLaunchArgument(
-            'nav2_params_file',
-            default_value=str(agt_share / 'config' / 'nav2_params.yaml'),
-            description='AGT Nav2 parameter file. Unique name avoids nested launch collisions.',
+            'controller_profile', default_value='rpp',
+            description='Exactly one controller profile: rpp (production baseline) or mppi.',
+        ),
+        DeclareLaunchArgument(
+            'nav2_params_file', default_value='',
+            description='Legacy RPP override; ignored when controller_profile=mppi.',
         ),
         DeclareLaunchArgument('use_sim_time', default_value='false'),
         DeclareLaunchArgument('autostart', default_value='true'),
@@ -68,7 +79,7 @@ def generate_launch_description():
             executable='map_server',
             name='map_server',
             output='screen',
-            parameters=[nav2_params_file, {'yaml_filename': map_yaml, 'use_sim_time': use_sim_time}],
+            parameters=[{'yaml_filename': map_yaml, 'use_sim_time': use_sim_time}],
         ),
         Node(
             package='nav2_lifecycle_manager',
