@@ -12,7 +12,7 @@ def stamp(msg, fallback):
     return value.sec + value.nanosec/1e9 if value and (value.sec or value.nanosec) else fallback/1e9
 
 def main():
-    parser=argparse.ArgumentParser(); parser.add_argument('bag', type=Path); parser.add_argument('--output-dir', type=Path, required=True); args=parser.parse_args(); args.output_dir.mkdir(parents=True, exist_ok=True)
+    parser=argparse.ArgumentParser(); parser.add_argument('bag', type=Path); parser.add_argument('--output-dir', type=Path, required=True); parser.add_argument('--controller-profile', choices=['rpp','mppi'], required=True); args=parser.parse_args(); args.output_dir.mkdir(parents=True, exist_ok=True)
     from rosbag2_py import ConverterOptions, SequentialReader, StorageOptions
     from rclpy.serialization import deserialize_message
     from rosidl_runtime_py.utilities import get_message
@@ -29,7 +29,7 @@ def main():
         elif key=='cloud': data[key].append((ts,msg.width*msg.height))
         else: data[key].append((ts,1))
     required=['odom','raw','smoothed','final']; missing=[x for x in required if not data[x]]
-    report={'bag':{'path':str(args.bag),'data_contract':'DATA_CONTRACT_INCOMPLETE' if missing or not path else 'COMPLETE','missing_required':missing+(['plan'] if not path else [])},'deadband_wz_radps':.02,'frequencies':{},'commands':{},'command_modification':{},'tracking':{},'chassis':{'status':'CHASSIS_EXECUTION_NOT_OBSERVABLE'}}
+    report={'controller_profile':args.controller_profile,'bag':{'path':str(args.bag),'data_contract':'DATA_CONTRACT_INCOMPLETE' if missing or not path else 'COMPLETE','missing_required':missing+(['plan'] if not path else [])},'deadband_wz_radps':.02,'frequencies':{},'commands':{},'command_modification':{},'tracking':{},'chassis':{'status':'CHASSIS_EXECUTION_NOT_OBSERVABLE'}}
     for key in ('odom','raw','smoothed','final','cloud','costmap'):
         samples=data[key]; report['frequencies'][key]=signal_stats([(x[0],0) for x in samples]) if samples else {'status':'NOT_AVAILABLE'}
     for key in ('raw','smoothed','final'):
