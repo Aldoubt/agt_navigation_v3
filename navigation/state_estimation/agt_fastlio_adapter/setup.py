@@ -8,10 +8,12 @@ setup(
     data_files=[
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name + '/config', ['config/adapter.yaml']),
+        ('share/' + package_name + '/config', [
+            'config/adapter.yaml', 'config/fastlio_navigation_adapter.yaml']),
         ('share/' + package_name + '/launch', ['launch/adapter.launch.py']),
     ],
     install_requires=['setuptools'],
+    tests_require=['pytest'],
     zip_safe=True,
     maintainer='AGT',
     maintainer_email='contact@aldoubt.com',

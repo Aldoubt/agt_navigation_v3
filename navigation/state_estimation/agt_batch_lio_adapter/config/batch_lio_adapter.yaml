@@ -15,6 +15,11 @@ agt_batch_lio_adapter:
     batch_lio_config_file: ""
     max_input_age_sec: 0.20
     tf_timeout_sec: 0.20
+    # Diagnostics only: these do not alter odometry or TF publication.
+    adapter_status_topic: /agt/odometry/adapter_status
+    diagnostic_publish_rate_hz: 5.0
+    stale_pose_timeout_sec: 1.0
+    publish_rate_window_sec: 1.0
 
     # Normal field mode derives T_body_base from the two sources above.
     # Legacy override remains available only for controlled recovery/debugging;

@@ -65,7 +65,7 @@ Visualization Manager:
       Enabled: true
       Topic:
         Value: /agt/rviz_patrol/markers
-    - Class: rviz_default_plugins/Pose
+    - Class: rviz_default_plugins/PoseWithCovariance
       Name: Relocalization Pose
       Enabled: true
       Topic:

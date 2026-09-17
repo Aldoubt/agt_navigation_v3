@@ -1,0 +1,10 @@
+builtin_interfaces/Time stamp
+builtin_interfaces/Time lio_stamp
+builtin_interfaces/Time wheel_stamp
+float64 time_offset_sec
+
+float64 lio_yaw
+float64 wheel_yaw
+float64 delta_yaw
+float64 yaw_rate_lio
+float64 yaw_rate_wheel

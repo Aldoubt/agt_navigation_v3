@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import os
+from collections import deque
 
 import rclpy
 from geometry_msgs.msg import PoseStamped, TransformStamped
@@ -16,6 +17,10 @@ from tf2_ros import (
     TransformException,
     TransformListener,
 )
+
+from agt_robot_interfaces.msg import AdapterStatus
+
+from agt_batch_lio_adapter.diagnostics import AdapterState, classify_adapter_state
 
 from agt_batch_lio_adapter.extrinsics import (
     compose_transform,
@@ -119,6 +124,10 @@ class BatchLioAdapter(Node):
         self.declare_parameter('batch_lio_config_file', '')
         self.declare_parameter('max_input_age_sec', 0.20)
         self.declare_parameter('tf_timeout_sec', 0.20)
+        self.declare_parameter('adapter_status_topic', '/agt/odometry/adapter_status')
+        self.declare_parameter('diagnostic_publish_rate_hz', 5.0)
+        self.declare_parameter('stale_pose_timeout_sec', 1.0)
+        self.declare_parameter('publish_rate_window_sec', 1.0)
 
         # Legacy emergency override only. The normal field path keeps this
         # false and derives T_body_base from Batch-LIO config + chassis TF.
@@ -159,14 +168,28 @@ class BatchLioAdapter(Node):
 
         self.pub = self.create_publisher(
             Odometry, str(self.get_parameter('output_topic').value), 50)
+        self.status_pub = self.create_publisher(
+            AdapterStatus,
+            str(self.get_parameter('adapter_status_topic').value),
+            10,
+        )
         self.path_pub = self.create_publisher(
             Path, str(self.get_parameter('debug_path_topic').value), 10)
         self.path = Path()
         self.path.header.frame_id = str(self.get_parameter('output_parent_frame').value)
         self.previous_base_pose = None
         self.previous_base_stamp_ns = 0
+        self._last_input_header_stamp_ns = 0
+        self._last_input_rx_ns = 0
+        self._last_valid_pose_rx_ns = 0
+        self._accepted_count = 0
+        self._rejected_count = 0
+        self._publish_times_ns = deque()
         self.create_subscription(
             Odometry, str(self.get_parameter('input_topic').value), self.on_odom, 100)
+        diagnostic_rate = max(
+            float(self.get_parameter('diagnostic_publish_rate_hz').value), 0.1)
+        self.create_timer(1.0 / diagnostic_rate, self._publish_adapter_status)
 
         source = (
             'explicit legacy body_to_base override'
@@ -251,11 +274,14 @@ class BatchLioAdapter(Node):
         return resolved
 
     def on_odom(self, msg: Odometry):
+        now_ns = self.get_clock().now().nanoseconds
         src_parent = str(self.get_parameter('source_parent_frame').value)
         src_child = str(self.get_parameter('source_child_frame').value)
         out_parent = str(self.get_parameter('output_parent_frame').value)
         out_child = str(self.get_parameter('output_child_frame').value)
+        self._last_input_rx_ns = now_ns
         if msg.header.frame_id != src_parent or msg.child_frame_id != src_child:
+            self._rejected_count += 1
             self.get_logger().warning(
                 f'drop Batch-LIO odom frames {msg.header.frame_id}->{msg.child_frame_id}; '
                 f'expected {src_parent}->{src_child}')
@@ -263,9 +289,12 @@ class BatchLioAdapter(Node):
 
         stamp = Time.from_msg(msg.header.stamp)
         if stamp.nanoseconds <= 0:
+            self._rejected_count += 1
             return
-        age = (self.get_clock().now().nanoseconds - stamp.nanoseconds) / 1e9
+        self._last_input_header_stamp_ns = stamp.nanoseconds
+        age = (now_ns - stamp.nanoseconds) / 1e9
         if age > float(self.get_parameter('max_input_age_sec').value):
+            self._rejected_count += 1
             return
 
         p_cb = msg.pose.pose.position
@@ -276,6 +305,7 @@ class BatchLioAdapter(Node):
             t_body_base, q_body_base = self._resolve_body_to_base(out_child)
             self._extrinsic_error_logged = False
         except Exception as exc:
+            self._rejected_count += 1
             if not self._extrinsic_error_logged:
                 self.get_logger().error(str(exc))
                 self._extrinsic_error_logged = True
@@ -356,6 +386,9 @@ class BatchLioAdapter(Node):
         tf.transform.rotation.z = q_camera_base[2]
         tf.transform.rotation.w = q_camera_base[3]
         self.tf_broadcaster.sendTransform(tf)
+        self._accepted_count += 1
+        self._last_valid_pose_rx_ns = now_ns
+        self._publish_times_ns.append(now_ns)
 
         self.path.header.stamp = out.header.stamp
         pose = PoseStamped()
@@ -365,6 +398,36 @@ class BatchLioAdapter(Node):
         if len(self.path.poses) > 20000:
             self.path.poses = self.path.poses[-20000:]
         self.path_pub.publish(self.path)
+
+    def _publish_adapter_status(self):
+        """Publish diagnostics only; never synthesize odometry or TF."""
+        now_ns = self.get_clock().now().nanoseconds
+        input_age = None
+        if self._last_input_header_stamp_ns > 0:
+            input_age = max(0.0, (now_ns - self._last_input_header_stamp_ns) / 1e9)
+        last_valid_age = None
+        if self._last_valid_pose_rx_ns > 0:
+            last_valid_age = max(0.0, (now_ns - self._last_valid_pose_rx_ns) / 1e9)
+        window_ns = int(max(
+            float(self.get_parameter('publish_rate_window_sec').value), 0.1) * 1e9)
+        while self._publish_times_ns and now_ns - self._publish_times_ns[0] > window_ns:
+            self._publish_times_ns.popleft()
+        publish_rate = len(self._publish_times_ns) / (window_ns / 1e9)
+        state = classify_adapter_state(
+            input_age,
+            last_valid_age,
+            float(self.get_parameter('max_input_age_sec').value),
+            float(self.get_parameter('stale_pose_timeout_sec').value),
+        )
+        out = AdapterStatus()
+        out.stamp = self.get_clock().now().to_msg()
+        out.state = int(state)
+        out.input_age_sec = -1.0 if input_age is None else float(input_age)
+        out.last_valid_pose_age_sec = -1.0 if last_valid_age is None else float(last_valid_age)
+        out.accepted_count = self._accepted_count
+        out.rejected_count = self._rejected_count
+        out.publish_rate = float(publish_rate)
+        self.status_pub.publish(out)
 
 
 def main(args=None):

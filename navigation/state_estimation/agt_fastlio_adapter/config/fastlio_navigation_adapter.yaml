@@ -1,0 +1,17 @@
+agt_fastlio_adapter:
+  ros__parameters:
+    # FAST-LIO2 publishes continuous T_odom_body.  This adapter converts it to
+    # the navigation contract T_odom_base_link using the frozen body/mount data.
+    input_topic: /fastlio2/lio_odom
+    output_topic: /agt/odometry/local
+    expected_odom_frame: odom
+    expected_base_frame: body
+    output_odom_frame: odom
+    output_base_frame: base_link
+    convert_body_to_base: true
+    body_to_base_calibration_file: ""
+    mount_lidar_frame: livox_frame
+    mount_base_frame: base_link
+    tf_timeout_sec: 0.20
+    max_input_age_sec: 0.20
+    reject_zero_stamp: true

@@ -1,0 +1,10 @@
+agt_yaw_constraint:
+  ros__parameters:
+    local_odom_topic: /agt/odometry/local
+    wheel_odom_topic: /odom
+    output_topic: /agt/localization/yaw_constraint
+    debug_output_topic: /agt/localization/yaw_constraint_debug
+    min_speed_threshold: 0.05
+    sync_max_dt_sec: 0.2
+    max_delta_yaw_jump_deg: 45.0
+    stats_log_period_sec: 10.0

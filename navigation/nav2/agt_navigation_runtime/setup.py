@@ -9,8 +9,11 @@ setup(
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name + '/config', [
-            'config/runtime.yaml', 'config/mission_example.yaml', 'config/batch_lio_mid360.yaml']),
-        ('share/' + package_name + '/launch', ['launch/runtime.launch.py', 'launch/navigation_lio.launch.py']),
+            'config/runtime.yaml', 'config/mission_example.yaml', 'config/batch_lio_mid360.yaml',
+            'config/fastlio2_mid360_navigation.yaml']),
+        ('share/' + package_name + '/launch', [
+            'launch/runtime.launch.py', 'launch/navigation_lio.launch.py',
+            'launch/fastlio_navigation_lio.launch.py']),
     ],
     install_requires=['setuptools', 'PyYAML'],
     zip_safe=True,

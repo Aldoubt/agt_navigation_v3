@@ -4,6 +4,7 @@ import math
 import json
 from collections import deque
 from dataclasses import dataclass
+from enum import Enum
 from typing import Deque, Optional, Tuple
 
 import rclpy
@@ -14,7 +15,7 @@ from std_msgs.msg import Empty, String
 from std_srvs.srv import Trigger
 from tf2_ros import TransformBroadcaster
 
-from agt_robot_interfaces.msg import LocalizationStatus
+from agt_robot_interfaces.msg import LocalizationMetrics, LocalizationStatus
 
 
 @dataclass(frozen=True)
@@ -116,6 +117,137 @@ def _global_pose(msg: PoseWithCovarianceStamped) -> _Pose3:
     return _Pose3((p.x, p.y, p.z), _q_normalize((q.x, q.y, q.z, q.w)))
 
 
+def _correction_delta(current: Optional[_Pose3], previous: Optional[_Pose3]):
+    """Return translation/yaw change between two map->odom corrections."""
+    if current is None or previous is None:
+        return 0.0, 0.0
+    return (
+        _translation_delta(current, previous),
+        abs(_angle_wrap(_yaw(current.q) - _yaw(previous.q))),
+    )
+
+
+def _tracking_innovation_exceeds(
+    translation: float,
+    yaw_delta: float,
+    max_translation: float,
+    max_yaw: float,
+) -> bool:
+    return translation > max_translation or yaw_delta > max_yaw
+
+
+def _make_metrics_message(
+    state: LocalizationState,
+    tracking_health: str,
+    reason: str,
+    correction: Optional[_Pose3],
+    correction_translation_delta: float,
+    correction_yaw_delta: float,
+    tracking_innovation_translation: float,
+    tracking_innovation_yaw: float,
+    global_position_std: float,
+    global_yaw_std: float,
+    stamp,
+) -> LocalizationMetrics:
+    """Build the machine-readable metrics message without changing localization."""
+    msg = LocalizationMetrics()
+    msg.state = state.value
+    msg.tracking_health = tracking_health
+    msg.reason = reason
+    if correction is not None:
+        msg.map_odom_x, msg.map_odom_y, msg.map_odom_z = correction.p
+        msg.map_odom_yaw = _yaw(correction.q)
+    msg.correction_translation_delta = float(correction_translation_delta)
+    msg.correction_yaw_delta = float(correction_yaw_delta)
+    msg.tracking_innovation_translation = float(tracking_innovation_translation)
+    msg.tracking_innovation_yaw = float(tracking_innovation_yaw)
+    msg.global_position_std = float(global_position_std)
+    msg.global_yaw_std = float(global_yaw_std)
+    if stamp is not None:
+        msg.stamp = stamp
+    return msg
+
+
+class LocalizationState(str, Enum):
+    """Internal state machine, kept richer than the frozen wire message."""
+
+    BOOT = 'BOOT'
+    WAIT_GLOBAL = 'WAIT_GLOBAL'
+    LOCALIZED = 'LOCALIZED'
+    TRACKING = 'TRACKING'
+    DEGRADED = 'DEGRADED'
+    LOST = 'LOST'
+    RECOVERY_REQUESTED = 'RECOVERY_REQUESTED'
+    RELOCALIZING = 'RELOCALIZING'
+
+
+_WIRE_STATE_BY_INTERNAL = {
+    # LocalizationStatus is a frozen compatibility interface. TRACKING uses
+    # the existing LOCALIZED value on the wire; the complete state is exposed
+    # on /agt/relocalization/status as JSON.
+    LocalizationState.BOOT: LocalizationStatus.STATE_BOOT,
+    LocalizationState.WAIT_GLOBAL: LocalizationStatus.STATE_WAIT_GLOBAL,
+    LocalizationState.LOCALIZED: LocalizationStatus.STATE_LOCALIZED,
+    LocalizationState.TRACKING: LocalizationStatus.STATE_LOCALIZED,
+    LocalizationState.DEGRADED: LocalizationStatus.STATE_DEGRADED,
+    LocalizationState.LOST: LocalizationStatus.STATE_LOST,
+    LocalizationState.RECOVERY_REQUESTED: LocalizationStatus.STATE_RELOCALIZING,
+    LocalizationState.RELOCALIZING: LocalizationStatus.STATE_RELOCALIZING,
+}
+
+
+def _wire_state(state: LocalizationState) -> int:
+    return _WIRE_STATE_BY_INTERNAL[state]
+
+
+class _RecoveryStateMachine:
+    """Recovery transitions and cooldown gate used by the ROS node."""
+
+    def __init__(self, cooldown_sec: float) -> None:
+        self.cooldown_sec = max(0.0, float(cooldown_sec))
+        self.last_request_sec: Optional[float] = None
+        self.request_count = 0
+        self.state = LocalizationState.BOOT
+        self.pending = False
+        self.requested = False
+        self.reason = 'boot'
+
+    def cooldown_remaining(self, now_sec: float) -> float:
+        if self.last_request_sec is None:
+            return 0.0
+        return max(0.0, self.cooldown_sec - (float(now_sec) - self.last_request_sec))
+
+    def request(self, now_sec: float) -> bool:
+        if self.cooldown_remaining(now_sec) > 0.0:
+            return False
+        self.last_request_sec = float(now_sec)
+        self.request_count += 1
+        return True
+
+    def tracking_failure(self, reason: str, auto_request: bool) -> None:
+        self.state = LocalizationState.LOST
+        self.reason = reason
+        self.pending = bool(auto_request)
+        self.requested = False
+
+    def try_request(self, now_sec: float) -> bool:
+        if not self.pending or self.requested or not self.request(now_sec):
+            return False
+        self.state = LocalizationState.RECOVERY_REQUESTED
+        self.reason = 'global_relocalization_requested'
+        self.pending = False
+        self.requested = True
+        self.state = LocalizationState.RELOCALIZING
+        self.reason = 'relocalization_requested'
+        return True
+
+    def global_pose_accepted(self) -> None:
+        self.state = LocalizationState.LOCALIZED
+        self.reason = 'global_pose_accepted'
+        self.pending = False
+        self.requested = False
+
+
 class LocalizationManager(Node):
     """Own map->odom and turn a validated global base pose into a global correction.
 
@@ -159,7 +291,9 @@ class LocalizationManager(Node):
         self.declare_parameter('tracking_consecutive_accepts', 2)
         self.declare_parameter('tracking_consistency_translation_m', 0.20)
         self.declare_parameter('tracking_consistency_yaw_deg', 2.0)
-        self.declare_parameter('tracking_recovery_auto_request', False)
+        self.declare_parameter('tracking_recovery_auto_request', True)
+        self.declare_parameter('recovery_cooldown_sec', 5.0)
+        self.declare_parameter('metrics_topic', '/agt/localization/metrics')
         self.declare_parameter('debug_status_topic', '/agt/relocalization/status')
         self.declare_parameter('global_status_topic', '/agt/global_relocalization/status')
         self.declare_parameter('map_events_topic', '/agt/map/events')
@@ -171,15 +305,26 @@ class LocalizationManager(Node):
         self._last_tracking_measurement: Optional[_Pose3] = None
         self._tracking_consistent_count = 0
         self._tracking_health = 'UNKNOWN'
+        self._tracking_innovation_bad = False
         self._tracking_recovery_requested = False
+        self._recovery_pending = False
+        self._recovery = _RecoveryStateMachine(
+            self.get_parameter('recovery_cooldown_sec').value)
         self._last_tick_ns = self.get_clock().now().nanoseconds
         self._last_global_std = (math.inf, math.inf)
-        self._state = LocalizationStatus.STATE_BOOT
+        self._last_metrics_correction: Optional[_Pose3] = None
+        self._tracking_innovation_translation = 0.0
+        self._tracking_innovation_yaw = 0.0
+        self._correction_translation_delta = 0.0
+        self._correction_yaw_delta = 0.0
+        self._state = LocalizationState.BOOT
         self._reason = 'boot'
 
         self._tf = TransformBroadcaster(self)
         self._status_pub = self.create_publisher(
             LocalizationStatus, self.get_parameter('status_topic').value, 10)
+        self._metrics_pub = self.create_publisher(
+            LocalizationMetrics, self.get_parameter('metrics_topic').value, 10)
         self._debug_status_pub = self.create_publisher(
             String, self.get_parameter('debug_status_topic').value, 10)
         self._request_pub = self.create_publisher(
@@ -218,6 +363,7 @@ class LocalizationManager(Node):
         tf_rate = max(float(self.get_parameter('tf_publish_rate_hz').value), 1.0)
         self.create_timer(1.0 / tf_rate, self._tick)
         self.create_timer(0.2, self._publish_status)
+        self.create_timer(0.2, self._publish_metrics)
         self.get_logger().info(
             'Localization Manager started as the exclusive map->odom owner.')
 
@@ -303,8 +449,13 @@ class LocalizationManager(Node):
         self._correction_target = correction
         self._tracking_recovery_requested = False
         self._tracking_health = 'UNKNOWN'
-        self._state = LocalizationStatus.STATE_LOCALIZED
-        self._reason = 'global_pose_accepted'
+        self._last_tracking_measurement = None
+        self._tracking_consistent_count = 0
+        self._tracking_innovation_bad = False
+        self._recovery.global_pose_accepted()
+        self._state = self._recovery.state
+        self._reason = self._recovery.reason
+        self._recovery_pending = False
         self.get_logger().info(
             f'Global correction accepted: position_std={pos_std:.3f}m, '
             f'yaw_std={yaw_std:.2f}deg')
@@ -313,6 +464,13 @@ class LocalizationManager(Node):
         """Accept a local-map measurement without taking ownership of TF."""
         if self._correction_current is None:
             self._reason = 'tracking_ignored_without_global_anchor'
+            return
+        if self._state in {
+            LocalizationState.LOST,
+            LocalizationState.RECOVERY_REQUESTED,
+            LocalizationState.RELOCALIZING,
+        }:
+            self._reason = 'tracking_ignored_while_recovery_active'
             return
         ok, pos_std, yaw_std, reason = self._validate_global(msg)
         if not ok:
@@ -328,15 +486,20 @@ class LocalizationManager(Node):
             measured_base = _global_pose(msg)
             translation = _translation_delta(predicted_base, measured_base)
             yaw_delta = abs(_angle_wrap(_yaw(measured_base.q) - _yaw(predicted_base.q)))
+            self._tracking_innovation_translation = translation
+            self._tracking_innovation_yaw = yaw_delta
         except ValueError as exc:
             self._reason = f'tracking_rejected:invalid_pose:{exc}'
             return
 
         max_translation = float(self.get_parameter('max_tracking_translation_innovation_m').value)
         max_yaw = math.radians(float(self.get_parameter('max_tracking_yaw_innovation_deg').value))
-        if translation > max_translation or yaw_delta > max_yaw:
+        if _tracking_innovation_exceeds(translation, yaw_delta, max_translation, max_yaw):
             self._tracking_consistent_count = 0
             self._last_tracking_measurement = None
+            self._tracking_health = 'DEGRADED'
+            self._tracking_innovation_bad = True
+            self._state = LocalizationState.DEGRADED
             self._reason = 'tracking_suspect:innovation_gate'
             self.get_logger().warn(
                 f'Rejected map tracking innovation: translation={translation:.3f}m '
@@ -360,8 +523,10 @@ class LocalizationManager(Node):
             self._reason = 'tracking_waiting_consistency'
             return
         self._correction_target = measurement
+        self._tracking_health = 'TRACKING_OK'
+        self._tracking_innovation_bad = False
         self._reason = 'map_tracking_target_updated'
-        self._state = LocalizationStatus.STATE_LOCALIZED
+        self._state = LocalizationState.TRACKING
 
     def _on_tracking_status(self, msg: String) -> None:
         """Consume tracker health without giving the tracker TF ownership."""
@@ -375,18 +540,25 @@ class LocalizationManager(Node):
         self._tracking_health = state
         if state == 'TRACKING_OK':
             self._tracking_recovery_requested = False
+            self._tracking_innovation_bad = False
+            if (self._correction_current is not None and self._state not in {
+                    LocalizationState.LOST,
+                    LocalizationState.RECOVERY_REQUESTED,
+                    LocalizationState.RELOCALIZING,
+            }):
+                self._state = LocalizationState.TRACKING
+                self._reason = 'map_tracking_ok'
             return
         if state == 'RECOVERY_REQUIRED':
-            self._reason = 'map_tracking_recovery_required'
-            if (bool(self.get_parameter('tracking_recovery_auto_request').value)
-                    and not self._tracking_recovery_requested):
-                self._tracking_recovery_requested = True
-                self._state = LocalizationStatus.STATE_RELOCALIZING
-                self._request_pub.publish(Empty())
-                self.get_logger().warn(
-                    'Map tracker requested recovery; global relocalization was triggered.')
+            self._mark_tracking_lost('map_tracking_recovery_required')
         elif state == 'DEGRADED':
-            self._reason = 'map_tracking_degraded'
+            if self._state not in {
+                LocalizationState.LOST,
+                LocalizationState.RECOVERY_REQUESTED,
+                LocalizationState.RELOCALIZING,
+            }:
+                self._state = LocalizationState.DEGRADED
+                self._reason = 'map_tracking_degraded'
         elif state == 'HOLD':
             self._reason = 'map_tracking_hold'
 
@@ -412,16 +584,20 @@ class LocalizationManager(Node):
         if event_id and event_version and configured != (event_id, event_version):
             self._correction_current = None
             self._correction_target = None
-            self._state = LocalizationStatus.STATE_RELOCALIZING
+            self._state = LocalizationState.RELOCALIZING
             self._reason = f'active_map_changed:{event_id}/{event_version}'
             self.get_logger().warn(
                 f'Active map changed to {event_id}/{event_version}; waiting for relocalization.')
 
     def _on_relocalize(self, request, response):
         del request
-        self._state = LocalizationStatus.STATE_RELOCALIZING
-        self._reason = 'relocalization_requested'
+        self._correction_current = None
+        self._correction_target = None
+        self._state = LocalizationState.RECOVERY_REQUESTED
+        self._reason = 'manual_relocalization_requested'
         self._request_pub.publish(Empty())
+        self._state = LocalizationState.RELOCALIZING
+        self._reason = 'relocalization_requested'
         response.success = True
         response.message = 'global correction invalidated and relocalization requested'
         return response
@@ -431,36 +607,82 @@ class LocalizationManager(Node):
             return math.inf
         return max(0.0, (self.get_clock().now().nanoseconds - self._last_odom_rx_ns) / 1e9)
 
+    def _mark_tracking_lost(self, reason: str) -> None:
+        """Move through LOST and, if enabled, schedule global recovery."""
+        # The previous correction must not remain advertised as valid while
+        # the tracker has declared the map alignment lost.
+        self._correction_current = None
+        self._correction_target = None
+        self._recovery.tracking_failure(
+            reason,
+            bool(self.get_parameter('tracking_recovery_auto_request').value),
+        )
+        self._state = self._recovery.state
+        self._reason = self._recovery.reason
+        self._recovery_pending = self._recovery.pending
+        self._try_request_recovery()
+
+    def _try_request_recovery(self) -> bool:
+        if not self._recovery.pending or self._recovery.requested:
+            return False
+        now_sec = self.get_clock().now().nanoseconds / 1e9
+        if not self._recovery.try_request(now_sec):
+            remaining = self._recovery.cooldown_remaining(now_sec)
+            self._reason = f'recovery_cooldown:{remaining:.2f}s'
+            return False
+
+        # RECOVERY_REQUESTED is an intentional transition even though the
+        # request is published immediately and the steady state becomes
+        # RELOCALIZING in the same callback.
+        self._state = self._recovery.state
+        self._reason = 'global_relocalization_requested'
+        self._tracking_recovery_requested = self._recovery.requested
+        self._recovery_pending = self._recovery.pending
+        self._request_pub.publish(Empty())
+        self._state = LocalizationState.RELOCALIZING
+        self._reason = 'relocalization_requested'
+        self.get_logger().warn(
+            'Map tracker requested recovery; global relocalization was triggered.')
+        return True
+
     def _update_state(self) -> None:
+        self._try_request_recovery()
+        if self._state in {
+            LocalizationState.LOST,
+            LocalizationState.RECOVERY_REQUESTED,
+            LocalizationState.RELOCALIZING,
+        }:
+            return
+
         age = self._local_age()
         timeout = float(self.get_parameter('local_odom_timeout_sec').value)
         lost = float(self.get_parameter('local_odom_lost_sec').value)
 
         if self._last_odom_rx_ns <= 0:
-            self._state = LocalizationStatus.STATE_WAIT_LOCAL_ODOM
+            self._state = LocalizationState.WAIT_GLOBAL
             self._reason = 'waiting_local_odom'
             return
         if self._correction_current is None:
-            if self._state != LocalizationStatus.STATE_RELOCALIZING:
-                self._state = LocalizationStatus.STATE_WAIT_GLOBAL
-                self._reason = 'waiting_global_pose'
+            self._state = LocalizationState.WAIT_GLOBAL
+            self._reason = 'waiting_global_pose'
             return
         if age > lost:
-            self._state = LocalizationStatus.STATE_LOST
+            self._state = LocalizationState.LOST
             self._reason = f'local_odom_lost:{age:.2f}s'
-        elif self._state == LocalizationStatus.STATE_RELOCALIZING:
-            return
         elif age > timeout:
-            self._state = LocalizationStatus.STATE_DEGRADED
+            self._state = LocalizationState.DEGRADED
             self._reason = f'local_odom_stale:{age:.2f}s'
         elif self._tracking_health in {'DEGRADED', 'RECOVERY_REQUIRED'}:
-            self._state = LocalizationStatus.STATE_DEGRADED
+            self._state = LocalizationState.DEGRADED
             if self._tracking_health == 'RECOVERY_REQUIRED':
                 self._reason = 'map_tracking_recovery_required'
             else:
                 self._reason = 'map_tracking_degraded'
         else:
-            self._state = LocalizationStatus.STATE_LOCALIZED
+            self._state = (
+                LocalizationState.TRACKING
+                if self._tracking_health == 'TRACKING_OK'
+                else LocalizationState.LOCALIZED)
             if self._reason.startswith('local_odom_'):
                 self._reason = 'tracking'
 
@@ -472,8 +694,9 @@ class LocalizationManager(Node):
             # state and is intentionally disabled in the formal configuration.
             p, q = (0.0, 0.0, 0.0), (0.0, 0.0, 0.0, 1.0)
         elif self._state not in (
-            LocalizationStatus.STATE_LOCALIZED,
-            LocalizationStatus.STATE_DEGRADED,
+            LocalizationState.LOCALIZED,
+            LocalizationState.TRACKING,
+            LocalizationState.DEGRADED,
         ):
             # Stop refreshing a dynamic TF once localization is LOST. The TF
             # buffer will naturally expire instead of making a stale transform
@@ -524,7 +747,7 @@ class LocalizationManager(Node):
         age = self._local_age()
         out = LocalizationStatus()
         out.stamp = self.get_clock().now().to_msg()
-        out.state = self._state
+        out.state = _wire_state(self._state)
         out.local_odom_fresh = math.isfinite(age) and age <= float(
             self.get_parameter('local_odom_timeout_sec').value)
         out.global_correction_valid = self._correction_current is not None
@@ -544,12 +767,53 @@ class LocalizationManager(Node):
         debug.data = self._debug_state()
         self._debug_status_pub.publish(debug)
 
-    def _debug_state(self) -> str:
+    def _publish_metrics(self) -> None:
+        self._update_state()
         if self._correction_current is not None:
-            return 'LOCALIZED'
-        if self._backend_debug_state:
-            return self._backend_debug_state
-        return 'UNLOCALIZED'
+            (self._correction_translation_delta,
+             self._correction_yaw_delta) = _correction_delta(
+                 self._correction_current, self._last_metrics_correction)
+            self._last_metrics_correction = self._correction_current
+        else:
+            self._correction_translation_delta = 0.0
+            self._correction_yaw_delta = 0.0
+
+        # Keep diagnostics finite for bag/CSV consumers; 1e9 means unknown,
+        # matching the existing LocalizationStatus convention.
+        global_position_std = (
+            self._last_global_std[0]
+            if math.isfinite(self._last_global_std[0]) else 1.0e9)
+        global_yaw_std = (
+            math.radians(self._last_global_std[1])
+            if math.isfinite(self._last_global_std[1]) else 1.0e9)
+        metrics = _make_metrics_message(
+            self._state,
+            self._tracking_health,
+            self._reason,
+            self._correction_current,
+            self._correction_translation_delta,
+            self._correction_yaw_delta,
+            self._tracking_innovation_translation,
+            self._tracking_innovation_yaw,
+            global_position_std,
+            global_yaw_std,
+            self.get_clock().now().to_msg(),
+        )
+        self._metrics_pub.publish(metrics)
+
+    def _debug_state(self) -> str:
+        now_sec = self.get_clock().now().nanoseconds / 1e9
+        return json.dumps({
+            'state': self._state.value,
+            'wire_state': int(_wire_state(self._state)),
+            'reason': self._reason,
+            'tracking_health': self._tracking_health,
+            'backend_state': self._backend_debug_state,
+            'recovery_pending': self._recovery.pending,
+            'recovery_request_count': self._recovery.request_count,
+            'recovery_cooldown_remaining_sec': round(
+                self._recovery.cooldown_remaining(now_sec), 3),
+        }, sort_keys=True)
 
 
 def main(args=None) -> None:

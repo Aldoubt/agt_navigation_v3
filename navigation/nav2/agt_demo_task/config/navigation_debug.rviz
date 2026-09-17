@@ -60,7 +60,7 @@ Visualization Manager:
       Size (Pixels): 2
       Color Transformer: AxisColor
       Axis: Z
-    - Class: rviz_default_plugins/Pose
+    - Class: rviz_default_plugins/PoseWithCovariance
       Name: Relocalization Pose
       Enabled: true
       Topic:
