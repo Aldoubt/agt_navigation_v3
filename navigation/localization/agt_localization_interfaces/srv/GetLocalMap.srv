@@ -1,0 +1,8 @@
+geometry_msgs/PoseStamped pose
+float64 radius
+string layer
+---
+sensor_msgs/PointCloud2 cloud
+agt_localization_interfaces/MapMetadata metadata
+bool success
+string message

@@ -1,0 +1,9 @@
+builtin_interfaces/Time stamp
+string state
+string source
+string reason
+bool has_global_correction
+bool tracking_enabled
+bool recovery_requested
+string map_id
+string map_version

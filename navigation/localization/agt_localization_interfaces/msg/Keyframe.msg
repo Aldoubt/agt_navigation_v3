@@ -1,0 +1,6 @@
+std_msgs/Header header
+uint64 keyframe_id
+geometry_msgs/PoseWithCovariance pose
+sensor_msgs/PointCloud2 cloud
+float64 quality
+float64 covariance_score

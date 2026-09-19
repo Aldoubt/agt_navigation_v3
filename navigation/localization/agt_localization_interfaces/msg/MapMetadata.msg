@@ -1,0 +1,8 @@
+string map_id
+string map_version
+string package_root
+string global_map_path
+string navigation_map_yaml
+string localization_map_pcd
+string relocalization_assets_path
+string manifest_sha256
