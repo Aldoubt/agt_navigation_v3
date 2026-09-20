@@ -33,10 +33,10 @@ def map_list_command(profile: Profile) -> tuple[str, ...]:
 
 
 def map_editor_command(profile: Profile, map_id: str, map_version: str) -> tuple[str, ...]:
+    # The retired HMI-specific launch no longer owns stack bringup. Keep this
+    # command read-only and direct operators to the canonical debug entrance.
     return (
-        'ros2', 'launch', 'agt_system_bringup', 'hmi_map_editor.launch.py',
-        f'map_id:={map_id}', f'map_version:={map_version}',
-        f'map_root:={profile.map_root}',
+        'ros2', 'launch', 'agt_system_bringup', 'debug.launch.py',
     )
 
 

@@ -12,13 +12,24 @@ find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(geometry_msgs REQUIRED)
 
-add_executable(obstacle_cloud_node src/obstacle_cloud_node.cpp)
-ament_target_dependencies(obstacle_cloud_node
+add_executable(agt_pointcloud_preprocessor src/obstacle_cloud_node.cpp)
+target_include_directories(agt_pointcloud_preprocessor PRIVATE include)
+ament_target_dependencies(agt_pointcloud_preprocessor
   rclcpp sensor_msgs tf2 tf2_ros geometry_msgs)
 
-install(TARGETS obstacle_cloud_node
+install(TARGETS agt_pointcloud_preprocessor
   DESTINATION lib/${PROJECT_NAME})
-install(DIRECTORY config launch
+install(DIRECTORY launch
   DESTINATION share/${PROJECT_NAME})
+install(DIRECTORY include/
+  DESTINATION include)
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/../../config/perception.yaml
+  DESTINATION share/${PROJECT_NAME}/config)
+
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_radial_ground_filter test/test_radial_ground_filter.cpp)
+  target_include_directories(test_radial_ground_filter PRIVATE include)
+endif()
 
 ament_package()

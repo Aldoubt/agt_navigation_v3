@@ -36,6 +36,7 @@ class FastLioAdapter(Node):
         self.declare_parameter('expected_base_frame', 'base_link')
         self.declare_parameter('output_odom_frame', 'odom')
         self.declare_parameter('output_base_frame', 'base_link')
+        self.declare_parameter('tf_child_frame', 'base_footprint')
         self.declare_parameter('convert_body_to_base', False)
         self.declare_parameter('body_to_base_calibration_file', '')
         self.declare_parameter('mount_lidar_frame', 'livox_frame')
@@ -48,6 +49,7 @@ class FastLioAdapter(Node):
         self._rejected = 0
         self._last_warn_ns = 0
         self._body_to_base_cache = None
+        self._base_to_tf_child_cache = None
 
         input_topic = self.get_parameter('input_topic').value
         output_topic = self.get_parameter('output_topic').value
@@ -99,14 +101,37 @@ class FastLioAdapter(Node):
         return self._body_to_base_cache
 
     def _publish_odom_tf(self, msg: Odometry) -> None:
+        base_frame = str(self.get_parameter('output_base_frame').value)
+        tf_child = str(self.get_parameter('tf_child_frame').value)
+        if self._base_to_tf_child_cache is None:
+            try:
+                transform = self._tf_buffer.lookup_transform(
+                    base_frame, tf_child, Time(),
+                    timeout=Duration(
+                        seconds=float(self.get_parameter('tf_timeout_sec').value)),
+                )
+            except TransformException as exc:
+                raise RuntimeError(
+                    f'rotation-center TF {base_frame} <- {tf_child} unavailable: {exc}') from exc
+            self._base_to_tf_child_cache = transform_msg_to_tuple(transform.transform)
+
+        pose = msg.pose.pose
+        translation, orientation = compose_transform(
+            (pose.position.x, pose.position.y, pose.position.z),
+            (pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w),
+            self._base_to_tf_child_cache[0], self._base_to_tf_child_cache[1],
+        )
         tf = TransformStamped()
         tf.header = msg.header
         tf.header.frame_id = str(self.get_parameter('output_odom_frame').value)
-        tf.child_frame_id = str(self.get_parameter('output_base_frame').value)
-        tf.transform.translation.x = msg.pose.pose.position.x
-        tf.transform.translation.y = msg.pose.pose.position.y
-        tf.transform.translation.z = msg.pose.pose.position.z
-        tf.transform.rotation = msg.pose.pose.orientation
+        tf.child_frame_id = tf_child
+        tf.transform.translation.x = translation[0]
+        tf.transform.translation.y = translation[1]
+        tf.transform.translation.z = translation[2]
+        tf.transform.rotation.x = orientation[0]
+        tf.transform.rotation.y = orientation[1]
+        tf.transform.rotation.z = orientation[2]
+        tf.transform.rotation.w = orientation[3]
         self._tf.sendTransform(tf)
 
     def _on_odom(self, msg: Odometry) -> None:
@@ -168,9 +193,14 @@ class FastLioAdapter(Node):
 
         self._pub.publish(out)
         if convert:
-            # FAST-LIO2 still owns odom->body. This explicit transformed edge
-            # is the sole navigation odom->base_link publisher in this mode.
-            self._publish_odom_tf(out)
+            # FAST-LIO2 still owns odom->body. This transformed edge is the
+            # sole navigation odom->base_footprint publisher in this mode.
+            try:
+                self._publish_odom_tf(out)
+            except RuntimeError as exc:
+                self._rejected += 1
+                self._warn_throttled(str(exc))
+                return
         self._accepted += 1
 
 

@@ -13,6 +13,6 @@ def generate_launch_description():
             executable='cmd_vel_guard',
             name='agt_cmd_vel_guard',
             output='screen',
-            parameters=[str(share / 'config' / 'cmd_vel_guard.yaml')],
+            parameters=[str(share / 'config' / 'safety.yaml')],
         )
     ])

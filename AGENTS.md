@@ -72,7 +72,7 @@ systemctl status agt-bunker-can.service
 3. Start MID360 driver; verify `/livox/lidar` and `/livox/imu`.
 4. Start robot_state_publisher / URDF; verify tilted MID360 TF.
 5. Start Bunker driver and C1 driver; keep remote/manual priority available.
-6. Launch the current software chain with `agt_system_bringup/rviz_field_demo.launch.py`.
+6. Start `hardware.launch.py`, `localization.launch.py`, then `navigation.launch.py`.
 7. Keep robot stationary and manually request global relocalization.
 8. Verify `map -> odom -> base_link` visually and run `demo_preflight`.
 9. Only then enable autonomous motion and queue RViz patrol points.

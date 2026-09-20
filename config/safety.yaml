@@ -1,0 +1,43 @@
+# Sole numerical motion-limit authority. navigation.launch.py fans these values
+# out to the controller, smoother and final command guard at runtime.
+agt_motion_limits:
+  ros__parameters:
+    forward_mps: 0.55
+    reverse_mps: 0.20
+    angular_radps: 0.65
+    controller_cruise_mps: 0.45
+    controller_approach_mps: 0.05
+    controller_regulated_min_mps: 0.10
+    rotate_to_heading_radps: 0.55
+    controller_bootstrap_angular_accel: 10.0
+    linear_accel_mps2: 0.45
+    linear_decel_mps2: 0.80
+    angular_accel_radps2: 0.80
+    angular_decel_radps2: 0.90
+
+velocity_smoother:
+  ros__parameters:
+    use_sim_time: false
+    smoothing_frequency: 50.0
+    scale_velocities: false
+    feedback: OPEN_LOOP
+    odom_topic: /agt/odometry/local
+    odom_duration: 0.1
+    deadband_velocity: [0.01, 0.0, 0.01]
+    velocity_timeout: 0.25
+
+agt_cmd_vel_guard:
+  ros__parameters:
+    # Nav2's standard navigation_launch remaps velocity_smoother output to
+    # /cmd_vel; controller output remains on /cmd_vel_nav.
+    input_topic: /cmd_vel
+    manual_input_topic: /agt/hmi/cmd_vel
+    control_mode_topic: /agt/control/mode
+    default_control_mode: navigation
+    output_topic: /mux/cmd_vel
+    publish_rate_hz: 50.0
+    command_timeout_sec: 0.25
+    localization_status_topic: /agt/localization/status
+    require_localization_status: true
+    localization_status_timeout_sec: 0.75
+    allow_degraded_localization: false

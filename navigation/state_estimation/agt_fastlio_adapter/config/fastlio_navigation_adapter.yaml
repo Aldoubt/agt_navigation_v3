@@ -8,6 +8,7 @@ agt_fastlio_adapter:
     expected_base_frame: body
     output_odom_frame: odom
     output_base_frame: base_link
+    tf_child_frame: base_footprint
     convert_body_to_base: true
     body_to_base_calibration_file: ""
     mount_lidar_frame: livox_frame

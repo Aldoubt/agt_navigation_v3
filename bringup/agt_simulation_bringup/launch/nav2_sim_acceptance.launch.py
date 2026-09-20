@@ -15,7 +15,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'map', description='Absolute path to the Nav2 map YAML used for acceptance.'),
         DeclareLaunchArgument(
-            'nav2_params_file', default_value=str(nav2_share / 'config' / 'nav2_params.yaml'),
+            'nav2_params_file', default_value='',
             description='AGT Nav2 parameters for map, planner, controller and lifecycle nodes.'),
         DeclareLaunchArgument('autostart', default_value='true'),
         IncludeLaunchDescription(

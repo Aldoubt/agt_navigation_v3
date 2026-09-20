@@ -33,8 +33,7 @@ def test_map_list_command_and_parser_use_exact_versions():
 
 def test_map_editor_command_binds_one_exact_package():
     command = map_editor_command(_profile(), 'site_a', 'v003-edited')
-    assert command[:4] == ('ros2', 'launch', 'agt_system_bringup', 'hmi_map_editor.launch.py')
-    assert 'map_id:=site_a' in command and 'map_version:=v003-edited' in command
+    assert command == ('ros2', 'launch', 'agt_system_bringup', 'debug.launch.py')
 
 
 def test_navigation_never_starts_a_sensor_session(monkeypatch):

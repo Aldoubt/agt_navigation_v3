@@ -82,9 +82,7 @@ The mission owns the waypoint sequence and uses Nav2 `NavigateToPose`. Each targ
 
 ## Navigation precision profile
 
-The current general baseline uses `xy_goal_tolerance=0.15 m`. That is too loose for the 5 m acceptance target whose mean error limit is 0.12 m.
-
-The acceptance overlay should start with:
+The runtime baseline now uses the following acceptance starting point:
 
 ```yaml
 controller_server:

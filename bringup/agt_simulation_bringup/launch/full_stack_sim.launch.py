@@ -23,13 +23,12 @@ def _include(package: str, launch_file: str, arguments: dict):
 
 
 def generate_launch_description():
-    nav2_share = Path(get_package_share_directory('agt_nav2_bringup'))
     gazebo_share = Path(get_package_share_directory('agt_gazebo_sim'))
     return LaunchDescription([
         DeclareLaunchArgument(
             'map', description='Absolute path to the Nav2 map YAML used for acceptance.'),
         DeclareLaunchArgument(
-            'nav2_params_file', default_value=str(nav2_share / 'config' / 'nav2_params.yaml')),
+            'nav2_params_file', default_value=''),
         DeclareLaunchArgument(
             'world', default_value=str(gazebo_share / 'worlds' / 'agt_mapping.world')),
         DeclareLaunchArgument('gui', default_value='false'),

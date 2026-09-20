@@ -2,7 +2,7 @@
 <package format="3">
   <name>agt_pointcloud_preprocessor</name>
   <version>0.1.0</version>
-  <description>Navigation-only MID360 PointCloud2 self-filter and obstacle cloud branch.</description>
+  <description>Unique navigation obstacle cloud with self, rear, ground and voxel filters.</description>
   <maintainer email="contact@aldoubt.com">AGT</maintainer>
   <license>Apache-2.0</license>
   <buildtool_depend>ament_cmake</buildtool_depend>
@@ -14,5 +14,6 @@
   <exec_depend>ament_index_python</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
+  <test_depend>ament_cmake_gtest</test_depend>
   <export><build_type>ament_cmake</build_type></export>
 </package>

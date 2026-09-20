@@ -6,6 +6,9 @@ agt_batch_lio_adapter:
     source_child_frame: body
     output_parent_frame: odom
     output_child_frame: base_link
+    # Odometry messages describe base_link. TF rotates about the ground-plane
+    # frame so the tree is odom -> base_footprint -> base_link.
+    tf_child_frame: base_footprint
 
     # Physical mount source of truth:
     # tracked_chassis_description publishes base_link -> livox_frame.

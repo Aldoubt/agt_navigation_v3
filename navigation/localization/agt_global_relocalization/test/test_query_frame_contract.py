@@ -61,16 +61,9 @@ def test_acceptance_defaults_keep_manual_and_candidate_bbs_in_mapping_body():
     assert params['relocalization_query_frame_mode'] == 'mapping_body'
     assert params['bbs_query_frame_mode'] == 'mapping_body'
 
-    for launch_path in (
-        root / 'navigation/localization/agt_global_relocalization/launch/'
-        'global_relocalization.launch.py',
-        root / 'bringup/agt_system_bringup/launch/'
-        'offline_relocalization_demo.launch.py',
-        root / 'bringup/agt_system_bringup/launch/'
-        'acceptance_offline_replay.launch.py',
-    ):
-        launch = launch_path.read_text(encoding='utf-8')
-        assert "'bbs_query_frame_mode', default_value='mapping_body'" in launch
+    launch = (root / 'navigation/localization/agt_global_relocalization/launch/'
+              'global_relocalization.launch.py').read_text(encoding='utf-8')
+    assert "'bbs_query_frame_mode', default_value='mapping_body'" in launch
 
 
 def test_manual_seed_mapping_body_contract_has_one_conversion_at_each_boundary():

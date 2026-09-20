@@ -1,0 +1,11 @@
+# Canonical robot geometry and frame contract.  navigation.launch.py injects
+# the footprint into both costmaps when it builds the single runtime Nav2 file.
+agt_robot_config:
+  ros__parameters:
+    map_frame: map
+    odom_frame: odom
+    rotation_frame: base_footprint
+    base_frame: base_link
+    lidar_frame: lidar_link
+    footprint: "[[0.52,0.40],[0.52,-0.40],[-0.52,-0.40],[-0.52,0.40]]"
+    footprint_padding: 0.03

@@ -179,7 +179,10 @@ python3 -m pytest -q \
 # is checked later by demo_preflight on the robot.
 ros2 launch agt_navigation_runtime navigation_lio.launch.py --show-args >/dev/null
 ros2 launch agt_global_relocalization global_relocalization.launch.py --show-args >/dev/null
-ros2 launch agt_system_bringup rviz_field_demo.launch.py --show-args >/dev/null
+ros2 launch agt_system_bringup hardware.launch.py --show-args >/dev/null
+ros2 launch agt_system_bringup localization.launch.py --show-args >/dev/null
+ros2 launch agt_system_bringup navigation.launch.py --show-args >/dev/null
+ros2 launch agt_system_bringup debug.launch.py --show-args >/dev/null
 ros2 launch agt_gazebo_sim navigation_demo.launch.py --show-args >/dev/null
 
 # Safety behavior is a migration gate too: LOST must hard-stop and reopening the
@@ -187,6 +190,6 @@ ros2 launch agt_gazebo_sim navigation_demo.launch.py --show-args >/dev/null
 ROS_DOMAIN_ID="${AGT_SMOKE_DOMAIN_ID:-149}" python3 \
   "${REPO_ROOT}/bringup/agt_base_control/test/guard_fail_closed_acceptance.py" \
   --ros-args --params-file \
-  "${REPO_ROOT}/bringup/agt_base_control/config/cmd_vel_guard.yaml"
+  "${REPO_ROOT}/config/safety.yaml"
 
 echo "FIELD BUILD SMOKE PASS"

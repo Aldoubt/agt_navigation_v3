@@ -16,7 +16,7 @@ AGT Navigation V3 是面向 Bunker 类履带底盘与 Livox MID360 的 ROS 2 Hum
 
 ```text
 MID360 / IMU
-  -> Batch-LIO -> agt_batch_lio_adapter -> /agt/odometry/local, odom -> base_link
+  -> Batch-LIO -> agt_batch_lio_adapter -> /agt/odometry/local, odom -> base_footprint
   -> mapping_body 全局重定位 -> /agt/relocalization/pose
   -> agt_localization_manager -> map -> odom
   -> Nav2 -> velocity smoother -> cmd_vel_guard -> 外部 Bunker 驱动
@@ -27,6 +27,14 @@ MID360 / IMU
   `T_map_base_link = T_map_body * T_body_base_link`。
 - Nav2 使用外部定位，刻意不启动 AMCL。
 - 原始 Livox 时序直接进入 LIO；PointCloud2 转换是独立的重定位/障碍物支路。
+
+正式顶层入口仅为 `hardware.launch.py`、`localization.launch.py`、
+`navigation.launch.py` 和 `debug.launch.py`。旧版现场、HMI、回放及聚合 launch 已删除；
+以 [导航启动文档](导航启动文档.md) 的三终端顺序为准。
+
+MID360 + Bunker 实机阶段使用只读验收工具链；TF authority、topic 频率、运动中心、
+导航录包和报告流程见
+[实机验收流程](docs/HARDWARE_ACCEPTANCE_MID360_BUNKER.md)。
 
 完整 frame contract 以
 [docs/contracts/TF_CONVENTION.md](docs/contracts/TF_CONVENTION.md) 与
@@ -49,7 +57,7 @@ source install/setup.bash
 cd ~/ros2_ws
 source /opt/ros/humble/setup.bash
 source install/setup.bash
-ros2 launch agt_system_bringup sensor_session.launch.py
+ros2 launch agt_system_bringup hardware.launch.py
 ```
 
 在目标机执行构建与选定软件 smoke 检查：
@@ -163,7 +171,7 @@ ros2 run agt_map_manager validate_active_map \
 导航 launch 不负责启动这些硬件驱动：
 
 ```bash
-ros2 launch agt_system_bringup sensor_session.launch.py
+ros2 launch agt_system_bringup hardware.launch.py
 ```
 
 传感器运行后，另一个终端使用选定地图启动 RViz 导航：

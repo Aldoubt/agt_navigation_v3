@@ -96,7 +96,7 @@ def clamp_vector_norm(v, limit):
 
 
 class BatchLioAdapter(Node):
-    """Convert Batch-LIO camera_init->body odometry into AGT odom->base_link.
+    """Convert Batch-LIO camera_init->body odometry into AGT local odometry.
 
     The parent-frame conversion is a semantic alias: Batch-LIO's camera_init is
     the local inertial origin and AGT names that local origin `odom`.
@@ -108,8 +108,9 @@ class BatchLioAdapter(Node):
       2. robot_state_publisher's calibrated lidar<-base_link static TF.
 
     This keeps the MID360 internal extrinsic and the physical chassis mount in
-    their respective sources of truth while eliminating duplicated
-    body_to_base constants.
+    their respective sources of truth while eliminating duplicated body-to-base
+    constants. Odometry remains odom->base_link; TF uses odom->base_footprint
+    so the dynamic rotation center is on the ground plane.
     """
 
     def __init__(self):
@@ -120,6 +121,7 @@ class BatchLioAdapter(Node):
         self.declare_parameter('source_child_frame', 'body')
         self.declare_parameter('output_parent_frame', 'odom')
         self.declare_parameter('output_child_frame', 'base_link')
+        self.declare_parameter('tf_child_frame', 'base_footprint')
         self.declare_parameter('lidar_frame', 'livox_frame')
         self.declare_parameter('batch_lio_config_file', '')
         self.declare_parameter('max_input_age_sec', 0.20)
@@ -151,6 +153,7 @@ class BatchLioAdapter(Node):
         self.static_broadcaster = StaticTransformBroadcaster(self)
 
         self._body_to_base_cache = None
+        self._base_to_tf_child_cache = None
         self._extrinsic_error_logged = False
         self._body_to_lidar = None
         if not bool(self.get_parameter('use_configured_extrinsic').value):
@@ -273,12 +276,30 @@ class BatchLioAdapter(Node):
         )
         return resolved
 
+    def _resolve_base_to_tf_child(self, base_frame, tf_child):
+        if base_frame == tf_child:
+            return (0.0, 0.0, 0.0), (0.0, 0.0, 0.0, 1.0)
+        if self._base_to_tf_child_cache is not None:
+            return self._base_to_tf_child_cache
+        try:
+            transform = self.buffer.lookup_transform(
+                base_frame, tf_child, Time(),
+                timeout=Duration(
+                    seconds=float(self.get_parameter('tf_timeout_sec').value)),
+            )
+        except TransformException as exc:
+            raise RuntimeError(
+                f'rotation-center TF {base_frame} <- {tf_child} unavailable: {exc}') from exc
+        self._base_to_tf_child_cache = transform_msg_to_tuple(transform.transform)
+        return self._base_to_tf_child_cache
+
     def on_odom(self, msg: Odometry):
         now_ns = self.get_clock().now().nanoseconds
         src_parent = str(self.get_parameter('source_parent_frame').value)
         src_child = str(self.get_parameter('source_child_frame').value)
         out_parent = str(self.get_parameter('output_parent_frame').value)
         out_child = str(self.get_parameter('output_child_frame').value)
+        tf_child = str(self.get_parameter('tf_child_frame').value)
         self._last_input_rx_ns = now_ns
         if msg.header.frame_id != src_parent or msg.child_frame_id != src_child:
             self._rejected_count += 1
@@ -303,6 +324,8 @@ class BatchLioAdapter(Node):
 
         try:
             t_body_base, q_body_base = self._resolve_body_to_base(out_child)
+            t_base_tf_child, q_base_tf_child = self._resolve_base_to_tf_child(
+                out_child, tf_child)
             self._extrinsic_error_logged = False
         except Exception as exc:
             self._rejected_count += 1
@@ -377,14 +400,16 @@ class BatchLioAdapter(Node):
         tf = TransformStamped()
         tf.header.stamp = out.header.stamp
         tf.header.frame_id = out_parent
-        tf.child_frame_id = out_child
-        tf.transform.translation.x = p_camera_base[0]
-        tf.transform.translation.y = p_camera_base[1]
-        tf.transform.translation.z = p_camera_base[2]
-        tf.transform.rotation.x = q_camera_base[0]
-        tf.transform.rotation.y = q_camera_base[1]
-        tf.transform.rotation.z = q_camera_base[2]
-        tf.transform.rotation.w = q_camera_base[3]
+        tf.child_frame_id = tf_child
+        p_camera_tf_child, q_camera_tf_child = compose_transform(
+            p_camera_base, q_camera_base, t_base_tf_child, q_base_tf_child)
+        tf.transform.translation.x = p_camera_tf_child[0]
+        tf.transform.translation.y = p_camera_tf_child[1]
+        tf.transform.translation.z = p_camera_tf_child[2]
+        tf.transform.rotation.x = q_camera_tf_child[0]
+        tf.transform.rotation.y = q_camera_tf_child[1]
+        tf.transform.rotation.z = q_camera_tf_child[2]
+        tf.transform.rotation.w = q_camera_tf_child[3]
         self.tf_broadcaster.sendTransform(tf)
         self._accepted_count += 1
         self._last_valid_pose_rx_ns = now_ns

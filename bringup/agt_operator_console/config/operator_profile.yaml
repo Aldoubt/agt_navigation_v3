@@ -4,8 +4,8 @@ schema_version: 1
 # is operated from the separate mapping workspace.
 # Do not put shell expressions in commands.
 drivers:
-  - name: sensor_session
-    command: [ros2, launch, agt_system_bringup, sensor_session.launch.py]
+  - name: hardware
+    command: [ros2, launch, agt_system_bringup, hardware.launch.py]
 
 # A failed required check blocks that mode. RTK and inspection equipment remain
 # visible as WARN during mapping/navigation, then become required for inspection.
@@ -60,8 +60,8 @@ checks:
     timeout_sec: 4.0
 
 mode_commands:
-  navigation: [ros2, launch, agt_system_bringup, hmi_field_demo.launch.py, auto_relocalize:=true, enable_rtk:=false]
-  inspection: [ros2, launch, agt_system_bringup, hmi_field_demo.launch.py, auto_relocalize:=true, enable_rtk:=false]
+  navigation: [ros2, launch, agt_system_bringup, navigation.launch.py]
+  inspection: [ros2, launch, agt_system_bringup, navigation.launch.py]
 
 # Connectivity alone is insufficient for mapping. This stationary check rejects
 # incompatible MID360 IMU units/noise conditions before FAST-LIO2 starts.

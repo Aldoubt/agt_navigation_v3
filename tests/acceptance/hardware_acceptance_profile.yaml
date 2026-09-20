@@ -1,0 +1,50 @@
+schema_version: 1
+platform: MID360+Bunker
+
+tf_audit:
+  sample_duration_sec: 8.0
+  discovery_timeout_sec: 5.0
+  expected_edges:
+    - {parent: map, child: odom, publisher: /agt_localization_manager, topic: /tf}
+    - {parent: odom, child: base_footprint, publisher: /agt_batch_lio_adapter, topic: /tf}
+    - {parent: base_footprint, child: base_link, publisher: /robot_state_publisher, topic: /tf_static}
+    - {parent: base_link, child: chassis_cad_link, publisher: /robot_state_publisher, topic: /tf_static}
+    - {parent: chassis_cad_link, child: lidar_mount_link, publisher: /robot_state_publisher, topic: /tf_static}
+    - {parent: lidar_mount_link, child: lidar_link, publisher: /robot_state_publisher, topic: /tf_static}
+
+topic_rate_audit:
+  sample_duration_sec: 15.0
+  discovery_timeout_sec: 8.0
+  minimum_sample_span_sec: 5.0
+  topics:
+    - {name: /livox/lidar, min_hz: 8.0, max_hz: 15.0, required: true}
+    - {name: /livox/imu, min_hz: 50.0, max_hz: 400.0, required: true}
+    - {name: /bunker_status, min_hz: 20.0, max_hz: 70.0, required: true}
+    - {name: /wheel/odom, min_hz: 20.0, max_hz: 70.0, required: true}
+    - {name: /agt/livox/points, min_hz: 8.0, max_hz: 15.0, required: true}
+    - {name: /agt/odometry/local, min_hz: 8.0, max_hz: 30.0, required: true}
+    - {name: /agt/navigation/points_obstacles, min_hz: 8.0, max_hz: 15.0, required: true}
+    - {name: /agt/localization/status, min_hz: 3.0, max_hz: 10.0, required: true}
+    # The velocity smoother may remain silent before the first Nav2 command.
+    - {name: /cmd_vel, min_hz: 40.0, max_hz: 60.0, required: false}
+    - {name: /mux/cmd_vel, min_hz: 40.0, max_hz: 60.0, required: true}
+    - {name: /ins/navsatfix, min_hz: 1.0, max_hz: 50.0, required: false}
+
+base_footprint_audit:
+  sample_duration_sec: 30.0
+  command_topic: /mux/cmd_vel
+  minimum_command_yaw_rate_radps: 0.15
+  maximum_command_linear_speed_mps: 0.03
+  command_timeout_sec: 0.30
+  minimum_observed_yaw_rad: 0.52
+  minimum_motion_samples: 10
+  maximum_planar_excursion_m: 0.15
+  maximum_effective_radius_m: 0.20
+  static_xy_tolerance_m: 0.01
+  static_z_expected_m: 0.20
+  static_z_tolerance_m: 0.01
+  static_angle_tolerance_rad: 0.01
+
+recording:
+  duration_sec: 180
+  include_raw_sensors: true

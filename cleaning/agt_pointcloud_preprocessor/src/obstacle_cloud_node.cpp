@@ -19,6 +19,8 @@
 #include "tf2_ros/buffer.h"
 #include "tf2_ros/transform_listener.h"
 
+#include "agt_pointcloud_preprocessor/radial_ground_filter.hpp"
+
 namespace
 {
 
@@ -74,11 +76,18 @@ struct FilterStatistics
   std::uint64_t range_removed{};
   std::uint64_t self_removed{};
   std::uint64_t rear_removed{};
+  std::uint64_t ground_removed{};
   std::uint64_t voxel_removed{};
   std::uint64_t output_points{};
   std::uint64_t input_frame_mismatch{};
   std::uint64_t tf_lookup_success{};
   std::uint64_t tf_lookup_failure{};
+};
+
+struct WorkingPoint
+{
+  std::array<float, 3> source;
+  tf2::Vector3 base;
 };
 
 }  // namespace
@@ -87,7 +96,7 @@ class ObstacleCloudNode : public rclcpp::Node
 {
 public:
   ObstacleCloudNode()
-  : Node("agt_obstacle_cloud_preprocessor"),
+  : Node("agt_pointcloud_preprocessor"),
     tf_buffer_(this->get_clock()),
     tf_listener_(tf_buffer_)
   {
@@ -107,15 +116,48 @@ public:
       "self_filter.size_xyz", {1.023, 0.778, 0.400});
     self_padding_ = declare_parameter<double>("self_filter.padding_m", 0.05);
 
-    rear_enabled_ = declare_parameter<bool>("rear_sector.enabled", false);
-    rear_center_rad_ = deg2rad(declare_parameter<double>("rear_sector.center_deg", 180.0));
+    rear_enabled_ = declare_parameter<bool>("rear_filter.enabled", false);
+    rear_center_rad_ = deg2rad(declare_parameter<double>("rear_filter.center_deg", 180.0));
     rear_half_width_rad_ = 0.5 * deg2rad(
-      declare_parameter<double>("rear_sector.width_deg", 10.0));
-    rear_min_range_ = declare_parameter<double>("rear_sector.min_range_m", 0.5);
-    rear_max_range_ = declare_parameter<double>("rear_sector.max_range_m", 4.0);
+      declare_parameter<double>("rear_filter.width_deg", 10.0));
+    rear_min_range_ = declare_parameter<double>("rear_filter.min_range_m", 0.5);
+    rear_max_range_ = declare_parameter<double>("rear_filter.max_range_m", 4.0);
+
+    ground_enabled_ = declare_parameter<bool>("ground_filter.enabled", true);
+    ground_mode_ = declare_parameter<std::string>("ground_filter.mode", "radial_slope");
+    ground_min_obstacle_height_ = declare_parameter<double>(
+      "ground_filter.min_obstacle_height_m", 0.10);
+    ground_max_obstacle_height_ = declare_parameter<double>(
+      "ground_filter.max_obstacle_height_m", 2.0);
+    agt_pointcloud_preprocessor::RadialGroundOptions radial_options;
+    radial_options.sensor_ground_z_m = declare_parameter<double>(
+      "ground_filter.sensor_ground_z_m", -0.20);
+    radial_options.radial_bin_deg = declare_parameter<double>(
+      "ground_filter.radial_bin_deg", 1.5);
+    radial_options.local_max_slope_deg = declare_parameter<double>(
+      "ground_filter.local_max_slope_deg", 35.0);
+    radial_options.global_max_slope_deg = declare_parameter<double>(
+      "ground_filter.global_max_slope_deg", 35.0);
+    radial_options.min_height_threshold_m = declare_parameter<double>(
+      "ground_filter.min_height_threshold_m", 0.08);
+    radial_options.max_ground_gap_m = declare_parameter<double>(
+      "ground_filter.max_ground_gap_m", 0.75);
+    radial_options.max_ground_range_m = declare_parameter<double>(
+      "ground_filter.max_ground_range_m", 15.0);
+    ground_sensor_z_ = radial_options.sensor_ground_z_m;
+    ground_radial_bin_deg_ = radial_options.radial_bin_deg;
+    ground_local_max_slope_deg_ = radial_options.local_max_slope_deg;
+    ground_global_max_slope_deg_ = radial_options.global_max_slope_deg;
+    ground_min_height_threshold_ = radial_options.min_height_threshold_m;
+    ground_max_gap_ = radial_options.max_ground_gap_m;
+    ground_max_range_ = radial_options.max_ground_range_m;
+    if (ground_enabled_ && ground_mode_ == "radial_slope") {
+      radial_ground_filter_ =
+        std::make_unique<agt_pointcloud_preprocessor::RadialGroundFilter>(radial_options);
+    }
 
     voxel_enabled_ = declare_parameter<bool>("voxel.enabled", true);
-    voxel_leaf_ = declare_parameter<double>("voxel.leaf_size_m", 0.20);
+    voxel_leaf_ = declare_parameter<double>("voxel.leaf_size_m", 0.10);
     tf_timeout_sec_ = declare_parameter<double>("tf_timeout_sec", 0.05);
     drop_on_tf_failure_ = declare_parameter<bool>("drop_on_tf_failure", true);
     statistics_output_ = declare_parameter<std::string>("statistics_output", "");
@@ -132,6 +174,14 @@ public:
     }
     if (voxel_enabled_ && voxel_leaf_ <= 0.0) {
       throw std::runtime_error("voxel.leaf_size_m must be > 0 when voxel filter is enabled");
+    }
+    if (ground_enabled_ && ground_mode_ != "radial_slope" && ground_mode_ != "fixed_height") {
+      throw std::runtime_error(
+              "ground_filter.mode must be 'radial_slope' or 'fixed_height'");
+    }
+    if (ground_enabled_ && ground_max_obstacle_height_ <= ground_min_obstacle_height_) {
+      throw std::runtime_error(
+              "ground_filter.max_obstacle_height_m must be greater than min_obstacle_height_m");
     }
     if (debug_log_interval_sec_ < 0.0) {
       throw std::runtime_error("debug_log_interval_sec must be >= 0");
@@ -227,15 +277,18 @@ private:
     }
 
     tf2::Transform base_from_cloud;
-    const bool need_tf = self_filter_enabled_ || rear_enabled_ || debug_base_cloud_enabled_;
+    const bool need_tf =
+      self_filter_enabled_ || rear_enabled_ || ground_enabled_ || debug_base_cloud_enabled_;
     const bool tf_ok = !need_tf || get_base_from_cloud(*cloud, base_from_cloud);
     if (need_tf && !tf_ok && drop_on_tf_failure_) {
       return;
     }
 
+    std::vector<WorkingPoint> working;
     std::vector<std::array<float, 3>> accepted;
     std::vector<std::array<float, 3>> accepted_base;
     const auto point_count = static_cast<std::size_t>(cloud->width) * cloud->height;
+    working.reserve(point_count);
     accepted.reserve(point_count / 2U);
     if (debug_base_cloud_enabled_) {
       accepted_base.reserve(point_count / 2U);
@@ -281,31 +334,65 @@ private:
             continue;
           }
         }
-
-        if (voxel_enabled_) {
-          const VoxelKey key{
-            static_cast<std::int64_t>(std::floor(x / voxel_leaf_)),
-            static_cast<std::int64_t>(std::floor(y / voxel_leaf_)),
-            static_cast<std::int64_t>(std::floor(z / voxel_leaf_))};
-          if (!occupied.insert(key).second) {
-            ++statistics_.voxel_removed;
-            continue;
-          }
-        }
-
-        accepted.push_back({x, y, z});
-        if (debug_base_cloud_enabled_ && tf_ok) {
-          accepted_base.push_back({
-            static_cast<float>(p_base.x()),
-            static_cast<float>(p_base.y()),
-            static_cast<float>(p_base.z())});
-        }
+        working.push_back(WorkingPoint{{x, y, z}, p_base});
       }
     } catch (const std::runtime_error & ex) {
       RCLCPP_ERROR_THROTTLE(
         get_logger(), *get_clock(), 2000,
         "Input PointCloud2 must contain float x/y/z fields: %s", ex.what());
       return;
+    }
+
+    std::vector<agt_pointcloud_preprocessor::GroundResult> ground_result;
+    if (ground_enabled_ && tf_ok && ground_mode_ == "radial_slope") {
+      std::vector<agt_pointcloud_preprocessor::TerrainPoint> terrain_points;
+      terrain_points.reserve(working.size());
+      for (const auto & point : working) {
+        terrain_points.push_back({point.base.x(), point.base.y(), point.base.z()});
+      }
+      ground_result = radial_ground_filter_->classify(terrain_points);
+    }
+
+    for (std::size_t index = 0; index < working.size(); ++index) {
+      const auto & point = working[index];
+      if (ground_enabled_ && tf_ok) {
+        if (ground_mode_ == "fixed_height") {
+          if (point.base.z() < ground_min_obstacle_height_ ||
+            point.base.z() > ground_max_obstacle_height_)
+          {
+            ++statistics_.ground_removed;
+            continue;
+          }
+        } else {
+          const auto & ground = ground_result[index];
+          const double height_above_ground = point.base.z() - ground.ground_z;
+          if (ground.is_ground || height_above_ground < ground_min_obstacle_height_ ||
+            height_above_ground > ground_max_obstacle_height_)
+          {
+            ++statistics_.ground_removed;
+            continue;
+          }
+        }
+      }
+
+      if (voxel_enabled_) {
+        const VoxelKey key{
+          static_cast<std::int64_t>(std::floor(point.source[0] / voxel_leaf_)),
+          static_cast<std::int64_t>(std::floor(point.source[1] / voxel_leaf_)),
+          static_cast<std::int64_t>(std::floor(point.source[2] / voxel_leaf_))};
+        if (!occupied.insert(key).second) {
+          ++statistics_.voxel_removed;
+          continue;
+        }
+      }
+
+      accepted.push_back(point.source);
+      if (debug_base_cloud_enabled_ && tf_ok) {
+        accepted_base.push_back({
+          static_cast<float>(point.base.x()),
+          static_cast<float>(point.base.y()),
+          static_cast<float>(point.base.z())});
+      }
     }
 
     statistics_.output_points += accepted.size();
@@ -384,6 +471,7 @@ private:
              << "\nrange_removed_points: " << statistics_.range_removed
              << "\nself_removed_points: " << statistics_.self_removed
              << "\nrear_removed_points: " << statistics_.rear_removed
+             << "\nground_removed_points: " << statistics_.ground_removed
              << "\nvoxel_removed_points: " << statistics_.voxel_removed
              << "\noutput_points: " << statistics_.output_points
              << "\ninput_frame_mismatch: " << statistics_.input_frame_mismatch
@@ -399,6 +487,17 @@ private:
              << "\nrear_sector_width_deg: " << rear_half_width_rad_ * 2.0 * 180.0 / M_PI
              << "\nrear_sector_min_range_m: " << rear_min_range_
              << "\nrear_sector_max_range_m: " << rear_max_range_
+             << "\nground_filter_enabled: " << (ground_enabled_ ? "true" : "false")
+             << "\nground_filter_mode: " << ground_mode_
+             << "\nground_filter_min_obstacle_height_m: " << ground_min_obstacle_height_
+             << "\nground_filter_max_obstacle_height_m: " << ground_max_obstacle_height_
+             << "\nground_filter_sensor_ground_z_m: " << ground_sensor_z_
+             << "\nground_filter_radial_bin_deg: " << ground_radial_bin_deg_
+             << "\nground_filter_local_max_slope_deg: " << ground_local_max_slope_deg_
+             << "\nground_filter_global_max_slope_deg: " << ground_global_max_slope_deg_
+             << "\nground_filter_min_height_threshold_m: " << ground_min_height_threshold_
+             << "\nground_filter_max_ground_gap_m: " << ground_max_gap_
+             << "\nground_filter_max_ground_range_m: " << ground_max_range_
              << "\ndebug_base_cloud_enabled: " << (debug_base_cloud_enabled_ ? "true" : "false")
              << "\ndebug_base_cloud_topic: " << debug_base_cloud_topic_ << '\n';
     } catch (const std::exception & ex) {
@@ -460,6 +559,18 @@ private:
   double rear_half_width_rad_{};
   double rear_min_range_{};
   double rear_max_range_{};
+  bool ground_enabled_{};
+  std::string ground_mode_;
+  double ground_min_obstacle_height_{};
+  double ground_max_obstacle_height_{};
+  double ground_sensor_z_{};
+  double ground_radial_bin_deg_{};
+  double ground_local_max_slope_deg_{};
+  double ground_global_max_slope_deg_{};
+  double ground_min_height_threshold_{};
+  double ground_max_gap_{};
+  double ground_max_range_{};
+  std::unique_ptr<agt_pointcloud_preprocessor::RadialGroundFilter> radial_ground_filter_;
   bool voxel_enabled_{};
   double voxel_leaf_{};
   double tf_timeout_sec_{};
