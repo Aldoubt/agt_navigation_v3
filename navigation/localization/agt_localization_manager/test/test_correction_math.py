@@ -1,8 +1,11 @@
 import math
+import json
 
 import pytest
+from std_msgs.msg import String
 
 from agt_localization_manager.localization_manager import (
+    LocalizationManager,
     LocalizationState,
     _Pose3,
     _RecoveryStateMachine,
@@ -139,3 +142,39 @@ def test_slerp_halfway_has_bounded_translation_and_yaw():
     middle = _slerp(start, end, 0.5)
     assert abs(middle.p[0] - 0.5) < 1e-6
     assert abs(_yaw(middle.q) - math.pi / 4) < 1e-6
+
+
+def test_backend_rejection_leaves_relocalizing_for_wait_global():
+    manager = object.__new__(LocalizationManager)
+    manager._state = LocalizationState.RELOCALIZING
+    manager._reason = 'relocalization_requested'
+    manager._backend_debug_state = None
+    manager._correction_current = None
+    manager._recovery_pending = True
+
+    msg = String()
+    msg.data = json.dumps({'state': 'REJECTED', 'detail': 'small_gicp did not converge'})
+    LocalizationManager._on_backend_status(manager, msg)
+
+    assert manager._backend_debug_state == 'REJECTED'
+    assert manager._state == LocalizationState.WAIT_GLOBAL
+    assert manager._reason == (
+        'global_relocalization_rejected:small_gicp did not converge')
+    assert not manager._recovery_pending
+
+
+def test_backend_collecting_remains_relocalizing_while_pending():
+    manager = object.__new__(LocalizationManager)
+    manager._state = LocalizationState.WAIT_GLOBAL
+    manager._reason = 'waiting_global_pose'
+    manager._backend_debug_state = None
+    manager._correction_current = None
+    manager._recovery_pending = False
+
+    msg = String()
+    msg.data = json.dumps({'state': 'COLLECTING', 'detail': '2/5 frames'})
+    LocalizationManager._on_backend_status(manager, msg)
+
+    assert manager._backend_debug_state == 'COLLECTING'
+    assert manager._state == LocalizationState.RELOCALIZING
+    assert manager._reason == 'global_relocalization:collecting'

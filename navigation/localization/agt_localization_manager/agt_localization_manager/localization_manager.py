@@ -564,11 +564,32 @@ class LocalizationManager(Node):
 
     def _on_backend_status(self, msg: String) -> None:
         try:
-            state = json.loads(msg.data).get('state')
-        except (TypeError, ValueError):
-            state = None
-        if state in {'QUERY_READY', 'BBS_SEARCHING', 'BBS_COARSE_FOUND', 'GICP_REFINING', 'REJECTED'}:
-            self._backend_debug_state = state
+            payload = json.loads(msg.data)
+            state = str(payload.get('state', '')).strip()
+            detail = str(payload.get('detail', '')).strip()
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return
+        if not state:
+            return
+
+        self._backend_debug_state = state
+        if state in {
+                'WAIT_STATIONARY', 'COLLECTING', 'QUERY_READY',
+                'BBS_SEARCHING', 'BBS_COARSE_FOUND', 'GICP_REFINING'}:
+            if self._correction_current is None:
+                self._state = LocalizationState.RELOCALIZING
+                self._reason = f'global_relocalization:{state.lower()}'
+            return
+
+        if state in {'FAILED', 'REJECTED'} and self._correction_current is None:
+            # A terminal backend failure must not leave the public state stuck
+            # at RELOCALIZING forever.  WAIT_GLOBAL remains fail-closed while
+            # making it explicit that a fresh request is required.
+            self._state = LocalizationState.WAIT_GLOBAL
+            suffix = detail.replace('\n', ' ')[:160] if detail else 'unspecified'
+            self._reason = f'global_relocalization_{state.lower()}:{suffix}'
+            self._recovery_pending = False
+            return
 
     def _on_map_event(self, msg: String) -> None:
         try:

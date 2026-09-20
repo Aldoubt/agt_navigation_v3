@@ -4,6 +4,7 @@ import json
 import math
 import os
 import shlex
+import statistics
 import subprocess
 import tempfile
 from collections import deque
@@ -72,9 +73,17 @@ class GlobalRelocalization(Node):
         p('query_voxel_leaf_m', 0.25)
         p('require_stationary', True)
         p('local_odom_topic', '/agt/odometry/local')
+        # A tracked chassis can be physically stopped while LiDAR odometry
+        # reports vibration-driven XYZ velocity.  Keep the legacy local-odom
+        # parameter as a fallback, but allow the measured wheel odometry to be
+        # the production stationary authority.
+        p('stationary_odom_topic', '')
         p('odom_freshness_sec', 0.50)
         p('stationary_linear_threshold_mps', 0.05)
         p('stationary_angular_threshold_rps', 0.08)
+        p('stationary_filter_window_samples', 5)
+        p('stationary_hard_linear_threshold_mps', 0.20)
+        p('stationary_hard_angular_threshold_rps', 0.30)
         p('min_score', 0.50)
         p('max_fitness', 1.00)
         p('min_overlap', 0.20)
@@ -93,6 +102,10 @@ class GlobalRelocalization(Node):
         self.latest_odom = None
         self.latest_odom_rx_ns = 0
         self.latest_motion = None
+        motion_window = max(
+            1, int(self.get_parameter('stationary_filter_window_samples').value))
+        self.motion_samples = deque(maxlen=motion_window)
+        self.pending_request = False
         self.active_map_status = None
         self.last_query_raw_points = 0
         self.last_query_cloud_contract = None
@@ -108,7 +121,12 @@ class GlobalRelocalization(Node):
         self.aligned_cloud_pub = self.create_publisher(PointCloud2, '/agt/relocalization/aligned_cloud', 10)
         self.coarse_pose_pub = self.create_publisher(PoseWithCovarianceStamped, '/agt/relocalization/coarse_pose', 10)
         self.create_subscription(PointCloud2, self.get_parameter('scan_topic').value, self.on_cloud, qos_profile_sensor_data)
-        self.create_subscription(Odometry, self.get_parameter('local_odom_topic').value, self.on_odom, 50)
+        stationary_odom_topic = str(
+            self.get_parameter('stationary_odom_topic').value).strip()
+        if not stationary_odom_topic:
+            stationary_odom_topic = str(self.get_parameter('local_odom_topic').value)
+        self.stationary_odom_topic = stationary_odom_topic
+        self.create_subscription(Odometry, stationary_odom_topic, self.on_odom, 50)
         self.create_subscription(Empty, self.get_parameter('request_topic').value, self.on_request, 10)
 
         map_qos = QoSProfile(depth=1)
@@ -123,6 +141,8 @@ class GlobalRelocalization(Node):
 
     def on_cloud(self, msg):
         self.clouds.append(msg)
+        if self.pending_request and not self.busy:
+            self._try_start_request()
         if (bool(self.get_parameter('auto_request').value)
                 and not self.auto_requested
                 and len(self.clouds) >= int(self.get_parameter('accumulate_clouds').value)):
@@ -147,6 +167,7 @@ class GlobalRelocalization(Node):
             self.auto_timer = None
         if clear_clouds:
             self.clouds.clear()
+        self.pending_request = False
         self.auto_requested = False
 
     def on_map_status(self, msg):
@@ -163,6 +184,21 @@ class GlobalRelocalization(Node):
         linear = math.sqrt(t.linear.x*t.linear.x + t.linear.y*t.linear.y + t.linear.z*t.linear.z)
         angular = math.sqrt(t.angular.x*t.angular.x + t.angular.y*t.angular.y + t.angular.z*t.angular.z)
         return linear, angular
+
+    @staticmethod
+    def robust_motion(samples, required_samples):
+        """Return median linear/angular motion once the filter window is full."""
+        required = max(1, int(required_samples))
+        if len(samples) < required:
+            return None
+        window = list(samples)[-required:]
+        return (statistics.median(sample[0] for sample in window),
+                statistics.median(sample[1] for sample in window))
+
+    @staticmethod
+    def has_complete_query(cloud_count, required_clouds):
+        """A registration query is valid only after all configured frames arrive."""
+        return int(cloud_count) >= max(1, int(required_clouds))
 
     @staticmethod
     def pose_delta_motion(previous, current):
@@ -199,13 +235,25 @@ class GlobalRelocalization(Node):
         else:
             self.latest_motion = (max(twist_motion[0], pose_motion[0]),
                                   max(twist_motion[1], pose_motion[1]))
+            self.motion_samples.append(self.latest_motion)
         if bool(self.get_parameter('require_stationary').value):
-            moving = self.latest_motion is None or (
-                self.latest_motion[0] > float(self.get_parameter('stationary_linear_threshold_mps').value)
-                or self.latest_motion[1] > float(self.get_parameter('stationary_angular_threshold_rps').value)
+            filtered = self.robust_motion(
+                self.motion_samples,
+                self.get_parameter('stationary_filter_window_samples').value)
+            hard_moving = self.latest_motion is not None and (
+                self.latest_motion[0] > float(
+                    self.get_parameter('stationary_hard_linear_threshold_mps').value)
+                or self.latest_motion[1] > float(
+                    self.get_parameter('stationary_hard_angular_threshold_rps').value)
             )
-            if first_odom or moving:
+            moving = filtered is None or (
+                filtered[0] > float(self.get_parameter('stationary_linear_threshold_mps').value)
+                or filtered[1] > float(self.get_parameter('stationary_angular_threshold_rps').value)
+            )
+            if first_odom or hard_moving or moving:
                 self.clouds.clear()
+        if self.pending_request and not self.busy:
+            self._try_start_request()
 
     def status(self, state, detail='', **extra):
         m = String()
@@ -223,30 +271,49 @@ class GlobalRelocalization(Node):
         age = (self.get_clock().now().nanoseconds - self.latest_odom_rx_ns) / 1e9
         if age > float(self.get_parameter('odom_freshness_sec').value):
             return False, f'local odometry stale: {age:.3f}s'
-        if self.latest_motion is None:
-            return False, 'local odometry motion estimate is not ready'
-        linear, angular = self.latest_motion
+        window = max(
+            1, int(self.get_parameter('stationary_filter_window_samples').value))
+        filtered = self.robust_motion(self.motion_samples, window)
+        if filtered is None:
+            return False, (
+                f'stationary odometry filter is not ready: '
+                f'{len(self.motion_samples)}/{window} samples')
+        if self.latest_motion is not None and (
+                self.latest_motion[0] > float(
+                    self.get_parameter('stationary_hard_linear_threshold_mps').value)
+                or self.latest_motion[1] > float(
+                    self.get_parameter('stationary_hard_angular_threshold_rps').value)):
+            return False, (
+                f'robot moving above hard gate: linear={self.latest_motion[0]:.3f}m/s '
+                f'angular={self.latest_motion[1]:.3f}rad/s')
+        linear, angular = filtered
         if linear > float(self.get_parameter('stationary_linear_threshold_mps').value):
-            return False, f'robot moving: linear={linear:.3f}m/s'
+            return False, f'robot moving (filtered): linear={linear:.3f}m/s'
         if angular > float(self.get_parameter('stationary_angular_threshold_rps').value):
-            return False, f'robot rotating: angular={angular:.3f}rad/s'
-        return True, f'stationary linear={linear:.3f}m/s angular={angular:.3f}rad/s'
+            return False, f'robot rotating (filtered): angular={angular:.3f}rad/s'
+        return True, (
+            f'stationary source={self.stationary_odom_topic} '
+            f'linear={linear:.3f}m/s angular={angular:.3f}rad/s')
 
-    def on_request(self, _msg):
-        if self.busy:
-            self.status('BUSY', 'relocalization already running')
-            return
-        if not self.clouds:
-            self.status('FAILED', 'no stationary PointCloud2 scan available yet')
-            if bool(self.get_parameter('auto_request').value):
-                self._rearm_auto_request(clear_clouds=True)
-            return
+    def _request_readiness(self):
         stationary, detail = self.stationary_gate()
         if not stationary:
-            self.status('FAILED', detail)
-            if bool(self.get_parameter('auto_request').value):
-                self._rearm_auto_request(clear_clouds=True)
-            return
+            return False, 'WAIT_STATIONARY', detail
+        required = max(1, int(self.get_parameter('accumulate_clouds').value))
+        if not self.has_complete_query(len(self.clouds), required):
+            return (False, 'COLLECTING',
+                    f'collecting stationary PointCloud2 query: '
+                    f'{len(self.clouds)}/{required} frames')
+        return True, 'QUERY_READY', detail
+
+    def _try_start_request(self):
+        if self.busy or not self.pending_request:
+            return False
+        ready, _, _ = self._request_readiness()
+        if not ready:
+            return False
+
+        self.pending_request = False
         self.busy = True
         succeeded = False
         try:
@@ -257,8 +324,29 @@ class GlobalRelocalization(Node):
             self.status('REJECTED', str(exc))
         finally:
             self.busy = False
+            if not succeeded:
+                # Never retry a failed registration against the same partial
+                # or weak query.  A subsequent request must collect fresh data.
+                self.clouds.clear()
             if bool(self.get_parameter('auto_request').value) and not succeeded:
                 self._rearm_auto_request(clear_clouds=True)
+        return True
+
+    def on_request(self, _msg):
+        if self.busy:
+            self.status('BUSY', 'relocalization already running')
+            return
+        self.pending_request = True
+        if self._try_start_request():
+            return
+        _, state, detail = self._request_readiness()
+        self.status(
+            state,
+            detail,
+            collected_clouds=len(self.clouds),
+            required_clouds=max(1, int(self.get_parameter('accumulate_clouds').value)),
+            stationary_odom_topic=self.stationary_odom_topic,
+        )
 
     @staticmethod
     def transform_xyz(x, y, z, transform):

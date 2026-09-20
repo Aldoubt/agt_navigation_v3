@@ -17,6 +17,8 @@ PROFILE_RECORD_RAW=$(awk '
 STAMP=$(date +%Y%m%d_%H%M%S)
 OUTPUT_DIR=${1:-"$PWD/acceptance_$STAMP"}
 DURATION_SEC=${ACCEPTANCE_DURATION_SEC:-${PROFILE_DURATION_SEC:-180}}
+SPLIT_DURATION_SEC=${ACCEPTANCE_BAG_SPLIT_SEC:-60}
+SPLIT_SIZE_BYTES=${ACCEPTANCE_BAG_SPLIT_BYTES:-536870912}
 RECORD_RAW_DEFAULT=1
 if [[ "$PROFILE_RECORD_RAW" == "false" ]]; then
   RECORD_RAW_DEFAULT=0
@@ -25,6 +27,16 @@ BAG_DIR="$OUTPUT_DIR/navigation_bag"
 
 if ! [[ "$DURATION_SEC" =~ ^[1-9][0-9]*$ ]]; then
   printf 'ACCEPTANCE_DURATION_SEC must be a positive integer, got: %s\n' "$DURATION_SEC" >&2
+  exit 2
+fi
+if ! [[ "$SPLIT_DURATION_SEC" =~ ^[1-9][0-9]*$ ]]; then
+  printf 'ACCEPTANCE_BAG_SPLIT_SEC must be a positive integer, got: %s\n' \
+    "$SPLIT_DURATION_SEC" >&2
+  exit 2
+fi
+if ! [[ "$SPLIT_SIZE_BYTES" =~ ^[1-9][0-9]*$ ]]; then
+  printf 'ACCEPTANCE_BAG_SPLIT_BYTES must be a positive integer, got: %s\n' \
+    "$SPLIT_SIZE_BYTES" >&2
   exit 2
 fi
 if [[ -e "$BAG_DIR" ]]; then
@@ -37,6 +49,8 @@ mkdir -p -- "$OUTPUT_DIR"
   printf 'captured_at=%s\n' "$(date --iso-8601=seconds)"
   printf 'hostname=%s\n' "$(hostname)"
   printf 'duration_sec=%s\n' "$DURATION_SEC"
+  printf 'bag_split_duration_sec=%s\n' "$SPLIT_DURATION_SEC"
+  printf 'bag_split_size_bytes=%s\n' "$SPLIT_SIZE_BYTES"
   printf 'ros_distro=%s\n' "${ROS_DISTRO:-unknown}"
   printf 'rmw_implementation=%s\n' "${RMW_IMPLEMENTATION:-default}"
   printf 'robot_id=%s\n' "${ACCEPTANCE_ROBOT_ID:-not-set}"
@@ -89,8 +103,12 @@ fi
 
 printf 'Recording %s topics for %s seconds to %s\n' "${#TOPICS[@]}" "$DURATION_SEC" "$BAG_DIR"
 set +e
-timeout --signal=INT --kill-after=15s "${DURATION_SEC}s" \
-  ros2 bag record --include-hidden-topics -o "$BAG_DIR" "${TOPICS[@]}" \
+timeout --signal=INT --kill-after=60s "${DURATION_SEC}s" \
+  ros2 bag record --include-hidden-topics \
+  --max-cache-size 134217728 \
+  --max-bag-duration "$SPLIT_DURATION_SEC" \
+  --max-bag-size "$SPLIT_SIZE_BYTES" \
+  -o "$BAG_DIR" "${TOPICS[@]}" \
   >"$OUTPUT_DIR/rosbag_record.log" 2>&1
 bag_status=$?
 set -e

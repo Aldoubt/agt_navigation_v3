@@ -66,6 +66,35 @@ def test_acceptance_defaults_keep_manual_and_candidate_bbs_in_mapping_body():
     assert "'bbs_query_frame_mode', default_value='mapping_body'" in launch
 
 
+def test_stationary_filter_requires_a_full_window_and_rejects_one_spike():
+    samples = [(0.01, 0.01), (0.02, 0.01), (0.18, 0.02), (0.02, 0.01)]
+    assert GlobalRelocalization.robust_motion(samples, 5) is None
+
+    samples.append((0.01, 0.01))
+    linear, angular = GlobalRelocalization.robust_motion(samples, 5)
+    assert linear == pytest.approx(0.02)
+    assert angular == pytest.approx(0.01)
+
+
+def test_relocalization_query_requires_every_configured_cloud():
+    assert not GlobalRelocalization.has_complete_query(0, 5)
+    assert not GlobalRelocalization.has_complete_query(1, 5)
+    assert not GlobalRelocalization.has_complete_query(4, 5)
+    assert GlobalRelocalization.has_complete_query(5, 5)
+    assert GlobalRelocalization.has_complete_query(6, 5)
+
+
+def test_field_stationary_authority_uses_bunker_wheel_odometry():
+    root = Path(__file__).resolve().parents[4]
+    config = yaml.safe_load((root / 'navigation/localization/agt_global_relocalization/'
+                             'config/global_relocalization.yaml').read_text(encoding='utf-8'))
+    params = config['agt_global_relocalization']['ros__parameters']
+    assert params['stationary_odom_topic'] == '/wheel/odom'
+    assert params['stationary_filter_window_samples'] >= 3
+    assert params['stationary_hard_linear_threshold_mps'] > params[
+        'stationary_linear_threshold_mps']
+
+
 def test_manual_seed_mapping_body_contract_has_one_conversion_at_each_boundary():
     """Manual seed sends T_map_body to GICP and publishes one T_map_base conversion."""
     root = Path(__file__).resolve().parents[4]

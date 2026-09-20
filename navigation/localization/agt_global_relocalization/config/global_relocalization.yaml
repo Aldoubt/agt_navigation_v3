@@ -38,9 +38,18 @@ agt_global_relocalization:
     tf_timeout_sec: 0.10
     require_stationary: true
     local_odom_topic: /agt/odometry/local
+    # Bunker wheel odometry is the measured stationary authority. LiDAR odom
+    # remains the localization source, but its XYZ velocity is vibration-prone
+    # on a powered tracked chassis.
+    stationary_odom_topic: /wheel/odom
     odom_freshness_sec: 0.50
     stationary_linear_threshold_mps: 0.05
     stationary_angular_threshold_rps: 0.08
+    # Reject sustained motion while ignoring isolated vibration spikes. The
+    # hard gate still clears immediately for unmistakable chassis motion.
+    stationary_filter_window_samples: 5
+    stationary_hard_linear_threshold_mps: 0.20
+    stationary_hard_angular_threshold_rps: 0.30
 
     # V1 default backend: true no-initial-pose CPU 3D-BBS coarse search followed
     # by small_gicp GICP refinement. RTK/INS is deliberately NOT an input here.

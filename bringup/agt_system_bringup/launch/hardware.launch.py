@@ -34,6 +34,12 @@ def generate_launch_description():
         DeclareLaunchArgument('enable_camera_gimbal', default_value='true'),
         DeclareLaunchArgument('bunker_can_port', default_value='can0'),
         DeclareLaunchArgument('camera_device_path', default_value='/dev/video0'),
+        # Stop-and-shoot inspection does not need a continuous 30 FPS decode.
+        # Keep full-HD capture while reducing CPU pressure on Batch-LIO.
+        DeclareLaunchArgument('camera_image_width', default_value='1920'),
+        DeclareLaunchArgument('camera_image_height', default_value='1080'),
+        DeclareLaunchArgument('camera_fps', default_value='10.0'),
+        DeclareLaunchArgument('camera_pixel_format', default_value='mjpeg2rgb'),
         DeclareLaunchArgument(
             'gimbal_port_name',
             default_value='/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0'),
@@ -64,6 +70,10 @@ def generate_launch_description():
             'autolabor_c1_bringup', 'autolabor_c1.launch.py',
             LaunchConfiguration('enable_camera_gimbal'), {
                 'device_path': LaunchConfiguration('camera_device_path'),
+                'image_width': LaunchConfiguration('camera_image_width'),
+                'image_height': LaunchConfiguration('camera_image_height'),
+                'fps': LaunchConfiguration('camera_fps'),
+                'pixel_format': LaunchConfiguration('camera_pixel_format'),
                 'port_name': LaunchConfiguration('gimbal_port_name'),
                 'gui': 'false',
             }),
