@@ -30,6 +30,7 @@ class DemoPreflight(Node):
             'obstacle_cloud_topic': '/agt/navigation/points_obstacles',
             'navsat_topic': '/ins/navsatfix',
             'require_localized': True,
+            'require_camera': True,
             'require_rtk': False,
         }
         for name, value in params.items():
@@ -80,8 +81,9 @@ class DemoPreflight(Node):
         action_timeout = float(self.get_parameter('action_server_timeout_sec').value)
         nav_ok = self.nav_client.wait_for_server(timeout_sec=action_timeout)
         checks.append(('Nav2 /navigate_to_pose', nav_ok, 'action server'))
-        camera_ok = self.camera_client.wait_for_server(timeout_sec=action_timeout)
-        checks.append(('C1 /camera_gimbal/acquire_view', camera_ok, 'action server'))
+        if bool(self.get_parameter('require_camera').value):
+            camera_ok = self.camera_client.wait_for_server(timeout_sec=action_timeout)
+            checks.append(('C1 /camera_gimbal/acquire_view', camera_ok, 'action server'))
         checks.append(('local odometry', self.odom is not None, self.get_parameter('local_odom_topic').value))
         checks.append(('obstacle cloud', self.cloud is not None, self.get_parameter('obstacle_cloud_topic').value))
 

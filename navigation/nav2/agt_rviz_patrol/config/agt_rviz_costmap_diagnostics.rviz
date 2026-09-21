@@ -1,0 +1,185 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Tool Properties
+    Name: Tool Properties
+  - Class: rviz_common/Views
+    Name: Views
+  - Class: rviz_common/Time
+    Name: Time
+  - Class: nav2_rviz_plugins/Navigation 2
+    Name: Navigation 2
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: true
+      Cell Size: 1
+      Alpha: 0.3
+    - Class: rviz_default_plugins/Map
+      Name: Static Nav2 Map
+      Enabled: true
+      Topic:
+        Value: /map
+      Alpha: 0.65
+    - Class: rviz_default_plugins/Map
+      Name: Global Costmap
+      Enabled: true
+      Topic:
+        Value: /global_costmap/costmap
+      Alpha: 0.30
+      Color Scheme: costmap
+    - Class: rviz_default_plugins/Map
+      Name: Local Costmap (mapped 0-100)
+      Enabled: true
+      Topic:
+        Value: /local_costmap/costmap
+      Alpha: 0.40
+      Color Scheme: costmap
+    - Class: rviz_default_plugins/Map
+      Name: Local Costmap RAW (255=unknown 254=lethal)
+      Enabled: true
+      Topic:
+        Value: /local_costmap/costmap_raw
+      Alpha: 0.55
+      Color Scheme: costmap
+    - Class: rviz_default_plugins/PointCloud2
+      Name: Local Obstacles (/agt/navigation/points_obstacles)
+      Enabled: true
+      Topic:
+        Value: /agt/navigation/points_obstacles
+      Queue Size: 5
+      Style: Points
+      Size (Pixels): 2
+      Color Transformer: AxisColor
+      Axis: Z
+    - Class: rviz_default_plugins/PointCloud2
+      Name: Obstacles in base_link (debug)
+      Enabled: true
+      Topic:
+        Value: /agt/debug/points_obstacles_base
+      Style: Points
+      Size (Pixels): 3
+      Color Transformer: FlatColor
+      Color: 255; 255; 255
+    - Class: rviz_default_plugins/PointCloud2
+      Name: Livox raw branch (/agt/livox/points)
+      Enabled: false
+      Topic:
+        Value: /agt/livox/points
+      Style: Points
+      Size (Pixels): 1
+      Color Transformer: AxisColor
+      Axis: Z
+    - Class: rviz_default_plugins/Polygon
+      Name: Published footprint
+      Enabled: true
+      Topic:
+        Value: /local_costmap/published_footprint
+      Color: 0; 255; 0
+    - Class: rviz_default_plugins/PointCloud2
+      Name: Known PCD map (/agt/map/points)
+      Enabled: true
+      Topic:
+        Value: /agt/map/points
+      Style: Points
+      Size (Pixels): 2
+      Color Transformer: FlatColor
+      Color: 200; 200; 200
+    - Class: rviz_default_plugins/PointCloud2
+      Name: query_cloud
+      Enabled: true
+      Topic:
+        Value: /agt/relocalization/query_cloud
+      Style: Points
+      Size (Pixels): 3
+      Color Transformer: FlatColor
+      Color: 0; 255; 255
+    - Class: rviz_default_plugins/PointCloud2
+      Name: coarse_aligned_cloud
+      Enabled: true
+      Topic:
+        Value: /agt/relocalization/coarse_aligned_cloud
+      Style: Points
+      Color Transformer: FlatColor
+      Color: 255; 165; 0
+    - Class: rviz_default_plugins/PointCloud2
+      Name: aligned_cloud
+      Enabled: true
+      Topic:
+        Value: /agt/relocalization/aligned_cloud
+      Style: Points
+      Color Transformer: FlatColor
+      Color: 0; 255; 0
+    - Class: rviz_default_plugins/PoseWithCovariance
+      Name: Relocalization Pose
+      Enabled: true
+      Topic:
+        Value: /agt/relocalization/pose
+      Shape:
+        Value: Arrow
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Enabled: true
+      Show Axes: true
+      Show Names: false
+      Frame Timeout: 1
+    - Class: rviz_default_plugins/RobotModel
+      Name: RobotModel
+      Enabled: true
+      Description Topic:
+        Value: /robot_description
+    - Class: rviz_default_plugins/Odometry
+      Name: Batch-LIO Local Odometry
+      Enabled: true
+      Topic:
+        Value: /agt/odometry/local
+      Keep: 100
+      Shape:
+        Value: Arrow
+    - Class: rviz_default_plugins/Path
+      Name: Global Plan
+      Enabled: true
+      Topic:
+        Value: /plan
+      Line Style: Lines
+      Line Width: 0.04
+    - Class: rviz_default_plugins/Path
+      Name: Local Plan
+      Enabled: true
+      Topic:
+        Value: /local_plan
+      Line Style: Lines
+      Line Width: 0.05
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Patrol Queue
+      Enabled: true
+      Topic:
+        Value: /agt/rviz_patrol/markers
+  Global Options:
+    Fixed Frame: map
+    Frame Rate: 30
+    Background Color: 48; 48; 48
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+    - Class: rviz_default_plugins/SetGoal
+      Topic:
+        Value: /goal_pose
+  Views:
+    Current:
+      Class: rviz_default_plugins/XYOrbit
+      Distance: 12
+      Pitch: 0.785
+      Yaw: 0.785
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 0
+Window Geometry:
+  Width: 1600
+  Height: 900

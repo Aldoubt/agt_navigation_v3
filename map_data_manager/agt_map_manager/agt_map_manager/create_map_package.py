@@ -28,6 +28,12 @@ NAV_OPTIONAL = (
     # It is copied as an opaque HMI asset and never interpreted by Nav2.
     'map.topology',
     'hmi_edit_metadata.yaml',
+    # Map Studio review provenance. keepout polygons are expected to be baked
+    # into map.pgm for the current runtime, while these files preserve intent.
+    'keepout_zones.yaml',
+    'keepout_bake.yaml',
+    'map_refinement.yaml',
+    'review_status.yaml',
 )
 
 

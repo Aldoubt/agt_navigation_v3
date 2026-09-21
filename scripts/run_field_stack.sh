@@ -11,22 +11,45 @@ source /opt/ros/humble/setup.bash
 source "$WS_ROOT/install/setup.bash"
 set -euo pipefail
 
-MAP_ROOT=/home/yangxuan/ros2_ws/maps/bunker_mid360_mapping_20260901_205036/v003-indexed
-MAP_ID=bunker_mid360_v003
+MAP_ROOT=/home/yangxuan/ros2_ws/maps/bunker_mid360_mapping_20260901_205036/v005-confirmed-keepout
+MAP_ID=bunker_mid360_v005_confirmed_keepout
+MODE=navigation
 ENABLE_RTK=false
 ENABLE_RVIZ=false
+DRY_RUN=false
 STAMP=$(date +%Y%m%d_%H%M%S)
 RUN_DIR=${AGT_FIELD_LOG_DIR:-"$HOME/.ros/agt_field_stack/$STAMP"}
+
+# Diagnostic observation pass-through. The defaults reproduce an ordinary field run
+# exactly; they exist so evidence can be collected without editing canonical configs.
+OBSTACLE_STATS=""
+OBSTACLE_DEBUG_BASE_CLOUD=false
+OBSTACLE_LOG_INTERVAL=0.0
+RVIZ_CONFIG=""
 
 usage() {
   cat <<'EOF'
 Usage: scripts/run_field_stack.sh [options]
 
 Options:
+  --mode MODE       Runtime mode: navigation (default) or inspection.
+                    navigation: Nav2 only, camera and capture task disabled.
+                    inspection: stop at each queued point, capture three views,
+                    save images and metadata, then continue/return home.
   --map-root PATH   Map package root.
   --map-id ID       Runtime map identifier.
   --rviz            Start debug.launch.py after all checks pass.
+  --rviz-config PATH
+                    RViz config for --rviz (absolute path; use the diagnostics config
+                    from the source tree when the package has not been rebuilt).
   --rtk             Enable RTK hardware input (metadata only).
+  --dry-run         Validate mode/map inputs and print the resolved stack only.
+  --obstacle-stats PATH
+                    Write cumulative obstacle-filter statistics to PATH on clean exit.
+  --obstacle-debug-base-cloud
+                    Publish accepted obstacle points in base_link for audit/RViz.
+  --obstacle-log-interval SEC
+                    Periodic cumulative filter-statistics log interval; 0 disables it.
   -h, --help        Show this help.
 
 The script starts the existing four-entry architecture in dependency order.
@@ -37,6 +60,10 @@ EOF
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --mode)
+      MODE=${2:?--mode requires navigation or inspection}
+      shift 2
+      ;;
     --map-root)
       MAP_ROOT=${2:?--map-root requires a path}
       shift 2
@@ -49,9 +76,29 @@ while [[ $# -gt 0 ]]; do
       ENABLE_RVIZ=true
       shift
       ;;
+    --rviz-config)
+      RVIZ_CONFIG=${2:?--rviz-config requires a path}
+      shift 2
+      ;;
     --rtk)
       ENABLE_RTK=true
       shift
+      ;;
+    --dry-run)
+      DRY_RUN=true
+      shift
+      ;;
+    --obstacle-stats)
+      OBSTACLE_STATS=${2:?--obstacle-stats requires a path}
+      shift 2
+      ;;
+    --obstacle-debug-base-cloud)
+      OBSTACLE_DEBUG_BASE_CLOUD=true
+      shift
+      ;;
+    --obstacle-log-interval)
+      OBSTACLE_LOG_INTERVAL=${2:?--obstacle-log-interval requires seconds}
+      shift 2
       ;;
     -h|--help)
       usage
@@ -65,6 +112,27 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+case "$MODE" in
+  navigation)
+    ENABLE_INSPECTION=false
+    ;;
+  inspection)
+    ENABLE_INSPECTION=true
+    ;;
+  *)
+    printf 'Invalid --mode %s; expected navigation or inspection\n' "$MODE" >&2
+    exit 2
+    ;;
+esac
+
+if [[ -z "$RVIZ_CONFIG" ]]; then
+  if [[ "$ENABLE_INSPECTION" == true ]]; then
+    RVIZ_CONFIG="$WS_ROOT/install/agt_rviz_patrol/share/agt_rviz_patrol/config/agt_rviz_demo.rviz"
+  else
+    RVIZ_CONFIG=/opt/ros/humble/share/nav2_bringup/rviz/nav2_default_view.rviz
+  fi
+fi
+
 GLOBAL_MAP="$MAP_ROOT/localization/global_map.pcd"
 RELOCALIZATION_ASSETS="$MAP_ROOT/localization/relocalization"
 NAV_MAP="$MAP_ROOT/navigation/map.yaml"
@@ -74,6 +142,19 @@ for required in "$GLOBAL_MAP" "$RELOCALIZATION_ASSETS" "$NAV_MAP"; do
     exit 2
   fi
 done
+
+if [[ "$DRY_RUN" == true ]]; then
+  printf 'mode=%s\n' "$MODE"
+  printf 'map_root=%s\n' "$MAP_ROOT"
+  printf 'map_id=%s\n' "$MAP_ID"
+  printf 'navigation_map=%s\n' "$NAV_MAP"
+  printf 'localization_map=%s\n' "$GLOBAL_MAP"
+  printf 'relocalization_assets=%s\n' "$RELOCALIZATION_ASSETS"
+  printf 'camera_gimbal=%s\n' "$ENABLE_INSPECTION"
+  printf 'inspection_runtime=%s\n' "$ENABLE_INSPECTION"
+  printf 'rviz_config=%s\n' "$RVIZ_CONFIG"
+  exit 0
+fi
 
 mkdir -p -- "$RUN_DIR"
 declare -a CHILD_PIDS=()
@@ -217,7 +298,8 @@ done
 
 start_child hardware \
   ros2 launch agt_system_bringup hardware.launch.py \
-  bunker_can_port:=can0 enable_rtk:="$ENABLE_RTK"
+  bunker_can_port:=can0 enable_rtk:="$ENABLE_RTK" \
+  enable_camera_gimbal:="$ENABLE_INSPECTION"
 wait_for_topic MID360 /livox/lidar 45 || { tail_failure hardware; exit 1; }
 wait_for_topic MID360-IMU /livox/imu 30 || { tail_failure hardware; exit 1; }
 wait_for_topic Bunker /wheel/odom 30 || { tail_failure hardware; exit 1; }
@@ -235,25 +317,50 @@ ros2 service call /agt/localization/relocalize std_srvs/srv/Trigger '{}' \
   >"$RUN_DIR/relocalize_service.txt" 2>&1
 wait_for_localized 60 || { tail_failure localization; exit 1; }
 
+declare -a NAV_OBS_ARGS=()
+if [[ -n "$OBSTACLE_STATS" ]]; then
+  NAV_OBS_ARGS+=("obstacle_statistics_output:=$OBSTACLE_STATS")
+fi
+if [[ "$OBSTACLE_DEBUG_BASE_CLOUD" == true ]]; then
+  NAV_OBS_ARGS+=("obstacle_debug_base_cloud_enabled:=true")
+fi
+if [[ "$OBSTACLE_LOG_INTERVAL" != "0.0" ]]; then
+  NAV_OBS_ARGS+=("obstacle_debug_log_interval_sec:=$OBSTACLE_LOG_INTERVAL")
+fi
+
 start_child navigation \
   ros2 launch agt_system_bringup navigation.launch.py \
-  map:="$NAV_MAP" map_id:="$MAP_ID"
+  map:="$NAV_MAP" map_id:="$MAP_ID" \
+  enable_inspection:="$ENABLE_INSPECTION" \
+  ${NAV_OBS_ARGS[@]+"${NAV_OBS_ARGS[@]}"}
 wait_for_service /navigate_to_pose/_action/send_goal 60 \
   || { tail_failure navigation; exit 1; }
 
 "$SCRIPT_DIR/check_runtime.sh" | tee "$RUN_DIR/check_runtime.txt"
 "$SCRIPT_DIR/check_tf.sh" | tee "$RUN_DIR/check_tf.txt"
 "$SCRIPT_DIR/check_topics.sh" | tee "$RUN_DIR/check_topics.txt"
-ros2 run agt_navigation_runtime demo_preflight \
+ros2 run agt_navigation_runtime demo_preflight --ros-args \
+  -p require_camera:="$ENABLE_INSPECTION" \
   | tee "$RUN_DIR/demo_preflight.txt"
 
 if [[ "$ENABLE_RVIZ" == true ]]; then
   start_child debug \
-    ros2 launch agt_system_bringup debug.launch.py run_preflight:=false
+    ros2 launch agt_system_bringup debug.launch.py \
+    run_preflight:=false rviz_config:="$RVIZ_CONFIG"
 fi
 
 printf '\n[READY] Hardware, localization and Nav2 passed preflight.\n'
+printf '[READY] Mode: %s\n' "$MODE"
+if [[ "$ENABLE_INSPECTION" == true ]]; then
+  printf '[READY] Inspection: queue RViz points, then call /agt/rviz_patrol/start.\n'
+  printf '[READY] Records: ~/.ros/agt_inspection_records/\n'
+else
+  printf '[READY] Pure navigation: camera and inspection mission nodes are disabled.\n'
+fi
 printf '[READY] Logs: %s\n' "$RUN_DIR"
+if [[ -n "$OBSTACLE_STATS" ]]; then
+  printf '[READY] Obstacle-filter statistics will be written on clean exit: %s\n' "$OBSTACLE_STATS"
+fi
 printf '[READY] Start recording in another shell only when needed; stop it with Ctrl+C before power-off.\n'
 printf '[READY] Press Ctrl+C here for ordered stack shutdown.\n'
 

@@ -71,45 +71,24 @@ bash src/agt_navigation_v3/scripts/field_build_smoke.sh
 [docs/BOOTSTRAP_AND_ROSBAG_GATE.md](docs/BOOTSTRAP_AND_ROSBAG_GATE.md) 与
 [docs/MIGRATION.md](docs/MIGRATION.md)。
 
-### 离线启动导航与重定位
+### 无硬件配置检查
 
-离线验证不要使用现场入口 `hmi_field_demo.launch.py`：现场入口假定 MID360、URDF、底盘
-和外部硬件已经单独启动。离线入口会自己启动 robot description、Batch-LIO、PointCloud2
-桥、全局重定位和 Nav2，再只回放 bag 中的原始 LiDAR/IMU：
+当前正式顶层只保留四个分阶段入口，不再提供旧的
+`acceptance_offline_replay.launch.py`、`rviz_field_demo.launch.py` 或
+`hmi_field_demo.launch.py`。不连接硬件时，先用同一现场脚本检查模式和地图解析：
 
 ```bash
-cd ~/ros2_ws
+cd /home/yangxuan/ros2_ws
 source /opt/ros/humble/setup.bash
 source install/setup.bash
 
-ros2 launch agt_system_bringup acceptance_offline_replay.launch.py \
-  bag:=/home/yangxuan/ros2_ws/experiments/data/rosbag/bunker_mid360_mapping_20260901_205036 \
-  navigation_map:=/home/yangxuan/ros2_ws/maps/bunker_mid360_mapping_20260901_205036/v003-indexed/navigation/map.yaml \
-  localization_map:=/home/yangxuan/ros2_ws/maps/bunker_mid360_mapping_20260901_205036/v003-indexed/localization/global_map.pcd \
-  relocalization_assets:=/home/yangxuan/ros2_ws/maps/bunker_mid360_mapping_20260901_205036/v003-indexed/localization/relocalization \
-  relocalization_executable:=global_relocalization \
-  auto_relocalize:=true \
-  launch_rviz:=true
+src/agt_navigation_v3/scripts/run_field_stack.sh --mode navigation --dry-run
+src/agt_navigation_v3/scripts/run_field_stack.sh --mode inspection --dry-run
 ```
 
-这里的 bag、`global_map.pcd`、Polar/BBS 资产和 `map.yaml/map.pgm` 必须来自同一张地图
-的同一版本。启动成功的判据不是 Nav2 进程出现，而是：
-
-1. Map Server 成功加载 `map.yaml`。
-2. Batch-LIO 输出 `/agt/odometry/local`。
-3. 重定位进入 `LOCALIZED`，不再持续输出 `REJECTED`。
-4. `tf2_echo map base_link` 能看到稳定的 `map -> odom -> base_link`。
-5. Nav2 costmap 不再持续报等待 `map/base_link` TF。
-
-当前工作区的 `bunker_mid360_mapping_20260901_211105` 只有旧式 PGO/重定位散件，尚未
-导出为当前正式 Map Package；不能直接与 `205036/v003-indexed` 交叉拼接。直接把
-`211105` bag 和 `205036` 地图包混用时，我实际看到的结果是：Nav2 地图可以加载，
-但 BBS/GICP 返回 `small_gicp did not converge`，没有发布 `map -> odom`，所以 Nav2
-一直等待 TF。这至少说明问题不在 Nav2 的 PGM/YAML 加载；在 211105 的正式 Map Package
-尚未生成前，不能把这次结果当成完整导航验收，也不能把旧式 loose assets 和正式包混用。
-
-要验证 211105，先在 mapping producer 中用对应的 `20260901_211105-pgo-v4` 导出完整
-Map Package，再把它的导航地图、最终 PGO PCD 和重定位资产作为一组传入本入口。
+这只验证参数、地图路径和两种模式的启用关系，不代表定位、底盘运动或相机实拍通过。
+完整仿真使用 `agt_simulation_bringup` 的入口；历史回放审计命令只保留在归档文档中，
+不能再当作当前启动命令。
 
 ### 现场启动导航（默认不接入 HMI）
 
@@ -140,16 +119,27 @@ ros2 run agt_global_relocalization_native build_relocalization_assets \
   --output /tmp/site_v1_relocalization \
   --map-leaf 0.5 --bbs-min-level-res 0.5 --bbs-max-level 5
 
-# 2. 创建新的不可变 Map Package；不要覆盖已有版本
+# 2. 从同一次建图的 poses.txt + patches/ 生成 Polar Context 候选库
+ros2 run agt_global_relocalization_native build_relocalization_candidates \
+  --map-dir /path/to/mapping_package \
+  --output /tmp/site_v1_relocalization
+
+# 3. 若 Map Studio 导出了禁行区，先把它烘焙成 Nav2 占用栅格
+ros2 run agt_map_manager bake_keepout_zones \
+  --map /path/to/confirmed/map.yaml \
+  --zones /path/to/confirmed/keepout_zones.yaml \
+  --output /tmp/site_v1_navigation --inflate-cells 1
+
+# 4. 创建新的不可变 Map Package；不要覆盖已有版本
 ros2 run agt_map_manager create_map_package \
   --map-root /home/yangxuan/ros2_ws/maps \
   --map-id site_name \
   --map-version v001 \
   --source-pcd /path/to/final/global_map.pcd \
-  --navigation-dir /path/to/pgo-consistent-navigation \
+  --navigation-dir /tmp/site_v1_navigation \
   --relocalization-assets-dir /tmp/site_v1_relocalization
 
-# 3. 查看有效包；这里能列出的才是可选地图
+# 5. 查看有效包；这里能列出的才是可选地图
 export AGT_MAP_ROOT=/home/yangxuan/ros2_ws/maps
 ros2 run agt_map_manager list_map_packages
 ```
@@ -167,26 +157,41 @@ ros2 run agt_map_manager validate_active_map \
   --active-state-file "$AGT_MAP_ROOT/active_map.yaml"
 ```
 
-最后，必须先**单独**启动并验证 MID360 驱动、Bunker 驱动和 URDF/static TF。AGT
-导航 launch 不负责启动这些硬件驱动：
+当前已确认并选择的活动地图是：
 
-```bash
-ros2 launch agt_system_bringup hardware.launch.py
+```text
+/home/yangxuan/ros2_ws/maps/
+  bunker_mid360_mapping_20260901_205036/v005-confirmed-keepout
 ```
 
-传感器运行后，另一个终端使用选定地图启动 RViz 导航：
+它把本次确认的 Nav2 `map.yaml/map.pgm`、同源 PGO `global_map.pcd`、333 条
+Polar Context 候选和 BBS 索引作为一个不可变包；人工禁行区已按 1 格安全膨胀烘焙
+到占用栅格，同时保留原始禁行区与编辑记录。不要将其中任何路径换回旧版本。
+
+推荐使用单终端受控入口，并显式选择模式。纯导航模式不启动相机或巡检任务：
 
 ```bash
-ros2 launch agt_system_bringup rviz_field_demo.launch.py \
-  map:=$AGT_MAP_ROOT/site_name/v001/navigation/map.yaml \
-  global_map:=$AGT_MAP_ROOT/site_name/v001/localization/global_map.pcd \
-  relocalization_assets:=$AGT_MAP_ROOT/site_name/v001/localization/relocalization \
-  map_id:=site_name_v001
+cd /home/yangxuan/ros2_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+src/agt_navigation_v3/scripts/run_field_stack.sh --mode navigation --rviz
 ```
 
-当前默认不启动 `hmi_field_demo.launch.py`。HMI 仅作为后续可选入口；它不参与建图、
-地图确认或首次导航验收。`rviz_field_demo.launch.py` 只启动导航和定位消费者，绝不
-启动 FAST-LIO2、PGO、mapping session 或 OctoMap。
+到点拍照保存模式会启动 C1 和巡检任务链：
+
+```bash
+src/agt_navigation_v3/scripts/run_field_stack.sh --mode inspection --rviz
+```
+
+在 RViz 中排好点后启动任务：
+
+```bash
+ros2 service call /agt/rviz_patrol/start std_srvs/srv/Trigger '{}'
+```
+
+任务按“导航到点 → 实测停止 → 三视角拍照 → 图片与元数据归档 → 下一点 → 返回起点”
+运行，记录保存在 `~/.ros/agt_inspection_records/`。详细的三终端等价命令、验收方法和
+两种模式差异见 [导航启动文档](导航启动文档.md)。
 
 ```text
 Map Package
@@ -198,42 +203,14 @@ Map Package
 地图包目录、文件约束和 frame contract 见
 [docs/architecture/V3_NODE_GRAPH_AND_MAP_CONTRACT.md](docs/architecture/V3_NODE_GRAPH_AND_MAP_CONTRACT.md)。
 
-显式三路径只用于当前 RViz 现场入口；三个路径必须来自同一个已校验 Map Package。
-
-```bash
-ros2 launch agt_system_bringup rviz_field_demo.launch.py \
-  map:=/data/site/navigation/map.yaml \
-  global_map:=/data/site/localization/global_map.pcd \
-  relocalization_assets:=/data/site/localization/relocalization \
-  map_id:=site_v1
-```
 导航和定位资产必须来自同一个已批准 Map Package。现场流程、preflight 与首条路线
-顺序见 [docs/RVIZ_FIELD_ACCEPTANCE.md](docs/RVIZ_FIELD_ACCEPTANCE.md)。
+顺序见 [导航启动文档](导航启动文档.md)。
 
-### 运行确定性离线回放
+### 离线回放状态
 
-回放是软件 gate：不启动 CAN、底盘、相机或现场命令链，因此不能证明闭环运动。
-
-```bash
-cd ~/ros2_ws
-source /opt/ros/humble/setup.bash
-source install/setup.bash
-
-ros2 launch agt_system_bringup acceptance_offline_replay.launch.py \
-  bag:=/path/to/rosbag \
-  navigation_map:=/path/to/navigation/map.yaml \
-  localization_map:=/path/to/localization/global_map.pcd \
-  relocalization_assets:=/path/to/localization/relocalization \
-  relocalization_executable:=global_relocalization \
-  auto_relocalize:=true \
-  global_query_frame_mode:=mapping_body \
-  bbs_query_frame_mode:=mapping_body \
-  enable_replay_audit:=true \
-  report_dir:=/path/to/evidence
-```
-
-有序回放 gate 见 [docs/acceptance/PRE_ACCEPTANCE_GATE.md](docs/acceptance/PRE_ACCEPTANCE_GATE.md)，
-仍需补齐的证据见 [P3 审计](docs/acceptance/P3_RUNTIME_ACCEPTANCE_AUDIT.md)。
+旧的确定性回放 launch 已从当前四入口架构移除。归档验收文档中的
+`acceptance_offline_replay.launch.py` 命令仅用于追溯历史证据，当前版本不要直接执行。
+地图和模式的无硬件检查使用上面的 `--dry-run`；闭环能力仍以实车测试为准。
 
 ## 常用运行命令
 
@@ -254,8 +231,11 @@ ros2 topic echo /agt/localization/status
 ros2 lifecycle get /map_server
 ros2 lifecycle get /planner_server
 
-# 定位已接受后执行现场 preflight。
-ros2 run agt_navigation_runtime demo_preflight
+# 定位已接受后执行现场 preflight：纯导航不要求相机。
+ros2 run agt_navigation_runtime demo_preflight --ros-args -p require_camera:=false
+
+# 到点拍照模式必须要求相机 action 可用。
+ros2 run agt_navigation_runtime demo_preflight --ros-args -p require_camera:=true
 ```
 
 只有在定位状态为 `LOCALIZED`、全局校正有效、RViz 中
@@ -288,8 +268,9 @@ ros2 run agt_navigation_runtime demo_preflight
   fail-closed 命令 guard 集成。
 - 已存在冻结 mapping-body contract 的确定性回放证据。
 
-现有证据属于软件/回放证据，**不**表示项目已经现场就绪：v003 地图仍为 `REVIEW`，
-P3 现场 gate 仍未完成。
+现有证据属于软件/回放证据，**不**表示项目已经现场就绪：
+`v005-confirmed-keepout` 已完成地图确认、禁行区烘焙和包校验，但 P3 实车导航、
+停车拍照与返回起点 gate 仍需现场测试。
 
 ### 实验性能力
 

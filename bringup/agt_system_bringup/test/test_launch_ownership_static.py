@@ -31,6 +31,14 @@ def test_unique_owner_inclusions():
     assert "agt_localization_manager" not in launch_text['debug.launch.py']
 
 
+def test_navigation_and_inspection_modes_are_explicit():
+    navigation = (ROOT / 'launch' / 'navigation.launch.py').read_text(encoding='utf-8')
+    hardware = (ROOT / 'launch' / 'hardware.launch.py').read_text(encoding='utf-8')
+    assert "'enable_inspection', default_value='false'" in navigation
+    assert navigation.count("IfCondition(LaunchConfiguration('enable_inspection'))") == 2
+    assert "'enable_camera_gimbal', default_value='true'" in hardware
+
+
 def test_six_config_sources_are_installed():
     cmake = (ROOT / 'CMakeLists.txt').read_text(encoding='utf-8')
     for name in (

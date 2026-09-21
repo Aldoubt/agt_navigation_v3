@@ -7,6 +7,7 @@ import yaml
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
@@ -102,6 +103,18 @@ def _launch_runtime(context):
     params_file = _build_runtime_params(share / 'config')
     use_sim_time = LaunchConfiguration('use_sim_time').perform(context)
 
+    observation = {
+        # Diagnostic-only observation switches. At their defaults they repeat
+        # perception.yaml exactly, so an ordinary field launch is unaffected; they
+        # exist so evidence can be collected without editing the canonical files.
+        'statistics_output': LaunchConfiguration('obstacle_statistics_output').perform(context),
+        'debug_log_interval_sec': ParameterValue(
+            LaunchConfiguration('obstacle_debug_log_interval_sec'), value_type=float),
+        'debug_base_cloud_enabled': ParameterValue(
+            LaunchConfiguration('obstacle_debug_base_cloud_enabled'), value_type=bool),
+        'debug_base_cloud_topic': LaunchConfiguration('obstacle_debug_base_cloud_topic').perform(context),
+    }
+
     return [
         # Exactly one producer of /agt/navigation/points_obstacles.
         Node(
@@ -112,6 +125,10 @@ def _launch_runtime(context):
             parameters=[params_file, {
                 'use_sim_time': ParameterValue(
                     LaunchConfiguration('use_sim_time'), value_type=bool),
+                'statistics_output': observation['statistics_output'],
+                'debug_log_interval_sec': observation['debug_log_interval_sec'],
+                'debug_base_cloud.enabled': observation['debug_base_cloud_enabled'],
+                'debug_base_cloud.topic': observation['debug_base_cloud_topic'],
             }],
         ),
         IncludeLaunchDescription(
@@ -129,10 +146,12 @@ def _launch_runtime(context):
             name='agt_cmd_vel_guard', output='screen', parameters=[params_file]),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
-                str(runtime_share / 'launch' / 'runtime.launch.py'))),
+                str(runtime_share / 'launch' / 'runtime.launch.py')),
+            condition=IfCondition(LaunchConfiguration('enable_inspection'))),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 str(patrol_share / 'launch' / 'rviz_patrol.launch.py')),
+            condition=IfCondition(LaunchConfiguration('enable_inspection')),
             launch_arguments={
                 'map_id': LaunchConfiguration('map_id').perform(context),
                 'mission_dir': LaunchConfiguration('mission_dir').perform(context),
@@ -146,7 +165,24 @@ def generate_launch_description():
         DeclareLaunchArgument('map', description='Absolute Nav2 map YAML path'),
         DeclareLaunchArgument('use_sim_time', default_value='false'),
         DeclareLaunchArgument('autostart', default_value='true'),
+        DeclareLaunchArgument(
+            'enable_inspection', default_value='false',
+            description=(
+                'Start the stop-and-shoot mission runtime and RViz patrol queue. '
+                'False is pure Nav2 navigation.')),
         DeclareLaunchArgument('map_id', default_value='field_navigation'),
         DeclareLaunchArgument('mission_dir', default_value='~/.ros/agt_rviz_patrol'),
+        DeclareLaunchArgument(
+            'obstacle_statistics_output', default_value='',
+            description='Diagnostic: path for the cumulative preprocessor filter statistics YAML.'),
+        DeclareLaunchArgument(
+            'obstacle_debug_log_interval_sec', default_value='0.0',
+            description='Diagnostic: cumulative filter-statistics log interval; 0 disables it.'),
+        DeclareLaunchArgument(
+            'obstacle_debug_base_cloud_enabled', default_value='false',
+            description='Diagnostic: publish accepted obstacle points in base_link for audit/RViz.'),
+        DeclareLaunchArgument(
+            'obstacle_debug_base_cloud_topic', default_value='/agt/debug/points_obstacles_base',
+            description='Diagnostic: topic for the base_link audit cloud.'),
         OpaqueFunction(function=_launch_runtime),
     ])
