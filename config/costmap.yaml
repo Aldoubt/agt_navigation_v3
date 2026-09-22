@@ -15,8 +15,10 @@ local_costmap:
       transform_tolerance: 0.20
       inflation_layer:
         plugin: nav2_costmap_2d::InflationLayer
-        inflation_radius: 0.55
-        cost_scaling_factor: 3.0
+        # Keep a useful soft-cost band outside the 0.43 m padded half-width.
+        # The previous 0.55 m radius left only about 0.12 m of wall clearance.
+        inflation_radius: 0.85
+        cost_scaling_factor: 2.0
       always_send_full_costmap: true
 global_costmap:
   global_costmap:
@@ -35,6 +37,8 @@ global_costmap:
         map_subscribe_transient_local: true
       inflation_layer:
         plugin: nav2_costmap_2d::InflationLayer
-        inflation_radius: 0.55
-        cost_scaling_factor: 3.0
+        # Bias the global route toward the middle of field lanes while still
+        # allowing the 0.8 m-wide chassis through a roughly 2 m passage.
+        inflation_radius: 1.00
+        cost_scaling_factor: 2.0
       always_send_full_costmap: true

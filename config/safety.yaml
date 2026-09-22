@@ -5,7 +5,7 @@ agt_motion_limits:
     forward_mps: 0.55
     reverse_mps: 0.20
     angular_radps: 0.65
-    controller_cruise_mps: 0.45
+    controller_cruise_mps: 0.40
     controller_approach_mps: 0.05
     controller_regulated_min_mps: 0.10
     rotate_to_heading_radps: 0.55

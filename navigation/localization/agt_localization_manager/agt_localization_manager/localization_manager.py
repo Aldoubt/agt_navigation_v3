@@ -200,6 +200,19 @@ def _wire_state(state: LocalizationState) -> int:
     return _WIRE_STATE_BY_INTERNAL[state]
 
 
+def _local_odom_loss_recoverable(
+    state: LocalizationState,
+    reason: str,
+    correction_available: bool,
+) -> bool:
+    """Allow a transient local-odom outage to recover without changing map->odom."""
+    return (
+        state == LocalizationState.LOST
+        and reason.startswith('local_odom_lost:')
+        and correction_available
+    )
+
+
 class _RecoveryStateMachine:
     """Recovery transitions and cooldown gate used by the ROS node."""
 
@@ -669,10 +682,12 @@ class LocalizationManager(Node):
     def _update_state(self) -> None:
         self._try_request_recovery()
         if self._state in {
-            LocalizationState.LOST,
             LocalizationState.RECOVERY_REQUESTED,
             LocalizationState.RELOCALIZING,
         }:
+            return
+        if self._state == LocalizationState.LOST and not _local_odom_loss_recoverable(
+                self._state, self._reason, self._correction_current is not None):
             return
 
         age = self._local_age()

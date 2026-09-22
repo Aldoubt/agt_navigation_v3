@@ -17,13 +17,14 @@ agt_pointcloud_preprocessor:
       size_xyz: [1.023, 0.778, 0.400]
       padding_m: 0.05
     rear_filter:
-      # Disabled by default for orchard work so rear tree trunks remain visible.
-      # Enable only when a verified rear-mounted structure causes persistent echoes.
+      # Keep the normal navigation profile visible behind the robot. The field
+      # launcher can enable a short-range trial mask explicitly when auditing
+      # reflections from the rear-mounted pole.
       enabled: false
       center_deg: 180.0
-      width_deg: 10.0
+      width_deg: 70.0
       min_range_m: 0.5
-      max_range_m: 4.0
+      max_range_m: 1.0
     ground_filter:
       enabled: true
       # Radial slope tracking follows rolling terrain while retaining steps,
@@ -60,15 +61,28 @@ local_costmap:
         z_voxels: 16
         max_obstacle_height: 2.1
         mark_threshold: 0
-        observation_sources: lidar3d
-        lidar3d:
+        # The ground-filtered cloud is authoritative for marking.  Clearing
+        # also needs ground/background rays; otherwise a person can leave no
+        # return behind and their old voxel remains occupied.
+        observation_sources: lidar3d_mark lidar3d_clear
+        lidar3d_mark:
           topic: /agt/navigation/points_obstacles
           data_type: PointCloud2
           marking: true
-          clearing: true
+          clearing: false
+          observation_persistence: 0.0
           obstacle_min_range: 0.30
           obstacle_max_range: 12.0
-          raytrace_min_range: 0.30
-          raytrace_max_range: 15.0
           min_obstacle_height: 0.10
           max_obstacle_height: 2.0
+        lidar3d_clear:
+          topic: /agt/livox/points
+          data_type: PointCloud2
+          marking: false
+          clearing: true
+          observation_persistence: 0.0
+          raytrace_min_range: 0.30
+          raytrace_max_range: 15.0
+          # Retain ground endpoints for clearing rays; this source never marks.
+          min_obstacle_height: -1.50
+          max_obstacle_height: 2.50

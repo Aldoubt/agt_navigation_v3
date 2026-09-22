@@ -31,3 +31,14 @@ def compose_orientation(
     body_quaternion_xyzw: Iterable[float], body_to_base_quaternion_xyzw: Iterable[float]
 ) -> tuple[float, float, float, float]:
     return q_mul(q_norm(body_quaternion_xyzw), q_norm(body_to_base_quaternion_xyzw))
+
+
+def body_twist_to_base(linear, angular, body_to_base_translation,
+                       body_to_base_quaternion_xyzw):
+    """Shift the velocity reference point before expressing it in base axes."""
+    x, y, z = body_to_base_translation
+    wx, wy, wz = angular
+    cross = (wy*z-wz*y, wz*x-wx*z, wx*y-wy*x)
+    shifted = tuple(linear[i] + cross[i] for i in range(3))
+    return (body_vector_to_base(shifted, body_to_base_quaternion_xyzw),
+            body_vector_to_base(angular, body_to_base_quaternion_xyzw))

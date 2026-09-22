@@ -119,9 +119,9 @@ public:
     rear_enabled_ = declare_parameter<bool>("rear_filter.enabled", false);
     rear_center_rad_ = deg2rad(declare_parameter<double>("rear_filter.center_deg", 180.0));
     rear_half_width_rad_ = 0.5 * deg2rad(
-      declare_parameter<double>("rear_filter.width_deg", 10.0));
+      declare_parameter<double>("rear_filter.width_deg", 70.0));
     rear_min_range_ = declare_parameter<double>("rear_filter.min_range_m", 0.5);
-    rear_max_range_ = declare_parameter<double>("rear_filter.max_range_m", 4.0);
+    rear_max_range_ = declare_parameter<double>("rear_filter.max_range_m", 1.0);
 
     ground_enabled_ = declare_parameter<bool>("ground_filter.enabled", true);
     ground_mode_ = declare_parameter<std::string>("ground_filter.mode", "radial_slope");

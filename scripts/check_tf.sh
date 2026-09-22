@@ -1,25 +1,48 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-EDGES=(
-  'map odom'
-  'odom base_footprint'
-  'base_footprint base_link'
-  'base_link lidar_link'
-)
-
 failed=0
-for edge in "${EDGES[@]}"; do
-  read -r parent child <<<"$edge"
-  output=$(timeout 5s ros2 run tf2_ros tf2_echo "$parent" "$child" 2>&1 || true)
-  if grep -q 'Translation:' <<<"$output"; then
-    printf 'PASS TF %s -> %s\n' "$parent" "$child"
-  else
-    printf 'FAIL TF %s -> %s unavailable\n' "$parent" "$child" >&2
-    printf '%s\n' "$output" | tail -n 4 >&2
-    failed=1
-  fi
-done
+if ! python3 - <<'PY'
+import sys
+import time
+
+import rclpy
+from rclpy.node import Node
+from rclpy.time import Time
+from tf2_ros import Buffer, TransformListener
+
+edges = (
+    ('map', 'odom'),
+    ('odom', 'base_footprint'),
+    ('base_footprint', 'base_link'),
+    ('base_link', 'lidar_link'),
+)
+rclpy.init()
+node = Node('agt_tf_preflight_check')
+buffer = Buffer()
+listener = TransformListener(buffer, node)
+pending = set(edges)
+deadline = time.monotonic() + 5.0
+while pending and time.monotonic() < deadline:
+    rclpy.spin_once(node, timeout_sec=0.1)
+    pending = {
+        edge for edge in pending
+        if not buffer.can_transform(edge[0], edge[1], Time())
+    }
+
+for parent, child in edges:
+    if (parent, child) in pending:
+        print(f'FAIL TF {parent} -> {child} unavailable', file=sys.stderr)
+    else:
+        print(f'PASS TF {parent} -> {child}')
+
+node.destroy_node()
+rclpy.shutdown()
+raise SystemExit(1 if pending else 0)
+PY
+then
+  failed=1
+fi
 
 # A resolvable reverse path is normal TF inversion, not a graph cycle. tf2
 # rejects multiple parents internally; owner uniqueness is checked separately.

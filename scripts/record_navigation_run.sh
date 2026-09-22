@@ -80,12 +80,16 @@ TOPICS=(
   /agt/global_relocalization/status
   /diagnostics
   /agt/navigation/points_obstacles
+  /agt/debug/points_obstacles_base
   /map
   /plan
   /local_plan
   /global_costmap/costmap
   /local_costmap/costmap
   /goal_pose
+  /clicked_point
+  /agt/path_tool/route
+  /agt/path_tool/status
   /cmd_vel_nav
   /cmd_vel
   /cmd_vel_smoothed
@@ -93,6 +97,9 @@ TOPICS=(
   /navigate_to_pose/_action/feedback
   /navigate_to_pose/_action/status
   /navigate_to_pose/_action/result
+  /follow_path/_action/feedback
+  /follow_path/_action/status
+  /follow_path/_action/result
 )
 if [[ "${ACCEPTANCE_RECORD_RAW:-$RECORD_RAW_DEFAULT}" == "1" ]]; then
   TOPICS+=(/livox/lidar /livox/imu)

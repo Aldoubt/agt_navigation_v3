@@ -11,6 +11,7 @@ setup(
         ('share/' + package_name + '/config', [
             'config/front_sky_three_views.yaml',
             'config/agt_rviz_demo.rviz',
+            'config/agt_rviz_costmap_diagnostics.rviz',
         ]),
         ('share/' + package_name + '/launch', ['launch/rviz_patrol.launch.py']),
     ],
@@ -20,5 +21,8 @@ setup(
     maintainer_email='contact@aldoubt.com',
     description='Collect RViz goals, generate an inspection mission, and return home.',
     license='Apache-2.0',
-    entry_points={'console_scripts': ['rviz_patrol = agt_rviz_patrol.rviz_patrol:main']},
+    entry_points={'console_scripts': [
+        'rviz_patrol = agt_rviz_patrol.rviz_patrol:main',
+        'rviz_path_tool = agt_rviz_patrol.path_tool:main',
+    ]},
 )

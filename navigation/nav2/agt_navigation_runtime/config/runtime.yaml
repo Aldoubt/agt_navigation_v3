@@ -11,6 +11,14 @@ mission_runtime:
     record_root: ~/.ros/agt_inspection_records
     nav_server_timeout_sec: 10.0
     camera_server_timeout_sec: 10.0
+    # Monotonic total budget: discovery + goal handshake + result, per child Action.
+    nav_action_timeout_sec: 300.0
+    camera_action_timeout_sec: 30.0
+    goal_response_timeout_sec: 5.0
+    # Extra bounded grace for terminal confirmation, not just cancel acknowledgement.
+    cancel_confirm_timeout_sec: 5.0
+    runtime_poll_interval_sec: 0.05
+    mission_action: /agt/mission/execute
     tf_lookup_timeout_sec: 0.25
     rtk_max_age_sec: 1.0
     default_point_settle_sec: 1.0

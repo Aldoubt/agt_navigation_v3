@@ -18,9 +18,9 @@ def generate_launch_description():
             'rear_filter_enabled', default_value='false',
             description='Navigation-only rear exclusion.'),
         DeclareLaunchArgument('rear_filter_center_deg', default_value='180.0'),
-        DeclareLaunchArgument('rear_filter_width_deg', default_value='10.0'),
+        DeclareLaunchArgument('rear_filter_width_deg', default_value='70.0'),
         DeclareLaunchArgument('rear_filter_min_range_m', default_value='0.5'),
-        DeclareLaunchArgument('rear_filter_max_range_m', default_value='4.0'),
+        DeclareLaunchArgument('rear_filter_max_range_m', default_value='1.0'),
         DeclareLaunchArgument(
             'statistics_output', default_value='',
             description='Optional final YAML path for read-only filter statistics.'),

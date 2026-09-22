@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 from pathlib import Path
 import sys
 
@@ -10,7 +11,8 @@ def truthy(value: str) -> bool:
     return str(value).strip().lower() in {'1', 'true', 'yes'}
 
 
-def validate(directory: Path, expected_points: int, views_per_point: int, require_rtk: bool) -> list[str]:
+def validate(directory: Path, expected_points: int, views_per_point: int, require_rtk: bool,
+             allow_legacy: bool = False) -> list[str]:
     errors: list[str] = []
     csv_path = directory / 'captures.csv'
     mission_path = directory / 'mission.yaml'
@@ -21,6 +23,18 @@ def validate(directory: Path, expected_points: int, views_per_point: int, requir
         errors.append('missing mission.yaml')
     if not manifest_path.is_file():
         errors.append('missing manifest.json')
+    else:
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+        except (ValueError, OSError) as exc:
+            errors.append(f'invalid manifest.json: {exc}')
+        else:
+            state = manifest.get('status')
+            if state is None:
+                if not allow_legacy:
+                    errors.append('manifest has no terminal status; legacy records cannot prove mission completion')
+            elif state != 'completed':
+                errors.append(f'mission status={state}; capture files do not prove task completion')
 
     with csv_path.open(newline='', encoding='utf-8') as f:
         rows = list(csv.DictReader(f))
@@ -62,18 +76,23 @@ def main(argv=None):
     parser.add_argument('--expected-points', type=int, required=True)
     parser.add_argument('--views-per-point', type=int, default=3)
     parser.add_argument('--require-rtk', action='store_true', help='Fail if any capture lacks valid RTK')
+    parser.add_argument('--allow-legacy', action='store_true',
+                        help='Only inspect legacy record structure; never certify mission completion')
     args = parser.parse_args(argv)
 
     directory = Path(args.directory).expanduser().resolve()
-    errors = validate(directory, args.expected_points, args.views_per_point, args.require_rtk)
+    errors = validate(directory, args.expected_points, args.views_per_point, args.require_rtk, args.allow_legacy)
     if errors:
         print('DEMO RECORD VALIDATION FAILED', file=sys.stderr)
         for error in errors:
             print(f' - {error}', file=sys.stderr)
         raise SystemExit(2)
-    print(
-        f'DEMO RECORD VALIDATION PASS: points={args.expected_points} '
-        f'views_per_point={args.views_per_point}')
+    manifest = json.loads((directory / 'manifest.json').read_text(encoding='utf-8'))
+    if manifest.get('status') is None:
+        print('LEGACY STRUCTURE CHECK PASS; mission completion is NOT VERIFIED')
+    else:
+        print(f'DEMO RECORD VALIDATION PASS: status=completed points={args.expected_points} '
+              f'views_per_point={args.views_per_point}')
 
 
 if __name__ == '__main__':

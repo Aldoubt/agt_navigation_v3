@@ -29,9 +29,10 @@ agt_global_relocalization:
     mapping_body_livox_quaternion_xyzw: [0.0, 0.0, 0.0, 1.0]
 
     # Vehicle-mount conversion is derived at runtime instead of copied here:
-    # T_body_base = T_body_lidar(Batch-LIO runtime YAML)
+    # T_body_base = T_body_lidar(selected frontend runtime YAML)
     #               * T_lidar_base(robot_state_publisher TF).
-    batch_lio_config_file: ""
+    batch_lio_config_file: ""  # Legacy compatibility fallback.
+    body_to_base_calibration_file: ""  # Selected frontend runtime YAML; takes precedence.
     mount_lidar_frame: livox_frame
     mount_base_frame: base_link
     bbs_query_frame_mode: mapping_body

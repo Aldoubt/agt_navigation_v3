@@ -145,6 +145,31 @@ Visualization Manager:
         Value: /plan
       Line Style: Lines
       Line Width: 0.04
+      Color: 255; 60; 60
+    - Class: rviz_default_plugins/Path
+      Name: LIO actual route (map frame)
+      Enabled: true
+      Topic:
+        Value: /agt/path_tool/lio_path
+      Line Style: Lines
+      Line Width: 0.08
+      Color: 30; 120; 255
+    - Class: rviz_default_plugins/Path
+      Name: Wheel route (initially map-aligned)
+      Enabled: true
+      Topic:
+        Value: /agt/path_tool/wheel_path
+      Line Style: Lines
+      Line Width: 0.06
+      Color: 20; 220; 80
+    - Class: rviz_default_plugins/Path
+      Name: Hand-drawn route
+      Enabled: true
+      Topic:
+        Value: /agt/path_tool/route
+      Line Style: Lines
+      Line Width: 0.10
+      Color: 255; 150; 20
     - Class: rviz_default_plugins/Path
       Name: Local Plan
       Enabled: true
@@ -167,6 +192,10 @@ Visualization Manager:
     - Class: rviz_default_plugins/Select
     - Class: rviz_default_plugins/FocusCamera
     - Class: rviz_default_plugins/Measure
+    - Class: rviz_default_plugins/PublishPoint
+      Topic:
+        Value: /clicked_point
+      Single click: true
     - Class: rviz_default_plugins/SetGoal
       Topic:
         Value: /goal_pose

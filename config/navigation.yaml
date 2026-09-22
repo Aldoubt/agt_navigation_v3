@@ -23,7 +23,9 @@ planner_server:
       max_on_approach_iterations: 1000
       terminal_checking_interval: 5000
       max_planning_time: 2.0
-      cost_travel_multiplier: 2.0
+      # Increase the path-length penalty paid for travelling through inflated
+      # cells so SmacPlanner2D prefers lane clearance over hugging a wall.
+      cost_travel_multiplier: 3.0
       use_final_approach_orientation: false
 
 smoother_server:

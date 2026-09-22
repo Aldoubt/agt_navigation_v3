@@ -36,6 +36,12 @@ def _canonical_params():
             _deep_merge(merged, yaml.safe_load(stream) or {})
 
     robot = _params(merged, 'agt_robot_config')
+    # Keep a stable global path on the static-only global costmap. The
+    # controller still handles live obstacles through its local costmap.
+    bt_share = Path(get_package_share_directory('nav2_bt_navigator'))
+    _params(merged, 'bt_navigator')['default_nav_to_pose_bt_xml'] = str(
+        bt_share / 'behavior_trees' /
+        'navigate_w_recovery_and_replanning_only_if_path_becomes_invalid.xml')
     for costmap in ('local_costmap', 'global_costmap'):
         params = _params(merged, costmap, costmap)
         params['footprint'] = robot['footprint']

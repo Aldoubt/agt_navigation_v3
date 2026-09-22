@@ -1,7 +1,5 @@
 agt_fastlio_adapter:
   ros__parameters:
-    # FAST-LIO2 publishes continuous T_odom_body.  This adapter converts it to
-    # the navigation contract T_odom_base_link using the frozen body/mount data.
     input_topic: /fastlio2/lio_odom
     output_topic: /agt/odometry/local
     expected_odom_frame: odom
@@ -10,9 +8,26 @@ agt_fastlio_adapter:
     output_base_frame: base_link
     tf_child_frame: base_footprint
     convert_body_to_base: true
+    # Launch fills this from the same frozen FAST-LIO2 r_il/t_il runtime file.
     body_to_base_calibration_file: ""
     mount_lidar_frame: livox_frame
     mount_base_frame: base_link
     tf_timeout_sec: 0.20
     max_input_age_sec: 0.20
+    max_future_input_sec: 0.05
     reject_zero_stamp: true
+    # Upstream currently fills linear velocity but not angular velocity.
+    # Differentiate the converted base pose for a coherent base-origin twist.
+    derive_twist_from_pose: true
+    twist_min_dt_sec: 0.01
+    twist_max_dt_sec: 0.50
+    twist_linear_deadband_mps: 0.01
+    twist_angular_deadband_rps: 0.01
+    twist_max_linear_mps: 2.0
+    twist_max_angular_rps: 3.0
+    adapter_status_topic: /agt/odometry/adapter_status
+    diagnostic_publish_rate_hz: 5.0
+    stale_pose_timeout_sec: 1.0
+    publish_rate_window_sec: 1.0
+    debug_path_topic: /agt/debug/local_path
+    debug_path_max_poses: 2000

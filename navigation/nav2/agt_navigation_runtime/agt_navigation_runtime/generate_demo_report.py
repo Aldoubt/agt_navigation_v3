@@ -31,6 +31,13 @@ def build_report(directory: Path) -> str:
         '# AGT RViz Patrol Demo Report', '',
         f"- mission_id: `{manifest.get('mission_id', '')}`",
         f"- map_id: `{manifest.get('map_id', '')}`",
+        f"- mission status: **{manifest.get('status', 'UNVERIFIED_LEGACY')}**",
+        f"- terminal error: `{manifest.get('error_code', '')}`; {manifest.get('message', '')}",
+        f"- planned capture views: `{len(manifest.get('planned_views', [])) if 'planned_views' in manifest else 'unknown'}`",
+        f"- completed navigation points (may include RETURN_HOME): `{manifest.get('completed_points', 'unknown')}`",
+        ('**Mission terminal status is completed; image/business quality still needs validation.**'
+         if manifest.get('status') == 'completed' else
+         '**NOT a certified complete mission: existing photos may be partial, canceled, or legacy evidence.**'),
         f"- capture records: **{len(rows)}**",
         f"- inspection points with captures: **{len(by_point)}**",
         f"- image files present: **{images_ok}/{len(rows)}**",

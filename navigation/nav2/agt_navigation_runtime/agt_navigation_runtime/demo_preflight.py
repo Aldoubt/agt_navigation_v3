@@ -71,10 +71,19 @@ class DemoPreflight(Node):
 
     def run(self) -> bool:
         timeout = float(self.get_parameter('timeout_sec').value)
+        global_frame = str(self.get_parameter('global_frame').value)
+        base_frame = str(self.get_parameter('base_frame').value)
         deadline = time.monotonic() + timeout
+        tf_ready = False
         while rclpy.ok() and time.monotonic() < deadline:
             rclpy.spin_once(self, timeout_sec=0.05)
-            if self.odom is not None and self.cloud is not None and self.localization is not None:
+            tf_ready = self.tf_buffer.can_transform(global_frame, base_frame, Time())
+            if (
+                self.odom is not None
+                and self.cloud is not None
+                and self.localization is not None
+                and tf_ready
+            ):
                 break
 
         checks: list[tuple[str, bool, str]] = []
@@ -106,12 +115,13 @@ class DemoPreflight(Node):
             checks.append(('LiDAR global localization', loc_ok, loc_detail))
 
         tf_ok = False
-        tf_detail = f"{self.get_parameter('global_frame').value}->{self.get_parameter('base_frame').value}"
+        tf_detail = f'{global_frame}->{base_frame}'
         try:
-            self.tf_buffer.lookup_transform(
-                self.get_parameter('global_frame').value,
-                self.get_parameter('base_frame').value,
-                Time(), timeout=Duration(seconds=0.5))
+            # The listener shares this node's executor.  The readiness loop
+            # above must spin until the TF subscriptions have discovered their
+            # publishers and populated the buffer; blocking here cannot service
+            # those callbacks in a single-threaded process.
+            self.tf_buffer.lookup_transform(global_frame, base_frame, Time())
             tf_ok = True
         except TransformException as exc:
             tf_detail = f'{tf_detail}: {exc}'

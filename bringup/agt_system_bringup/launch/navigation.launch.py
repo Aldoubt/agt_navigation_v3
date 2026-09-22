@@ -42,6 +42,14 @@ def _build_runtime_params(config_dir):
             _deep_merge(merged, yaml.safe_load(stream) or {})
 
     robot = _params(merged, 'agt_robot_config')
+    # The global costmap is static-only. Recomputing the same route every
+    # second made the grid planner alternate its near-robot segment and drove
+    # the tracked chassis into a left/right pursuit cycle. Retain the current
+    # path until the goal changes or Nav2 proves that path invalid.
+    bt_share = Path(get_package_share_directory('nav2_bt_navigator'))
+    _params(merged, 'bt_navigator')['default_nav_to_pose_bt_xml'] = str(
+        bt_share / 'behavior_trees' /
+        'navigate_w_recovery_and_replanning_only_if_path_becomes_invalid.xml')
     for costmap in ('local_costmap', 'global_costmap'):
         params = _params(merged, costmap, costmap)
         params['footprint'] = robot['footprint']
@@ -104,9 +112,18 @@ def _launch_runtime(context):
     use_sim_time = LaunchConfiguration('use_sim_time').perform(context)
 
     observation = {
-        # Diagnostic-only observation switches. At their defaults they repeat
-        # perception.yaml exactly, so an ordinary field launch is unaffected; they
-        # exist so evidence can be collected without editing the canonical files.
+        # Explicit field-trial and observation switches. Defaults keep the rear
+        # mask disabled and repeat the canonical perception profile.
+        'rear_filter_enabled': ParameterValue(
+            LaunchConfiguration('obstacle_rear_filter_enabled'), value_type=bool),
+        'rear_filter_center_deg': ParameterValue(
+            LaunchConfiguration('obstacle_rear_filter_center_deg'), value_type=float),
+        'rear_filter_width_deg': ParameterValue(
+            LaunchConfiguration('obstacle_rear_filter_width_deg'), value_type=float),
+        'rear_filter_min_range_m': ParameterValue(
+            LaunchConfiguration('obstacle_rear_filter_min_range_m'), value_type=float),
+        'rear_filter_max_range_m': ParameterValue(
+            LaunchConfiguration('obstacle_rear_filter_max_range_m'), value_type=float),
         'statistics_output': LaunchConfiguration('obstacle_statistics_output').perform(context),
         'debug_log_interval_sec': ParameterValue(
             LaunchConfiguration('obstacle_debug_log_interval_sec'), value_type=float),
@@ -125,6 +142,11 @@ def _launch_runtime(context):
             parameters=[params_file, {
                 'use_sim_time': ParameterValue(
                     LaunchConfiguration('use_sim_time'), value_type=bool),
+                'rear_filter.enabled': observation['rear_filter_enabled'],
+                'rear_filter.center_deg': observation['rear_filter_center_deg'],
+                'rear_filter.width_deg': observation['rear_filter_width_deg'],
+                'rear_filter.min_range_m': observation['rear_filter_min_range_m'],
+                'rear_filter.max_range_m': observation['rear_filter_max_range_m'],
                 'statistics_output': observation['statistics_output'],
                 'debug_log_interval_sec': observation['debug_log_interval_sec'],
                 'debug_base_cloud.enabled': observation['debug_base_cloud_enabled'],
@@ -144,6 +166,12 @@ def _launch_runtime(context):
         Node(
             package='agt_base_control', executable='cmd_vel_guard',
             name='agt_cmd_vel_guard', output='screen', parameters=[params_file]),
+        # Always expose map-frame LIO/wheel trails and the validated RViz
+        # hand-drawn FollowPath entry point. This is independent of the
+        # stop-and-shoot inspection mission queue below.
+        Node(
+            package='agt_rviz_patrol', executable='rviz_path_tool',
+            name='agt_rviz_path_tool', output='screen'),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 str(runtime_share / 'launch' / 'runtime.launch.py')),
@@ -172,6 +200,13 @@ def generate_launch_description():
                 'False is pure Nav2 navigation.')),
         DeclareLaunchArgument('map_id', default_value='field_navigation'),
         DeclareLaunchArgument('mission_dir', default_value='~/.ros/agt_rviz_patrol'),
+        DeclareLaunchArgument(
+            'obstacle_rear_filter_enabled', default_value='false',
+            description='Trial-only short-range rear pole mask on obstacle marking.'),
+        DeclareLaunchArgument('obstacle_rear_filter_center_deg', default_value='180.0'),
+        DeclareLaunchArgument('obstacle_rear_filter_width_deg', default_value='70.0'),
+        DeclareLaunchArgument('obstacle_rear_filter_min_range_m', default_value='0.5'),
+        DeclareLaunchArgument('obstacle_rear_filter_max_range_m', default_value='1.0'),
         DeclareLaunchArgument(
             'obstacle_statistics_output', default_value='',
             description='Diagnostic: path for the cumulative preprocessor filter statistics YAML.'),

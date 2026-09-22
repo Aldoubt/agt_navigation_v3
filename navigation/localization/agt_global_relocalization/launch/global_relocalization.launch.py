@@ -16,6 +16,9 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('use_sim_time', default_value='false'),
         DeclareLaunchArgument(
+            'body_to_base_calibration_file', default_value='',
+            description='Active LIO calibration: Batch ROS YAML or FAST-LIO2 flat YAML.'),
+        DeclareLaunchArgument(
             'batch_lio_config_file', default_value='',
             description='Exact Batch-LIO runtime YAML used to derive T_body_base with chassis TF.'),
         DeclareLaunchArgument(
@@ -62,6 +65,8 @@ def generate_launch_description():
                 {
                     'global_map': LaunchConfiguration('global_map'),
                     'batch_lio_config_file': LaunchConfiguration('batch_lio_config_file'),
+                    'body_to_base_calibration_file': LaunchConfiguration(
+                        'body_to_base_calibration_file'),
                     'relocalization_assets': LaunchConfiguration('relocalization_assets'),
                     'follow_map_manager': ParameterValue(
                         LaunchConfiguration('follow_map_manager'), value_type=bool),

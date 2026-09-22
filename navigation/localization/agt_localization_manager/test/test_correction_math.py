@@ -12,6 +12,7 @@ from agt_localization_manager.localization_manager import (
     _compose,
     _correction_delta,
     _inverse,
+    _local_odom_loss_recoverable,
     _make_metrics_message,
     _slerp,
     _tracking_innovation_exceeds,
@@ -64,6 +65,15 @@ def test_recovery_cooldown_blocks_duplicate_request_until_expired():
     recovery.tracking_failure('second_failure', auto_request=True)
     assert not recovery.try_request(12.0)
     assert recovery.try_request(15.0)
+
+
+def test_transient_local_odom_loss_can_recover_with_existing_global_correction():
+    assert _local_odom_loss_recoverable(
+        LocalizationState.LOST, 'local_odom_lost:1.01s', True)
+    assert not _local_odom_loss_recoverable(
+        LocalizationState.LOST, 'map_tracking_recovery_required', True)
+    assert not _local_odom_loss_recoverable(
+        LocalizationState.LOST, 'local_odom_lost:1.01s', False)
 
 
 def test_metrics_after_global_pose_acceptance_reports_localized():

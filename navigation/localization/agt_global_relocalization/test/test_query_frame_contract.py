@@ -163,7 +163,33 @@ def test_candidate_bbs_has_explicit_non_mixing_frame_mode_contract():
     for axis, placeholder in placeholders.items():
         assert f'--base-from-body-{axis} {{{placeholder}}}' in command
 
-    assert 'load_batch_lio_body_to_lidar' in source
+    assert 'load_lio_body_to_lidar' in source
+    assert "self.get_parameter('body_to_base_calibration_file')" in source
+    assert "self.get_parameter('batch_lio_config_file')" in source
     assert 'lookup_transform(' in source
     assert "self.get_parameter('mount_lidar_frame')" in source
     assert "self.get_parameter('mount_base_frame')" in source
+
+
+def test_explicit_fastlio_calibration_takes_precedence_over_legacy_batch_argument(tmp_path):
+    from types import SimpleNamespace
+    from geometry_msgs.msg import TransformStamped
+    config = tmp_path / 'fastlio.yaml'
+    config.write_text(yaml.safe_dump({'t_il': [-.011, -.02329, .04412],
+                                    'r_il': [1., 0, 0, 0, 1., 0, 0, 0, 1.]}))
+    values = {'body_to_base_calibration_file': str(config),
+              'batch_lio_config_file': '/must/not/be/read.yaml',
+              'mount_lidar_frame': 'livox_frame', 'mount_base_frame': 'base_link',
+              'tf_timeout_sec': .2}
+    transform = TransformStamped()
+    transform.transform.rotation.w = 1.0
+    transform.transform.translation.x = -0.3
+    transform.transform.translation.z = -0.8
+    fake = SimpleNamespace(
+        _body_to_base_cache=None,
+        get_parameter=lambda name: SimpleNamespace(value=values[name]),
+        get_logger=lambda: SimpleNamespace(info=lambda text: None),
+        tf_buffer=SimpleNamespace(lookup_transform=lambda *args, **kwargs: transform),
+    )
+    result = GlobalRelocalization.body_to_base_pose(fake)
+    assert (result['x'], result['y'], result['z']) == pytest.approx((-.311, -.02329, -.75588))

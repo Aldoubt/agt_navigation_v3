@@ -14,6 +14,8 @@ set -euo pipefail
 MAP_ROOT=/home/yangxuan/ros2_ws/maps/bunker_mid360_mapping_20260901_205036/v005-confirmed-keepout
 MAP_ID=bunker_mid360_v005_confirmed_keepout
 MODE=navigation
+LIO_BACKEND=batch_lio
+LIO_CONFIG=""
 ENABLE_RTK=false
 ENABLE_RVIZ=false
 DRY_RUN=false
@@ -25,6 +27,7 @@ RUN_DIR=${AGT_FIELD_LOG_DIR:-"$HOME/.ros/agt_field_stack/$STAMP"}
 OBSTACLE_STATS=""
 OBSTACLE_DEBUG_BASE_CLOUD=false
 OBSTACLE_LOG_INTERVAL=0.0
+REAR_POINTCLOUD_MASK=false
 RVIZ_CONFIG=""
 
 usage() {
@@ -36,6 +39,8 @@ Options:
                     navigation: Nav2 only, camera and capture task disabled.
                     inspection: stop at each queued point, capture three views,
                     save images and metadata, then continue/return home.
+  --lio-backend NAME Local odometry: batch_lio (default) or fastlio2; mutually exclusive.
+  --lio-config PATH  Optional runtime YAML for the selected LIO backend.
   --map-root PATH   Map package root.
   --map-id ID       Runtime map identifier.
   --rviz            Start debug.launch.py after all checks pass.
@@ -50,6 +55,9 @@ Options:
                     Publish accepted obstacle points in base_link for audit/RViz.
   --obstacle-log-interval SEC
                     Periodic cumulative filter-statistics log interval; 0 disables it.
+  --rear-pointcloud-mask
+                    Trial mask for the rear-mounted pole: base_link bearing
+                    180 +/- 35 deg, planar range 0.5-1.0 m. Obstacle marking only.
   -h, --help        Show this help.
 
 The script starts the existing four-entry architecture in dependency order.
@@ -62,6 +70,14 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --mode)
       MODE=${2:?--mode requires navigation or inspection}
+      shift 2
+      ;;
+    --lio-backend)
+      LIO_BACKEND=${2:?--lio-backend requires batch_lio or fastlio2}
+      shift 2
+      ;;
+    --lio-config)
+      LIO_CONFIG=${2:?--lio-config requires a path}
       shift 2
       ;;
     --map-root)
@@ -100,6 +116,10 @@ while [[ $# -gt 0 ]]; do
       OBSTACLE_LOG_INTERVAL=${2:?--obstacle-log-interval requires seconds}
       shift 2
       ;;
+    --rear-pointcloud-mask)
+      REAR_POINTCLOUD_MASK=true
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -125,11 +145,35 @@ case "$MODE" in
     ;;
 esac
 
+case "$LIO_BACKEND" in
+  batch_lio)
+    LIO_CONFIG_NAME=batch_lio_mid360.yaml
+    LIO_CONFIG_ARGUMENT=batch_config
+    LIO_RAW_ODOM=/aft_mapped_to_init
+    ;;
+  fastlio2)
+    LIO_CONFIG_NAME=fastlio2_mid360_navigation.yaml
+    LIO_CONFIG_ARGUMENT=fastlio_config
+    LIO_RAW_ODOM=/fastlio2/lio_odom
+    ;;
+  *)
+    printf 'Invalid --lio-backend %s; expected batch_lio or fastlio2\n' "$LIO_BACKEND" >&2
+    exit 2
+    ;;
+esac
+if [[ -z "$LIO_CONFIG" ]]; then
+  LIO_CONFIG="$WS_ROOT/install/agt_navigation_runtime/share/agt_navigation_runtime/config/$LIO_CONFIG_NAME"
+fi
+if [[ ! -f "$LIO_CONFIG" ]]; then
+  printf 'Missing LIO configuration: %s\n' "$LIO_CONFIG" >&2
+  exit 2
+fi
+
 if [[ -z "$RVIZ_CONFIG" ]]; then
   if [[ "$ENABLE_INSPECTION" == true ]]; then
     RVIZ_CONFIG="$WS_ROOT/install/agt_rviz_patrol/share/agt_rviz_patrol/config/agt_rviz_demo.rviz"
   else
-    RVIZ_CONFIG=/opt/ros/humble/share/nav2_bringup/rviz/nav2_default_view.rviz
+    RVIZ_CONFIG="$WS_ROOT/install/agt_rviz_patrol/share/agt_rviz_patrol/config/agt_rviz_costmap_diagnostics.rviz"
   fi
 fi
 
@@ -145,6 +189,13 @@ done
 
 if [[ "$DRY_RUN" == true ]]; then
   printf 'mode=%s\n' "$MODE"
+  printf 'lio_backend=%s\n' "$LIO_BACKEND"
+  printf 'lio_config=%s\n' "$LIO_CONFIG"
+  printf 'lio_raw_odometry=%s\n' "$LIO_RAW_ODOM"
+  printf 'rear_pointcloud_mask=%s\n' "$REAR_POINTCLOUD_MASK"
+  if [[ "$REAR_POINTCLOUD_MASK" == true ]]; then
+    printf 'rear_pointcloud_mask_sector=center:180deg,width:70deg,range:0.5-1.0m\n'
+  fi
   printf 'map_root=%s\n' "$MAP_ROOT"
   printf 'map_id=%s\n' "$MAP_ID"
   printf 'navigation_map=%s\n' "$NAV_MAP"
@@ -165,7 +216,10 @@ start_child() {
   shift
   local logfile="$RUN_DIR/$label.log"
   printf '[START] %-12s log=%s\n' "$label" "$logfile"
-  "$@" >"$logfile" 2>&1 &
+  # Give every top-level launch its own process group. A ros2 launch wrapper
+  # can exit before all of its nodes; cleanup must still be able to signal the
+  # complete group instead of leaving hardware/localization owners behind.
+  setsid "$@" >"$logfile" 2>&1 &
   CHILD_PIDS+=("$!")
   CHILD_LABELS+=("$label")
 }
@@ -212,18 +266,34 @@ wait_for_service() {
   return 1
 }
 
+wait_for_node() {
+  local node=$1
+  local timeout_sec=$2
+  local deadline=$((SECONDS + timeout_sec))
+  printf '[WAIT]  node=%s\n' "$node"
+  while (( SECONDS < deadline )); do
+    if ros2 node list --no-daemon --spin-time 1 2>/dev/null | grep -Fxq "$node"; then
+      printf '[PASS]  node=%s\n' "$node"
+      return 0
+    fi
+    sleep 1
+  done
+  printf '[FAIL]  missing node %s after %ss\n' "$node" "$timeout_sec" >&2
+  return 1
+}
+
 wait_for_adapter() {
   local timeout_sec=$1
   local deadline=$((SECONDS + timeout_sec))
   local consecutive=0
-  printf '[WAIT]  Batch-LIO adapter FRESH\n'
+  printf '[WAIT]  %s adapter FRESH\n' "$LIO_BACKEND"
   while (( SECONDS < deadline )); do
     local output
     output=$(timeout 3 ros2 topic echo /agt/odometry/adapter_status --once 2>/dev/null || true)
     if grep -Eq '^state: 0$' <<<"$output"; then
       consecutive=$((consecutive + 1))
       if (( consecutive >= 3 )); then
-        printf '[PASS]  Batch-LIO adapter FRESH for three samples\n'
+        printf '[PASS]  %s adapter FRESH for three samples\n' "$LIO_BACKEND"
         return 0
       fi
     else
@@ -231,7 +301,7 @@ wait_for_adapter() {
     fi
     sleep 1
   done
-  printf '[FAIL]  Batch-LIO adapter did not remain FRESH\n' >&2
+  printf '[FAIL]  %s adapter did not remain FRESH\n' "$LIO_BACKEND" >&2
   return 1
 }
 
@@ -259,6 +329,101 @@ wait_for_localized() {
   return 1
 }
 
+wait_for_localization_settle() {
+  local timeout_sec=$1
+  local deadline=$((SECONDS + timeout_sec))
+  local consecutive=0
+  printf '[WAIT]  localization settle (preserve accepted global correction)\n'
+  while (( SECONDS < deadline )); do
+    local output
+    output=$(timeout 3 ros2 topic echo /agt/localization/status --once 2>/dev/null || true)
+    if grep -Eq '^state: 3$' <<<"$output" \
+        && grep -Eq '^local_odom_fresh: true$' <<<"$output" \
+        && grep -Eq '^global_correction_valid: true$' <<<"$output"; then
+      consecutive=$((consecutive + 1))
+      if (( consecutive >= 3 )); then
+        printf '[PASS]  localization remained LOCALIZED for three samples\n'
+        return 0
+      fi
+    else
+      consecutive=0
+    fi
+    sleep 0.5
+  done
+  return 1
+}
+
+relocalize_until_ready() {
+  local log_prefix=$1
+  local attempt
+  for attempt in 1 2; do
+    printf '[CALL]  global relocalization attempt %s/2 (keep robot stationary)\n' "$attempt"
+    if ros2 service call /agt/localization/relocalize std_srvs/srv/Trigger '{}' \
+        >"$RUN_DIR/${log_prefix}_service_${attempt}.txt" 2>&1 \
+        && wait_for_localized 60; then
+      return 0
+    fi
+    if (( attempt < 2 )); then
+      printf '[RETRY] global relocalization did not converge; waiting for a fresh stationary query\n'
+      sleep 3
+    fi
+  done
+  return 1
+}
+
+ensure_localization_ready() {
+  local phase=$1
+  printf '[VERIFY] localization %s\n' "$phase"
+  # A brief FAST-LIO scheduling delay can publish DEGRADED for one sample while
+  # the already accepted map->odom correction remains valid. Give that state a
+  # short grace period; a manual relocalization invalidates the good correction
+  # immediately and must never be used merely to cure stale local odometry.
+  if wait_for_localization_settle 15; then
+    return 0
+  fi
+
+  local output
+  output=$(timeout 3 ros2 topic echo /agt/localization/status --once 2>/dev/null || true)
+  printf '%s\n' "$output" >&2
+  if grep -Eq '^global_correction_valid: true$' <<<"$output"; then
+    printf '[FAIL] localization did not settle %s; preserving the valid global correction\n' \
+      "$phase" >&2
+  else
+    printf '[FAIL] global correction is invalid %s; refusing a second startup relocalization\n' \
+      "$phase" >&2
+  fi
+  return 1
+}
+
+stop_process_group() {
+  local label=$1
+  local pid=$2
+  if ! kill -0 -- "-$pid" 2>/dev/null; then
+    return 0
+  fi
+
+  printf '[STOP] %-12s process_group=%s\n' "$label" "$pid"
+  kill -INT -- "-$pid" 2>/dev/null || true
+  local child_deadline=$((SECONDS + 15))
+  while kill -0 -- "-$pid" 2>/dev/null && (( SECONDS < child_deadline )); do
+    sleep 1
+  done
+
+  if kill -0 -- "-$pid" 2>/dev/null; then
+    printf '[STOP] %-12s group did not exit after SIGINT; sending SIGTERM\n' "$label" >&2
+    kill -TERM -- "-$pid" 2>/dev/null || true
+    child_deadline=$((SECONDS + 5))
+    while kill -0 -- "-$pid" 2>/dev/null && (( SECONDS < child_deadline )); do
+      sleep 1
+    done
+  fi
+
+  if kill -0 -- "-$pid" 2>/dev/null; then
+    printf '[STOP] %-12s group did not exit after SIGTERM; sending SIGKILL\n' "$label" >&2
+    kill -KILL -- "-$pid" 2>/dev/null || true
+  fi
+}
+
 cleanup() {
   local original_status=$?
   trap - EXIT INT TERM
@@ -267,18 +432,7 @@ cleanup() {
   for ((i=${#CHILD_PIDS[@]}-1; i>=0; i--)); do
     pid=${CHILD_PIDS[$i]}
     label=${CHILD_LABELS[$i]}
-    if kill -0 "$pid" 2>/dev/null; then
-      printf '[STOP] %-12s pid=%s\n' "$label" "$pid"
-      kill -INT "$pid" 2>/dev/null || true
-      local child_deadline=$((SECONDS + 15))
-      while kill -0 "$pid" 2>/dev/null && (( SECONDS < child_deadline )); do
-        sleep 1
-      done
-      if kill -0 "$pid" 2>/dev/null; then
-        printf '[STOP] %-12s did not exit after SIGINT; sending SIGTERM\n' "$label" >&2
-        kill -TERM "$pid" 2>/dev/null || true
-      fi
-    fi
+    stop_process_group "$label" "$pid"
     wait "$pid" 2>/dev/null || true
   done
   printf '[STOP] complete; logs=%s\n' "$RUN_DIR"
@@ -289,12 +443,29 @@ trap cleanup EXIT
 trap 'exit 130' INT TERM
 
 existing_nodes=$(ros2 node list --no-daemon --spin-time 2 2>/dev/null || true)
-for owner in /robot_state_publisher /agt_localization_manager /agt_pointcloud_preprocessor; do
+for owner in /robot_state_publisher /agt_localization_manager /agt_pointcloud_preprocessor \
+    /agt_batch_lio_adapter /agt_fastlio_adapter /laserMapping /batch_lio /fastlio2/lio_node; do
   if grep -Fxq "$owner" <<<"$existing_nodes"; then
     printf 'Refusing to create duplicate owner; node already exists: %s\n' "$owner" >&2
     exit 1
   fi
 done
+
+# Preserve the exact LIO input for later A/B analysis; both backend paths use it.
+cp -- "$LIO_CONFIG" "$RUN_DIR/lio_config_input.yaml"
+{
+  printf 'mode=%s\nlio_backend=%s\nlio_config_source=%s\n' "$MODE" "$LIO_BACKEND" "$LIO_CONFIG"
+  printf 'lio_raw_odometry=%s\n' "$LIO_RAW_ODOM"
+  printf 'rear_pointcloud_mask=%s\n' "$REAR_POINTCLOUD_MASK"
+  if [[ "$REAR_POINTCLOUD_MASK" == true ]]; then
+    printf 'rear_pointcloud_mask_sector=center:180deg,width:70deg,range:0.5-1.0m\n'
+  fi
+  sha256sum -- "$RUN_DIR/lio_config_input.yaml"
+} >"$RUN_DIR/launch_selection.txt"
+declare -a LIO_LAUNCH_ARGS=(
+  "lio_backend:=$LIO_BACKEND"
+  "$LIO_CONFIG_ARGUMENT:=$RUN_DIR/lio_config_input.yaml"
+)
 
 start_child hardware \
   ros2 launch agt_system_bringup hardware.launch.py \
@@ -308,14 +479,14 @@ start_child localization \
   ros2 launch agt_system_bringup localization.launch.py \
   global_map:="$GLOBAL_MAP" \
   relocalization_assets:="$RELOCALIZATION_ASSETS" \
-  auto_relocalize:=false
+  auto_relocalize:=false \
+  "${LIO_LAUNCH_ARGS[@]}"
 wait_for_service /agt/localization/relocalize 45 || { tail_failure localization; exit 1; }
 wait_for_adapter 60 || { tail_failure localization; exit 1; }
-
-printf '[CALL]  global relocalization (request waits for a complete stationary query)\n'
-ros2 service call /agt/localization/relocalize std_srvs/srv/Trigger '{}' \
-  >"$RUN_DIR/relocalize_service.txt" 2>&1
-wait_for_localized 60 || { tail_failure localization; exit 1; }
+if ! relocalize_until_ready relocalize; then
+  tail_failure localization
+  exit 1
+fi
 
 declare -a NAV_OBS_ARGS=()
 if [[ -n "$OBSTACLE_STATS" ]]; then
@@ -327,36 +498,83 @@ fi
 if [[ "$OBSTACLE_LOG_INTERVAL" != "0.0" ]]; then
   NAV_OBS_ARGS+=("obstacle_debug_log_interval_sec:=$OBSTACLE_LOG_INTERVAL")
 fi
+if [[ "$REAR_POINTCLOUD_MASK" == true ]]; then
+  NAV_OBS_ARGS+=(
+    "obstacle_rear_filter_enabled:=true"
+    "obstacle_rear_filter_center_deg:=180.0"
+    "obstacle_rear_filter_width_deg:=70.0"
+    "obstacle_rear_filter_min_range_m:=0.5"
+    "obstacle_rear_filter_max_range_m:=1.0"
+  )
+fi
 
-start_child navigation \
-  ros2 launch agt_system_bringup navigation.launch.py \
-  map:="$NAV_MAP" map_id:="$MAP_ID" \
-  enable_inspection:="$ENABLE_INSPECTION" \
-  ${NAV_OBS_ARGS[@]+"${NAV_OBS_ARGS[@]}"}
-wait_for_service /navigate_to_pose/_action/send_goal 60 \
-  || { tail_failure navigation; exit 1; }
+navigation_ready=false
+for attempt in 1 2; do
+  start_child navigation \
+    ros2 launch agt_system_bringup navigation.launch.py \
+    map:="$NAV_MAP" map_id:="$MAP_ID" \
+    enable_inspection:="$ENABLE_INSPECTION" \
+    ${NAV_OBS_ARGS[@]+"${NAV_OBS_ARGS[@]}"}
+  if wait_for_service /navigate_to_pose/_action/send_goal 60; then
+    navigation_ready=true
+    break
+  fi
 
-"$SCRIPT_DIR/check_runtime.sh" | tee "$RUN_DIR/check_runtime.txt"
-"$SCRIPT_DIR/check_tf.sh" | tee "$RUN_DIR/check_tf.txt"
+  tail_failure navigation
+  if (( attempt < 2 )); then
+    navigation_index=$((${#CHILD_PIDS[@]} - 1))
+    navigation_pid=${CHILD_PIDS[$navigation_index]}
+    stop_process_group navigation "$navigation_pid"
+    wait "$navigation_pid" 2>/dev/null || true
+    mv -- "$RUN_DIR/navigation.log" "$RUN_DIR/navigation_attempt_${attempt}.log"
+    printf '[RETRY] Nav2 lifecycle bringup did not complete; restarting navigation only\n'
+    sleep 2
+  fi
+done
+if [[ "$navigation_ready" != true ]]; then
+  exit 1
+fi
+
+if [[ "$ENABLE_RVIZ" == true ]]; then
+  rviz_xdg_data_dirs=${XDG_DATA_DIRS_VSCODE_SNAP_ORIG:-/usr/local/share:/usr/share}
+  start_child debug \
+    env -u GDK_PIXBUF_MODULEDIR -u GDK_PIXBUF_MODULE_FILE \
+    -u GIO_MODULE_DIR -u GSETTINGS_SCHEMA_DIR -u GTK_EXE_PREFIX \
+    -u GTK_IM_MODULE_FILE -u GTK_PATH -u LOCPATH -u SNAP \
+    -u SNAP_LIBRARY_PATH -u XDG_DATA_HOME \
+    XDG_DATA_DIRS="$rviz_xdg_data_dirs" \
+    ros2 launch agt_system_bringup debug.launch.py \
+    run_preflight:=false rviz_config:="$RVIZ_CONFIG"
+  wait_for_node /agt_navigation_debug_rviz 30 || { tail_failure debug; exit 1; }
+fi
+
+"$SCRIPT_DIR/check_runtime.sh" --lio-backend "$LIO_BACKEND" | tee "$RUN_DIR/check_runtime.txt"
 "$SCRIPT_DIR/check_topics.sh" | tee "$RUN_DIR/check_topics.txt"
+ensure_localization_ready after_startup_checks || { tail_failure localization; exit 1; }
+"$SCRIPT_DIR/check_tf.sh" | tee "$RUN_DIR/check_tf.txt"
+# TF inspection itself must not leave a sticky LOST state immediately before
+# the formal preflight and operator control are enabled.
+ensure_localization_ready after_tf_check || { tail_failure localization; exit 1; }
 ros2 run agt_navigation_runtime demo_preflight --ros-args \
   -p require_camera:="$ENABLE_INSPECTION" \
   | tee "$RUN_DIR/demo_preflight.txt"
 
-if [[ "$ENABLE_RVIZ" == true ]]; then
-  start_child debug \
-    ros2 launch agt_system_bringup debug.launch.py \
-    run_preflight:=false rviz_config:="$RVIZ_CONFIG"
-fi
-
 printf '\n[READY] Hardware, localization and Nav2 passed preflight.\n'
 printf '[READY] Mode: %s\n' "$MODE"
+printf '[READY] LIO backend: %s (raw odometry: %s)\n' "$LIO_BACKEND" "$LIO_RAW_ODOM"
+if [[ "$REAR_POINTCLOUD_MASK" == true ]]; then
+  printf '[READY] Rear pole mask: ON (180 +/- 35 deg, 0.5-1.0 m; obstacle marking only)\n'
+else
+  printf '[READY] Rear pole mask: OFF\n'
+fi
 if [[ "$ENABLE_INSPECTION" == true ]]; then
   printf '[READY] Inspection: queue RViz points, then call /agt/rviz_patrol/start.\n'
   printf '[READY] Records: ~/.ros/agt_inspection_records/\n'
 else
   printf '[READY] Pure navigation: camera and inspection mission nodes are disabled.\n'
 fi
+printf '[READY] Paths: red=global plan, blue=LIO actual, green=wheel-relative.\n'
+printf '[READY] Draw route with RViz Publish Point, then call /agt/path_tool/start.\n'
 printf '[READY] Logs: %s\n' "$RUN_DIR"
 if [[ -n "$OBSTACLE_STATS" ]]; then
   printf '[READY] Obstacle-filter statistics will be written on clean exit: %s\n' "$OBSTACLE_STATS"

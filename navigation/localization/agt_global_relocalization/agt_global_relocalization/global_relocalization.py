@@ -13,7 +13,7 @@ from pathlib import Path
 import rclpy
 from agt_batch_lio_adapter.extrinsics import (
     compose_transform as compose_mount_transform,
-    load_batch_lio_body_to_lidar,
+    load_lio_body_to_lidar,
     transform_msg_to_tuple,
 )
 from agt_robot_interfaces.msg import MapStatus
@@ -50,7 +50,8 @@ class GlobalRelocalization(Node):
         p('mapping_body_livox_quaternion_xyzw', [0.0, 0.0, 0.0, 1.0])
         # Vehicle-mount conversion is derived from the same Batch-LIO runtime
         # config and robot_state_publisher TF used by the local odometry path.
-        p('batch_lio_config_file', '')
+        p('batch_lio_config_file', '')  # Legacy Batch-only argument.
+        p('body_to_base_calibration_file', '')
         p('mount_lidar_frame', 'livox_frame')
         p('mount_base_frame', 'base_link')
         p('tf_timeout_sec', 0.10)
@@ -453,11 +454,13 @@ class GlobalRelocalization(Node):
             return dict(self._body_to_base_cache)
 
         config_path = os.path.expanduser(
-            str(self.get_parameter('batch_lio_config_file').value).strip())
+            str(self.get_parameter('body_to_base_calibration_file').value).strip()
+            or str(self.get_parameter('batch_lio_config_file').value).strip())
         if not config_path:
             raise RuntimeError(
-                'batch_lio_config_file is required to derive body->base_link')
-        t_body_lidar, q_body_lidar = load_batch_lio_body_to_lidar(config_path)
+                'body_to_base_calibration_file (or legacy batch_lio_config_file) '
+                'is required to derive body->base_link')
+        t_body_lidar, q_body_lidar = load_lio_body_to_lidar(config_path)
 
         lidar_frame = str(self.get_parameter('mount_lidar_frame').value).strip()
         base_frame = str(self.get_parameter('mount_base_frame').value).strip()
@@ -488,7 +491,7 @@ class GlobalRelocalization(Node):
             'qz': q_body_base[2], 'qw': q_body_base[3],
         }
         self.get_logger().info(
-            f'Resolved relocalization body->{base_frame} from Batch-LIO T_body_lidar + '
+            f'Resolved relocalization body->{base_frame} from active LIO T_body_lidar + '
             f'robot_description {lidar_frame}<- {base_frame}: '
             f't=[{t_body_base[0]:.6f}, {t_body_base[1]:.6f}, {t_body_base[2]:.6f}] '
             f'q=[{q_body_base[0]:.9f}, {q_body_base[1]:.9f}, '

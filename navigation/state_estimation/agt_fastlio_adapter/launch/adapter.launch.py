@@ -5,6 +5,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 
 
 def generate_launch_description():
@@ -12,6 +13,7 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('config_file', default_value=str(share / 'config' / 'adapter.yaml')),
         DeclareLaunchArgument('body_to_base_calibration_file', default_value=''),
+        DeclareLaunchArgument('use_sim_time', default_value='false'),
         Node(
             package='agt_fastlio_adapter',
             executable='fastlio_adapter',
@@ -19,7 +21,8 @@ def generate_launch_description():
             output='screen',
             parameters=[
                 LaunchConfiguration('config_file'),
-                {'body_to_base_calibration_file': LaunchConfiguration('body_to_base_calibration_file')},
+                {'body_to_base_calibration_file': LaunchConfiguration('body_to_base_calibration_file'),
+                 'use_sim_time': ParameterValue(LaunchConfiguration('use_sim_time'), value_type=bool)},
             ],
         )
     ])

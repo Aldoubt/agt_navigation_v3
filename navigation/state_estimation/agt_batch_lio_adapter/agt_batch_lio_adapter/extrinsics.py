@@ -151,3 +151,38 @@ def transform_msg_to_tuple(transform) -> tuple[Vector3, Quaternion]:
         (float(tr.x), float(tr.y), float(tr.z)),
         q_norm((float(qr.x), float(qr.y), float(qr.z), float(qr.w))),
     )
+
+
+def load_lio_body_to_lidar(config_path: str | Path) -> tuple[Vector3, Quaternion]:
+    """Read T_body_lidar from Batch ROS YAML or FAST-LIO2 flat r_il/t_il YAML.
+
+    Both are forward transforms: p_body = R * p_lidar + t. Never invert signs
+    merely because a different frontend was selected. Keep the Batch loader
+    unchanged for existing callers and use the active frontend's own calibration.
+    """
+    path = Path(config_path).expanduser()
+    data = yaml.safe_load(path.read_text(encoding='utf-8')) or {}
+    if not isinstance(data, dict):
+        raise RuntimeError(f'Expected a LIO configuration mapping: {path}')
+    if 'r_il' not in data and 't_il' not in data:
+        return load_batch_lio_body_to_lidar(path)
+    rotation, translation = data.get('r_il'), data.get('t_il')
+    if not isinstance(rotation, list) or len(rotation) != 9:
+        raise RuntimeError(f'FAST-LIO2 r_il must contain 9 values: {path}')
+    if not isinstance(translation, list) or len(translation) != 3:
+        raise RuntimeError(f'FAST-LIO2 t_il must contain 3 values: {path}')
+    rotation = [float(value) for value in rotation]
+    translation = tuple(float(value) for value in translation)
+    if not all(math.isfinite(value) for value in rotation + list(translation)):
+        raise RuntimeError('LIO calibration must be finite')
+    # Reject a reflection/scaling matrix rather than normalizing it into a pose.
+    for i in range(3):
+        for j in range(3):
+            dot = sum(rotation[3*i+k] * rotation[3*j+k] for k in range(3))
+            if abs(dot - float(i == j)) > 1.0e-5:
+                raise RuntimeError('FAST-LIO2 r_il must be an orthonormal rotation')
+    a, b, c, d, e, f, g, h, i = rotation
+    determinant = a*(e*i-f*h) - b*(d*i-f*g) + c*(d*h-e*g)
+    if abs(determinant - 1.0) > 1.0e-5:
+        raise RuntimeError('FAST-LIO2 r_il must be a proper rotation')
+    return translation, matrix_to_quaternion_xyzw(rotation)

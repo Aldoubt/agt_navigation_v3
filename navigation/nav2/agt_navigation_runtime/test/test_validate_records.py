@@ -1,3 +1,5 @@
+import json
+import pytest
 from pathlib import Path
 
 from agt_navigation_runtime.validate_records import validate
@@ -5,7 +7,7 @@ from agt_navigation_runtime.validate_records import validate
 
 def test_validate_records_passes_for_one_point_three_views(tmp_path: Path):
     (tmp_path / 'mission.yaml').write_text('version: 1\n', encoding='utf-8')
-    (tmp_path / 'manifest.json').write_text('{}', encoding='utf-8')
+    (tmp_path / 'manifest.json').write_text('{"status": "completed"}', encoding='utf-8')
     images = tmp_path / 'images'
     images.mkdir()
     rows = []
@@ -31,3 +33,37 @@ def test_validate_records_detects_missing_capture(tmp_path: Path):
         encoding='utf-8')
     errors = validate(tmp_path, expected_points=1, views_per_point=3, require_rtk=False)
     assert any('expected 3 capture rows' in error for error in errors)
+
+
+@pytest.mark.parametrize('state',['failed','canceled','running','interrupted'])
+def test_terminal_failure_cannot_pass_even_with_all_images(tmp_path,state):
+    test_validate_records_passes_for_one_point_three_views(tmp_path)
+    (tmp_path/'manifest.json').write_text(json.dumps({'status':state}))
+    errors=validate(tmp_path,expected_points=1,views_per_point=3,require_rtk=True)
+    assert any('mission status='+state in x for x in errors)
+
+
+def test_legacy_requires_explicit_structure_only_opt_in(tmp_path):
+    test_validate_records_passes_for_one_point_three_views(tmp_path)
+    (tmp_path/'manifest.json').write_text('{}')
+    assert any('no terminal status' in x for x in validate(tmp_path,1,3,True))
+    assert validate(tmp_path,1,3,True,allow_legacy=True)==[]
+
+
+def test_demo_report_surfaces_terminal_failure_not_only_photo_counts(tmp_path):
+    from agt_navigation_runtime.generate_demo_report import build_report
+    test_validate_records_passes_for_one_point_three_views(tmp_path)
+    (tmp_path/'manifest.json').write_text(json.dumps({'status':'failed','error_code':1000,
+        'message':'return home failed','completed_points':1,'planned_views':[{}, {}, {}]}))
+    report=build_report(tmp_path)
+    assert 'mission status: **failed**' in report
+    assert 'NOT a certified complete mission' in report
+    assert 'return home failed' in report
+
+
+def test_demo_report_does_not_certify_unknown_legacy_terminal_state(tmp_path):
+    from agt_navigation_runtime.generate_demo_report import build_report
+    test_validate_records_passes_for_one_point_three_views(tmp_path)
+    (tmp_path/'manifest.json').write_text('{}')
+    report=build_report(tmp_path)
+    assert 'UNVERIFIED_LEGACY' in report and 'NOT a certified complete mission' in report

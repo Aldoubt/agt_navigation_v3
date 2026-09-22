@@ -15,8 +15,11 @@ if [[ "$publisher_count" != '1' ]]; then
   exit 1
 fi
 
-if ! timeout 6s ros2 topic hz "$topic" 2>&1 | grep -q 'average rate:'; then
-  printf 'FAIL %s exists but no messages arrived within 6 seconds\n' "$topic" >&2
+# `ros2 topic hz` writes through a pipe here, so its Python stdout can remain
+# block-buffered until after `timeout` kills it.  That made a healthy stream
+# fail this gate even while the preprocessor was publishing every scan.
+if ! timeout 10s ros2 topic echo "$topic" --once >/dev/null 2>&1; then
+  printf 'FAIL %s exists but no message arrived within 10 seconds\n' "$topic" >&2
   exit 1
 fi
 
