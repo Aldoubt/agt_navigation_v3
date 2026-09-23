@@ -21,3 +21,7 @@ agt_data/
 .idea/
 *~
 *.swp
+
+# Benchmark run outputs stay local to the machine that produced them.
+tools/benchmark/agt_navigation_benchmark/experiments/
+tools/benchmark/agt_navigation_benchmark/reports/

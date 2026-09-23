@@ -1,0 +1,3 @@
+planner_id: theta_star
+plugin: nav2_theta_star_planner::ThetaStarPlanner
+note: Template only. The replay backend must provide an isolated Nav2 planner invocation.

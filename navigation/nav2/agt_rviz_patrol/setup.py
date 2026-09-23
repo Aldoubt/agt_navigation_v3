@@ -12,8 +12,12 @@ setup(
             'config/front_sky_three_views.yaml',
             'config/agt_rviz_demo.rviz',
             'config/agt_rviz_costmap_diagnostics.rviz',
+            'config/agt_rviz_path_preview.rviz',
         ]),
-        ('share/' + package_name + '/launch', ['launch/rviz_patrol.launch.py']),
+        ('share/' + package_name + '/launch', [
+            'launch/rviz_patrol.launch.py',
+            'launch/path_tool_offline.launch.py',
+        ]),
     ],
     install_requires=['setuptools', 'PyYAML'],
     zip_safe=True,

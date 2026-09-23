@@ -28,9 +28,11 @@ MID360 / IMU
 - Nav2 使用外部定位，刻意不启动 AMCL。
 - 原始 Livox 时序直接进入 LIO；PointCloud2 转换是独立的重定位/障碍物支路。
 
-正式顶层入口仅为 `hardware.launch.py`、`localization.launch.py`、
-`navigation.launch.py` 和 `debug.launch.py`。旧版现场、HMI、回放及聚合 launch 已删除；
-以 [导航启动文档](导航启动文档.md) 的三终端顺序为准。
+Navigation 顶层入口为 `hardware.launch.py`、`localization.launch.py`、
+`navigation.launch.py` 和 `debug.launch.py`；Mission 入口属于外部
+`agt_mission_bringup/mission.launch.py`。现场后台由
+`run_field_stack.sh` 编排，RViz 用于调试，HMI 在后台就绪后单独启动；
+以 [导航启动文档](导航启动文档.md) 为准。
 
 MID360 + Bunker 实机阶段使用只读验收工具链；TF authority、topic 频率、运动中心、
 导航录包和报告流程见
@@ -73,7 +75,7 @@ bash src/agt_navigation_v3/scripts/field_build_smoke.sh
 
 ### 无硬件配置检查
 
-当前正式顶层只保留四个分阶段入口，不再提供旧的
+当前顶层保留分阶段入口和独立 Mission 入口，不再提供旧的
 `acceptance_offline_replay.launch.py`、`rviz_field_demo.launch.py` 或
 `hmi_field_demo.launch.py`。不连接硬件时，先用同一现场脚本检查模式和地图解析：
 
@@ -160,13 +162,13 @@ ros2 run agt_map_manager validate_active_map \
 当前已确认并选择的活动地图是：
 
 ```text
-/home/yangxuan/ros2_ws/maps/
-  bunker_mid360_mapping_20260901_205036/v005-confirmed-keepout
+/home/yangxuan/ros2_ws/maps/bunker_mid360/
+  20260922_143427-fixed-replay-v1
 ```
 
-它把本次确认的 Nav2 `map.yaml/map.pgm`、同源 PGO `global_map.pcd`、333 条
-Polar Context 候选和 BBS 索引作为一个不可变包；人工禁行区已按 1 格安全膨胀烘焙
-到占用栅格，同时保留原始禁行区与编辑记录。不要将其中任何路径换回旧版本。
+它把 `20260922_143427` 实机包修复回放后的 PGO `global_map.pcd`、Nav2 `map.yaml/map.pgm`、
+Polar Context 和 BBS 重定位资源作为一个运行包，二维导航范围约为
+`124.5 m × 95.2 m`。不要在启动参数中混用其他版本的二维图或重定位资产。
 
 推荐使用单终端受控入口，并显式选择模式。纯导航模式不启动相机或巡检任务：
 
@@ -208,7 +210,7 @@ Map Package
 
 ### 离线回放状态
 
-旧的确定性回放 launch 已从当前四入口架构移除。归档验收文档中的
+旧的确定性回放 launch 已从当前入口架构移除。归档验收文档中的
 `acceptance_offline_replay.launch.py` 命令仅用于追溯历史证据，当前版本不要直接执行。
 地图和模式的无硬件检查使用上面的 `--dry-run`；闭环能力仍以实车测试为准。
 
@@ -269,7 +271,7 @@ ros2 run agt_navigation_runtime demo_preflight --ros-args -p require_camera:=tru
 - 已存在冻结 mapping-body contract 的确定性回放证据。
 
 现有证据属于软件/回放证据，**不**表示项目已经现场就绪：
-`v005-confirmed-keepout` 已完成地图确认、禁行区烘焙和包校验，但 P3 实车导航、
+`20260922_143427-fixed-replay-v1` 已通过源 PGO 产物、同源资产和运行包完整性检查，但 P3 实车导航、
 停车拍照与返回起点 gate 仍需现场测试。
 
 ### 实验性能力

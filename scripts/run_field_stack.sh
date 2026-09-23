@@ -11,8 +11,11 @@ source /opt/ros/humble/setup.bash
 source "$WS_ROOT/install/setup.bash"
 set -euo pipefail
 
-MAP_ROOT=/home/yangxuan/ros2_ws/maps/bunker_mid360_mapping_20260901_205036/v005-confirmed-keepout
-MAP_ID=bunker_mid360_v005_confirmed_keepout
+MAP_SPEC=auto
+ROBOT_PROFILE=bunker_v1
+MAP_REGISTRY=${AGT_MAP_REGISTRY:-"$WS_ROOT/maps/registry.yaml"}
+MAP_ROOT_OVERRIDE=""
+MAP_ID_OVERRIDE=""
 MODE=navigation
 LIO_BACKEND=batch_lio
 LIO_CONFIG=""
@@ -41,8 +44,12 @@ Options:
                     save images and metadata, then continue/return home.
   --lio-backend NAME Local odometry: batch_lio (default) or fastlio2; mutually exclusive.
   --lio-config PATH  Optional runtime YAML for the selected LIO backend.
-  --map-root PATH   Map package root.
-  --map-id ID       Runtime map identifier.
+  --map SPEC        auto (default), active, latest, map_id or map_id/version.
+  --robot PROFILE   Robot profile (default: bunker_v1).
+  --map-registry PATH
+                    Validated map registry (default: <workspace>/maps/registry.yaml).
+  --map-root PATH   Legacy map package selection; must be in the V4 registry.
+  --map-id ID       Legacy map identifier; must be in the V4 registry.
   --rviz            Start debug.launch.py after all checks pass.
   --rviz-config PATH
                     RViz config for --rviz (absolute path; use the diagnostics config
@@ -60,7 +67,7 @@ Options:
                     180 +/- 35 deg, planar range 0.5-1.0 m. Obstacle marking only.
   -h, --help        Show this help.
 
-The script starts the existing four-entry architecture in dependency order.
+The script starts the staged runtime in dependency order.
 Press Ctrl+C once for ordered shutdown. Rosbag recording remains a separate
 acceptance action so it can be stopped and finalized before powering off.
 EOF
@@ -81,11 +88,23 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     --map-root)
-      MAP_ROOT=${2:?--map-root requires a path}
+      MAP_ROOT_OVERRIDE=${2:?--map-root requires a path}
       shift 2
       ;;
     --map-id)
-      MAP_ID=${2:?--map-id requires an id}
+      MAP_ID_OVERRIDE=${2:?--map-id requires an id}
+      shift 2
+      ;;
+    --map)
+      MAP_SPEC=${2:?--map requires a spec}
+      shift 2
+      ;;
+    --robot)
+      ROBOT_PROFILE=${2:?--robot requires a profile}
+      shift 2
+      ;;
+    --map-registry)
+      MAP_REGISTRY=${2:?--map-registry requires a path}
       shift 2
       ;;
     --rviz)
@@ -177,9 +196,37 @@ if [[ -z "$RVIZ_CONFIG" ]]; then
   fi
 fi
 
-GLOBAL_MAP="$MAP_ROOT/localization/global_map.pcd"
-RELOCALIZATION_ASSETS="$MAP_ROOT/localization/relocalization"
-NAV_MAP="$MAP_ROOT/navigation/map.yaml"
+if [[ -n "$MAP_ROOT_OVERRIDE" ]]; then
+  if [[ ! -f "$MAP_ROOT_OVERRIDE/metadata.yaml" ]]; then
+    printf 'Missing metadata.yaml in --map-root: %s\n' "$MAP_ROOT_OVERRIDE" >&2
+    exit 2
+  fi
+  MAP_SPEC=$(python3 - "$MAP_ROOT_OVERRIDE/metadata.yaml" <<'PY'
+import sys
+import yaml
+data = yaml.safe_load(open(sys.argv[1], encoding='utf-8'))
+print(f"{data['map_id']}/{data['map_version']}")
+PY
+)
+fi
+if [[ -n "$MAP_ID_OVERRIDE" && -z "$MAP_ROOT_OVERRIDE" ]]; then
+  MAP_SPEC="$MAP_ID_OVERRIDE"
+fi
+if [[ -n "$MAP_ID_OVERRIDE" && "$MAP_ID_OVERRIDE" != "${MAP_SPEC%%/*}" ]]; then
+  printf 'Conflicting --map-id and --map-root\n' >&2
+  exit 2
+fi
+MAP_SELECTION=$(ros2 run agt_map_manager resolve_map --map "$MAP_SPEC" --robot "$ROBOT_PROFILE" --registry "$MAP_REGISTRY") || exit 2
+while IFS='=' read -r key value; do
+  case "$key" in
+    map_root) MAP_ROOT=$value ;;
+    map_id) MAP_ID=$value ;;
+    map_version) MAP_VERSION=$value ;;
+    navigation_map) NAV_MAP=$value ;;
+    localization_map) GLOBAL_MAP=$value ;;
+    relocalization_assets) RELOCALIZATION_ASSETS=$value ;;
+  esac
+done <<< "$MAP_SELECTION"
 for required in "$GLOBAL_MAP" "$RELOCALIZATION_ASSETS" "$NAV_MAP"; do
   if [[ ! -e "$required" ]]; then
     printf 'Missing map asset: %s\n' "$required" >&2
@@ -197,7 +244,10 @@ if [[ "$DRY_RUN" == true ]]; then
     printf 'rear_pointcloud_mask_sector=center:180deg,width:70deg,range:0.5-1.0m\n'
   fi
   printf 'map_root=%s\n' "$MAP_ROOT"
+  printf 'map_registry=%s\n' "$MAP_REGISTRY"
+  printf 'map_spec=%s\nrobot_profile=%s\n' "$MAP_SPEC" "$ROBOT_PROFILE"
   printf 'map_id=%s\n' "$MAP_ID"
+  printf 'map_version=%s\n' "$MAP_VERSION"
   printf 'navigation_map=%s\n' "$NAV_MAP"
   printf 'localization_map=%s\n' "$GLOBAL_MAP"
   printf 'relocalization_assets=%s\n' "$RELOCALIZATION_ASSETS"
@@ -469,6 +519,7 @@ declare -a LIO_LAUNCH_ARGS=(
 
 start_child hardware \
   ros2 launch agt_system_bringup hardware.launch.py \
+  robot:="$ROBOT_PROFILE" \
   bunker_can_port:=can0 enable_rtk:="$ENABLE_RTK" \
   enable_camera_gimbal:="$ENABLE_INSPECTION"
 wait_for_topic MID360 /livox/lidar 45 || { tail_failure hardware; exit 1; }
@@ -478,6 +529,7 @@ wait_for_topic Bunker /wheel/odom 30 || { tail_failure hardware; exit 1; }
 start_child localization \
   ros2 launch agt_system_bringup localization.launch.py \
   global_map:="$GLOBAL_MAP" \
+  map_id:="$MAP_ID" map_version:="$MAP_VERSION" \
   relocalization_assets:="$RELOCALIZATION_ASSETS" \
   auto_relocalize:=false \
   "${LIO_LAUNCH_ARGS[@]}"
@@ -509,11 +561,19 @@ if [[ "$REAR_POINTCLOUD_MASK" == true ]]; then
 fi
 
 navigation_ready=false
+NAV_PACKAGE=agt_system_bringup
+NAV_LAUNCH=navigation.launch.py
+declare -a MISSION_ARGS=()
+if [[ "$ENABLE_INSPECTION" == true ]]; then
+  NAV_PACKAGE=agt_mission_bringup
+  NAV_LAUNCH=mission.launch.py
+  MISSION_ARGS+=("enable_legacy_inspection:=true")
+fi
 for attempt in 1 2; do
   start_child navigation \
-    ros2 launch agt_system_bringup navigation.launch.py \
-    map:="$NAV_MAP" map_id:="$MAP_ID" \
-    enable_inspection:="$ENABLE_INSPECTION" \
+    ros2 launch "$NAV_PACKAGE" "$NAV_LAUNCH" \
+    map:="$MAP_SPEC" robot:="$ROBOT_PROFILE" map_registry:="$MAP_REGISTRY" \
+    ${MISSION_ARGS[@]+"${MISSION_ARGS[@]}"} \
     ${NAV_OBS_ARGS[@]+"${NAV_OBS_ARGS[@]}"}
   if wait_for_service /navigate_to_pose/_action/send_goal 60; then
     navigation_ready=true
@@ -558,6 +618,8 @@ ensure_localization_ready after_tf_check || { tail_failure localization; exit 1;
 ros2 run agt_navigation_runtime demo_preflight --ros-args \
   -p require_camera:="$ENABLE_INSPECTION" \
   | tee "$RUN_DIR/demo_preflight.txt"
+ros2 run agt_navigation_supervisor wait_navigation_ready --timeout 45 --samples 3 \
+  | tee "$RUN_DIR/navigation_health_gate.txt"
 
 printf '\n[READY] Hardware, localization and Nav2 passed preflight.\n'
 printf '[READY] Mode: %s\n' "$MODE"

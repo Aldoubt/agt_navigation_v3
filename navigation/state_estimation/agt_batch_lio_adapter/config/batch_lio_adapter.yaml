@@ -11,7 +11,7 @@ agt_batch_lio_adapter:
     tf_child_frame: base_footprint
 
     # Physical mount source of truth:
-    # tracked_chassis_description publishes base_link -> livox_frame.
+    # agt_robot_description publishes base_link -> livox_frame.
     # Internal LiDAR/IMU source of truth:
     # the exact Batch-LIO runtime YAML passed through batch_lio_config_file.
     lidar_frame: livox_frame

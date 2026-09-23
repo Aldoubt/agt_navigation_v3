@@ -1,0 +1,39 @@
+required_topics:
+  planning:
+    description: planner 相关数据
+    topics:
+      - "*/plan"
+      - "*/map"
+      - "*/global_costmap/*"
+      - "*/planner_server/transition_event"
+
+  controller:
+    description: controller 输出和局部环境
+    topics:
+      - "*/cmd_vel"
+      - "*/local_costmap/*"
+
+  localization:
+    description: TF 和机器人里程计
+    topics:
+      - "*/tf"
+      - "*/tf_static"
+      - "*/odom"
+    aliases:
+      "*/odom":
+        - "*/odometry/local"
+        - "*/chassis/odometry"
+
+  goal:
+    description: goal 和 NavigateToPose action 生命周期
+    topics:
+      - "*/goal_pose"
+      - "*/navigate_to_pose*/_action/goal"
+      - "*/navigate_to_pose*/_action/result"
+      - "*/navigate_to_pose*/_action/feedback"
+      - "*/navigate_to_pose*/_action/status"
+
+  runtime:
+    description: runtime parameter events
+    topics:
+      - "*/parameter_events"

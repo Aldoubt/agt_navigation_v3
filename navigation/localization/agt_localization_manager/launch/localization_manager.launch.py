@@ -11,6 +11,8 @@ def generate_launch_description():
     share = Path(get_package_share_directory('agt_localization_manager'))
     return LaunchDescription([
         DeclareLaunchArgument('use_sim_time', default_value='false'),
+        DeclareLaunchArgument('map_id', default_value=''),
+        DeclareLaunchArgument('map_version', default_value=''),
         DeclareLaunchArgument('debug_identity_map_odom', default_value='false'),
         Node(
             package='agt_localization_manager',
@@ -19,6 +21,8 @@ def generate_launch_description():
             output='screen',
             parameters=[str(share / 'config' / 'localization_manager.yaml'),
                         {'use_sim_time': LaunchConfiguration('use_sim_time'),
+                         'map_id': LaunchConfiguration('map_id'),
+                         'map_version': LaunchConfiguration('map_version'),
                          'debug_identity_map_odom': LaunchConfiguration('debug_identity_map_odom')}],
         )
     ])

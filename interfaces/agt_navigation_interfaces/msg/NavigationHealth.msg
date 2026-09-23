@@ -1,0 +1,23 @@
+uint8 NOT_READY=0
+uint8 READY=1
+uint8 BUSY=2
+uint8 DEGRADED=3
+uint8 ERROR=4
+
+builtin_interfaces/Time stamp
+uint8 status
+string state
+string robot_profile
+string map_id
+string map_version
+bool platform_ready
+bool lidar_alive
+bool imu_alive
+bool base_alive
+bool odom_alive
+bool localized
+float32 localization_confidence
+bool nav2_active
+bool goal_active
+string last_error_code
+string last_error_message

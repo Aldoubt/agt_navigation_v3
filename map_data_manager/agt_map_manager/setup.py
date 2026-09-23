@@ -30,6 +30,9 @@ setup(
         'generate_map_package = agt_map_manager.map_pipeline:main',
         'load_mapping_package = agt_map_manager.mapping_package:main',
         'validate_active_map = agt_map_manager.runtime_binding:main',
+        'resolve_map = agt_map_manager.map_catalog:main',
+        'build_map_candidate = agt_map_manager.map_promotion:main_build',
+        'promote_map_candidate = agt_map_manager.map_promotion:main_promote',
         'bake_keepout_zones = agt_map_manager.bake_keepout_zones:main',
     ]},
 )

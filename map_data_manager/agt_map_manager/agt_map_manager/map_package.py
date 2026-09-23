@@ -220,6 +220,30 @@ def _validate_relocalization_contract(data: Dict) -> str:
     return ''
 
 
+def _validate_compatibility(data: Dict, assets: Dict[str, Asset], package_path: Path) -> str:
+    compatibility = data.get('compatibility')
+    navigation = data.get('navigation')
+    if compatibility is None and navigation is None:
+        return ''  # Existing immutable packages remain readable.
+    if not isinstance(compatibility, dict) or not isinstance(navigation, dict):
+        return 'compatibility_and_navigation_must_be_mappings'
+    profiles = compatibility.get('robot_profiles')
+    if not isinstance(profiles, list) or not profiles or any(
+            not isinstance(name, str) or not name or '/' in name for name in profiles):
+        return 'compatibility_invalid_robot_profiles'
+    if set(profiles) != set(navigation):
+        return 'navigation_profiles_mismatch'
+    nav_asset = assets['navigation_map'].path
+    for profile in profiles:
+        entry = navigation[profile]
+        if not isinstance(entry, dict) or not isinstance(entry.get('map'), str):
+            return 'navigation_profile_map_missing'
+        candidate = (package_path / entry['map']).resolve()
+        if candidate != nav_asset or not _inside(package_path, candidate):
+            return 'navigation_profile_map_mismatch'
+    return ''
+
+
 def validate_package(metadata_path: Path, verify_hashes: bool = True) -> PackageInfo:
     metadata_path = metadata_path.expanduser().resolve()
     package_path = metadata_path.parent.resolve()
@@ -345,6 +369,11 @@ def validate_package(metadata_path: Path, verify_hashes: bool = True) -> Package
         return _invalid(
             metadata_path, package_path, contract_error,
             map_id, map_version, frame_id, assets)
+
+    compatibility_error = _validate_compatibility(data, assets, package_path)
+    if compatibility_error:
+        return _invalid(metadata_path, package_path, compatibility_error,
+                        map_id, map_version, frame_id, assets)
 
     return PackageInfo(
         metadata_path=metadata_path,

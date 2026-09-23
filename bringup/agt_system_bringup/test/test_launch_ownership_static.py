@@ -6,7 +6,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_exactly_four_top_level_launch_files():
+def test_navigation_top_level_launch_files_exclude_mission():
     names = sorted(path.name for path in (ROOT / 'launch').glob('*.launch.py'))
     assert names == [
         'debug.launch.py',
@@ -24,18 +24,28 @@ def test_unique_owner_inclusions():
     all_text = '\n'.join(launch_text.values())
     assert all_text.count("'agt_localization_manager', 'localization_manager.launch.py'") == 1
     assert all_text.count("package='agt_pointcloud_preprocessor'") == 1
-    assert "'tracked_chassis_description', 'display.launch.py'" in launch_text[
-        'hardware.launch.py']
-    assert "tracked_chassis_description" not in launch_text['localization.launch.py']
-    assert "tracked_chassis_description" not in launch_text['navigation.launch.py']
+    assert "FindPackageShare('agt_robot_bringup')" in launch_text['hardware.launch.py']
+    assert 'livox_ros_driver2' not in launch_text['hardware.launch.py']
+    assert 'bunker_base' not in launch_text['hardware.launch.py']
+    assert 'agt_robot_description' not in launch_text['localization.launch.py']
+    assert 'agt_robot_description' not in launch_text['navigation.launch.py']
     assert "agt_localization_manager" not in launch_text['debug.launch.py']
+
+    robot_owner = ROOT.parents[2] / 'agt_robot_platform' / 'agt_robot_bringup' / 'launch' / 'robot_hardware.launch.py'
+    owner_text = robot_owner.read_text(encoding='utf-8')
+    assert owner_text.count("'agt_robot_description', 'display.launch.py'") == 1
+    assert owner_text.count("'livox_ros_driver2', 'msg_MID360_launch.py'") == 1
+    assert owner_text.count("'bunker_base', 'bunker_base.launch.py'") == 1
 
 
 def test_navigation_and_inspection_modes_are_explicit():
-    navigation = (ROOT / 'launch' / 'navigation.launch.py').read_text(encoding='utf-8')
-    hardware = (ROOT / 'launch' / 'hardware.launch.py').read_text(encoding='utf-8')
-    assert "'enable_inspection', default_value='false'" in navigation
-    assert navigation.count("IfCondition(LaunchConfiguration('enable_inspection'))") == 2
+    mission = (ROOT.parents[2] / 'agt_mission' / 'agt_mission_bringup' / 'launch' /
+               'mission.launch.py').read_text(encoding='utf-8')
+    hardware = (ROOT.parents[2] / 'agt_robot_platform' / 'agt_robot_bringup' / 'launch' /
+                'robot_hardware.launch.py').read_text(encoding='utf-8')
+    assert "'enable_legacy_inspection', default_value='false'" in mission
+    assert "if value('enable_legacy_inspection').lower() == 'true':" in mission
+    assert "'agt_navigation_runtime'," not in mission.split("if value('enable_legacy_inspection')")[0]
     assert "'enable_camera_gimbal', default_value='true'" in hardware
 
 

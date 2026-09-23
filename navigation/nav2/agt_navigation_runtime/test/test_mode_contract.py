@@ -11,7 +11,11 @@ def test_field_script_preserves_navigation_and_inspection_modes():
     assert 'navigation)\n    ENABLE_INSPECTION=false' in text
     assert 'inspection)\n    ENABLE_INSPECTION=true' in text
     assert 'enable_camera_gimbal:="$ENABLE_INSPECTION"' in text
-    assert 'enable_inspection:="$ENABLE_INSPECTION"' in text
+    assert 'NAV_LAUNCH=navigation.launch.py' in text
+    assert 'NAV_PACKAGE=agt_mission_bringup' in text
+    assert 'NAV_LAUNCH=mission.launch.py' in text
+    assert 'MISSION_ARGS+=("enable_legacy_inspection:=true")' in text
+    assert 'ros2 launch "$NAV_PACKAGE" "$NAV_LAUNCH"' in text
     assert '-p require_camera:="$ENABLE_INSPECTION"' in text
 
 
@@ -63,12 +67,18 @@ def test_field_script_retries_transient_nav2_lifecycle_bringup_once():
     assert 'restarting navigation only' in text
 
 
-def test_navigation_launch_keeps_both_inspection_nodes_conditional():
-    source=(ROOT/'bringup/agt_system_bringup/launch/navigation.launch.py').read_text()
-    ast.parse(source)
-    assert "DeclareLaunchArgument(\n            'enable_inspection', default_value='false'" in source
-    assert source.count("condition=IfCondition(LaunchConfiguration('enable_inspection'))") == 2
-    assert "'runtime.launch.py'" in source and "'rviz_patrol.launch.py'" in source
+def test_legacy_inspection_is_only_in_explicit_compatibility_mission_launch():
+    navigation=(ROOT/'bringup/agt_system_bringup/launch/navigation.launch.py').read_text()
+    mission=(ROOT.parent/'agt_mission/agt_mission_bringup/launch/mission.launch.py').read_text()
+    ast.parse(navigation)
+    ast.parse(mission)
+    assert "'rviz_patrol.launch.py'" not in navigation
+    assert "'runtime.launch.py'" not in navigation
+    assert "'navigation.launch.py'" in mission
+    assert "executable='mission_runtime_v4'" in mission
+    assert "DeclareLaunchArgument('enable_legacy_inspection', default_value='false')" in mission
+    assert "if value('enable_legacy_inspection').lower() == 'true':" in mission
+    assert "'runtime.launch.py'" in mission and "'rviz_patrol.launch.py'" in mission
 
 
 def test_production_runtime_no_longer_uses_asyncio_sleep():

@@ -36,6 +36,7 @@ that files have been moved or deleted.
 | [ADVANCED_DESIGN_V2.md](ADVANCED_DESIGN_V2.md) | architecture | Terrain and map-manager design decisions |
 | [architecture/TARGET_FUNCTIONAL_ARCHITECTURE.md](architecture/TARGET_FUNCTIONAL_ARCHITECTURE.md) | architecture | Target functional topology |
 | [architecture/RUNTIME_ARCHITECTURE.md](architecture/RUNTIME_ARCHITECTURE.md) | architecture | Process-level runtime topology |
+| [architecture/NAVIGATION_RUNTIME_V4.md](architecture/NAVIGATION_RUNTIME_V4.md) | architecture | V4 working-tree ownership, contracts, and known integration gaps; not field acceptance |
 | [architecture/V3_NODE_GRAPH_AND_MAP_CONTRACT.md](architecture/V3_NODE_GRAPH_AND_MAP_CONTRACT.md) | architecture | Current node graph, ROS interfaces, and Map Package runtime contract |
 | [architecture/map_pipeline_design.md](architecture/map_pipeline_design.md) | architecture | Map generation pipeline |
 | [design/map_manager_architecture.md](design/map_manager_architecture.md) | architecture | Map manager architecture baseline |
@@ -70,6 +71,10 @@ that files have been moved or deleted.
 |---|---|---|
 | [ACCEPTANCE.md](ACCEPTANCE.md) | acceptance | Offline, simulation, and V1 acceptance gates |
 | [acceptance/PRE_ACCEPTANCE_GATE.md](acceptance/PRE_ACCEPTANCE_GATE.md) | acceptance | Pre-acceptance gate checklist |
+| [acceptance/V4_ACCEPTANCE_MATRIX.md](acceptance/V4_ACCEPTANCE_MATRIX.md) | acceptance | V4 software, simulation, and supervised field gates; results live in the V4 report |
+| [v4_migration/benchmark_audit.md](v4_migration/benchmark_audit.md) | acceptance | R8 benchmark migration evidence and untested parity |
+| [v4_migration/pointcloud_pipeline_audit.md](v4_migration/pointcloud_pipeline_audit.md) | acceptance | R8 shared point-cloud responsibility and production dependency audit |
+| [v4_migration/map_generation_audit.md](v4_migration/map_generation_audit.md) | acceptance | R8 map-generation ownership and parity gap |
 | [acceptance/FIELD_ACCEPTANCE_V1.md](acceptance/FIELD_ACCEPTANCE_V1.md) | acceptance | Field acceptance workflow |
 | [BOOTSTRAP_AND_ROSBAG_GATE.md](BOOTSTRAP_AND_ROSBAG_GATE.md) | acceptance | Bootstrap and rosbag-to-field gate |
 | [CURRENT_NAVIGATION_CAPABILITIES.md](CURRENT_NAVIGATION_CAPABILITIES.md) | acceptance | Validated runtime capability snapshot |
@@ -105,6 +110,8 @@ that files have been moved or deleted.
 | [refactor/MIGRATION_REPORT.md](refactor/MIGRATION_REPORT.md) | archive | Earlier source-tree migration report |
 
 ## Migration Notes
+
+- The dated V4 working-tree status and unresolved release gates are in [../V4_MIGRATION_REPORT.md](../V4_MIGRATION_REPORT.md). It is not field sign-off.
 
 - The four category directories already present in the working tree are the
   preferred final locations.

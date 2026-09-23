@@ -1,0 +1,75 @@
+topics:
+  plan: /plan
+  map: /map
+  global_costmap: /global_costmap/costmap
+  local_costmap: /local_costmap/costmap
+  cmd_vel: /cmd_vel
+  odometry: /agt/odometry/local
+  tf: /tf
+  tf_static: /tf_static
+  parameter_events: /parameter_events
+
+thresholds:
+  unknown_ratio_warning: 0.30
+  occupied_ratio_warning: 0.35
+  sharp_turn_angle_rad: 0.50
+  high_mean_curvature_rad_per_m: 0.20
+  high_max_curvature_rad_per_m: 0.80
+  controller_oscillation_score: 0.20
+  min_sign_changes_for_oscillation: 5
+  angular_deadband_rad_per_sec: 0.02
+  high_path_length_change_ratio: 0.25
+  smoothness_score_smooth: 0.70
+  unknown_ratio_primary_map_suspect: 0.50
+  association_window_sec: 0.50
+  smoothness_curvature_scale_rad_per_m: 1.0
+
+map_quality:
+  connectivity: 8
+
+tracking:
+  # A plan remains associated with odometry until the next plan, or this long
+  # after the final plan when a bag ends before another plan is published.
+  plan_hold_sec: 2.0
+  high_mean_error_m: 0.10
+  high_p95_error_m: 0.20
+  smoothness_score_smooth: 0.70
+
+planner_runtime:
+  small_plan_change_m: 0.10
+  frequent_replan_interval_sec: 2.0
+  high_costmap_trigger_score: 0.10
+
+nav2_runtime:
+  goal_topics:
+    - /goal_pose
+    - /goal
+  behavior_tree_topics:
+    - /behavior_tree_log
+  action_topics:
+    goal:
+      - /navigate_to_pose/_action/goal
+    feedback:
+      - /navigate_to_pose/_action/feedback
+    result:
+      - /navigate_to_pose/_action/result
+    status:
+      - /navigate_to_pose/_action/status
+  goal_change_threshold_m: 0.05
+
+odom_runtime:
+  odometry_topics:
+    - /odom
+    - /agt/chassis/odometry
+    - /agt/odometry/local
+  tf_topics:
+    - /tf
+    - /tf_static
+  target_edges:
+    - [odom, base_link]
+    - [base_link, base_footprint]
+  frequency_tolerance_ratio: 0.10
+  nominal_frequency_hz: 50.0
+  interval_low_factor: 0.50
+  interval_high_factor: 1.50
+  plan_change_threshold_m: 0.10

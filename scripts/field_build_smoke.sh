@@ -54,6 +54,8 @@ required_ros_pkgs=(
   batch_lio
   camera_gimbal_interfaces
   agt_asensing_driver
+  agt_robot_bringup
+  agt_mission_bringup
 )
 
 missing=0
@@ -66,21 +68,25 @@ for pkg in "${required_ros_pkgs[@]}"; do
   fi
 done
 
+# /usr/local can contain Livox SDK 1.3.1: its header lacks the double-echo
+# types but its shared library has the same SONAME as SDK 1.4.3. Never accept
+# headers and libraries found independently in different prefixes.
+livox_header="${NATIVE_PREFIX}/include/livox_lidar_def.h"
+livox_library="${NATIVE_PREFIX}/lib/liblivox_lidar_sdk_shared.so"
 if [[ ! -f "${NATIVE_PREFIX}/include/livox_lidar_api.h" \
-      && ! -f /usr/local/include/livox_lidar_api.h \
-      && ! -f /usr/include/livox_lidar_api.h ]]; then
-  echo "MISSING native dependency: Livox-SDK2 headers" >&2
+      || ! -f "${livox_header}" ]] \
+    || ! grep -Fq 'kLivoxLidarDoubleEchoData' "${livox_header}" \
+    || ! grep -Fq 'LivoxLidarDoubleEchoRawPoint' "${livox_header}"; then
+  echo "MISSING compatible Livox-SDK2 dual-echo headers: ${NATIVE_PREFIX}/include" >&2
   missing=1
 else
-  echo "PASS native dependency: Livox-SDK2 headers"
+  echo "PASS compatible Livox-SDK2 dual-echo headers: ${NATIVE_PREFIX}/include"
 fi
-if [[ ! -f "${NATIVE_PREFIX}/lib/liblivox_lidar_sdk_shared.so" \
-      && ! -f "${NATIVE_PREFIX}/lib/liblivox_lidar_sdk.so" ]] \
-    && ! ldconfig -p 2>/dev/null | grep -q 'liblivox_lidar_sdk'; then
-  echo "MISSING native dependency: Livox-SDK2 library" >&2
+if [[ ! -f "${livox_library}" ]]; then
+  echo "MISSING paired Livox-SDK2 shared library: ${livox_library}" >&2
   missing=1
 else
-  echo "PASS native dependency: Livox-SDK2 library"
+  echo "PASS paired Livox-SDK2 shared library: ${livox_library}"
 fi
 
 if [[ ! -f "${NATIVE_PREFIX}/include/cpu_bbs3d/bbs3d.hpp" \
@@ -119,19 +125,45 @@ if ! command -v colcon >/dev/null 2>&1; then
   exit 4
 fi
 
-# agt_system_bringup declares the complete current software chain, so building
-# packages-up-to it plus the Gazebo harness is the migration compile boundary.
-# The explicit CMake variables are required by the upstream Livox ROS Driver 2
-# CMakeLists and the workspace-local native prefix.
+# Build the navigation, external Mission and Gazebo entry points together.
+# Pin Livox headers and library as a pair. CMAKE_PREFIX_PATH alone does not
+# override the driver's independent find_path/find_library calls; a clean
+# build otherwise picks /usr/local SDK 1.3.1 on this host. Pin the installed
+# RUNPATH as well: linking 1.4.3 at build time alone is not sufficient.
 export CMAKE_PREFIX_PATH="${NATIVE_PREFIX}:${CMAKE_PREFIX_PATH:-}"
 colcon build --symlink-install --event-handlers console_direct+ \
-  --packages-up-to agt_system_bringup agt_gazebo_sim \
+  --packages-up-to agt_system_bringup agt_mission_bringup agt_gazebo_sim \
   --cmake-args -DCMAKE_PREFIX_PATH="${NATIVE_PREFIX}:${CMAKE_PREFIX_PATH}" \
-    -DROS_EDITION=ROS2 -DDISTRO_ROS=humble
+    -DROS_EDITION=ROS2 -DDISTRO_ROS=humble \
+    "-DLIVOX_LIDAR_SDK_INCLUDE_DIR:PATH=${NATIVE_PREFIX}/include" \
+    "-DLIVOX_LIDAR_SDK_LIBRARY:FILEPATH=${livox_library}" \
+    "-DCMAKE_INSTALL_RPATH:STRING=${NATIVE_PREFIX}/lib"
 
 set +u
 source install/setup.bash
 set -u
+
+# Verify the built install with the environment the smoke test will use.
+# RUNPATH can be overridden by LD_LIBRARY_PATH, so a successful link or a
+# readelf check alone does not prove the actual loaded SDK matches its headers.
+livox_driver_so="${WS_ROOT}/install/livox_ros_driver2/lib/liblivox_ros_driver2.so"
+if [[ ! -f "${livox_driver_so}" ]]; then
+  echo "MISSING installed Livox driver: ${livox_driver_so}" >&2
+  exit 5
+fi
+if ! driver_ldd="$(ldd "${livox_driver_so}")"; then
+  echo "FAILED runtime dependency check: ${livox_driver_so}" >&2
+  exit 5
+fi
+loaded_livox="$(awk '$1 == "liblivox_lidar_sdk_shared.so" { print $3; exit }' <<<"${driver_ldd}")"
+expected_livox="$(readlink -f -- "${livox_library}")"
+if [[ -z "${loaded_livox}" || "${loaded_livox}" == 'not' \
+      || "$(readlink -f -- "${loaded_livox}")" != "${expected_livox}" ]]; then
+  echo "WRONG Livox-SDK2 runtime library; expected ${expected_livox}, got ${loaded_livox:-none}" >&2
+  echo "${driver_ldd}" >&2
+  exit 5
+fi
+echo "PASS Livox-SDK2 runtime library: ${loaded_livox}"
 
 # Native relocalization binaries must remain runnable in a fresh shell.
 # This catches workspace-local .so linkage regressions that build/show-args miss.
@@ -183,6 +215,7 @@ ros2 launch agt_system_bringup hardware.launch.py --show-args >/dev/null
 ros2 launch agt_system_bringup localization.launch.py --show-args >/dev/null
 ros2 launch agt_system_bringup navigation.launch.py --show-args >/dev/null
 ros2 launch agt_system_bringup debug.launch.py --show-args >/dev/null
+ros2 launch agt_mission_bringup mission.launch.py --show-args >/dev/null
 ros2 launch agt_gazebo_sim navigation_demo.launch.py --show-args >/dev/null
 
 # Safety behavior is a migration gate too: LOST must hard-stop and reopening the

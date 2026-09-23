@@ -157,63 +157,74 @@ if ! command -v colcon >/dev/null 2>&1; then
   exit 5
 fi
 
-REPOS_FILE="${REPO_ROOT}/dependencies/agt_navigation.repos"
+REPOS_FILES=(
+  "${REPO_ROOT}/dependencies/agt_navigation.repos"
+  "${REPO_ROOT}/dependencies/navigation_v4_external.repos"
+)
 echo "==> Validating source dependency manifest structure"
 # vcstool 0.3.0 has a validate-only bug for exact SHA versions. Validate the
 # .repos schema ourselves, then let `vcs import` perform the real checkout.
-python3 - "${REPOS_FILE}" <<'PY'
+python3 - "${REPOS_FILES[@]}" <<'PY'
 import pathlib
 import sys
 import yaml
 
-path = pathlib.Path(sys.argv[1])
-data = yaml.safe_load(path.read_text(encoding='utf-8'))
-repos = data.get('repositories') if isinstance(data, dict) else None
-if not isinstance(repos, dict) or not repos:
-    raise SystemExit(f'ERROR: invalid repositories mapping in {path}')
-for relpath, spec in repos.items():
-    if not isinstance(relpath, str) or not relpath or relpath.startswith('/') or '..' in pathlib.PurePosixPath(relpath).parts:
-        raise SystemExit(f'ERROR: unsafe repository path: {relpath!r}')
-    if not isinstance(spec, dict):
-        raise SystemExit(f'ERROR: repository spec for {relpath} is not a mapping')
-    if spec.get('type') != 'git':
-        raise SystemExit(f'ERROR: unsupported repository type for {relpath}: {spec.get("type")!r}')
-    for key in ('url', 'version'):
-        if not isinstance(spec.get(key), str) or not spec[key].strip():
-            raise SystemExit(f'ERROR: missing {key} for {relpath}')
-print(f'REPOS MANIFEST PASS: {len(repos)} repositories')
+all_paths = set()
+for filename in sys.argv[1:]:
+    path = pathlib.Path(filename)
+    data = yaml.safe_load(path.read_text(encoding='utf-8'))
+    repos = data.get('repositories') if isinstance(data, dict) else None
+    if not isinstance(repos, dict) or not repos:
+        raise SystemExit(f'ERROR: invalid repositories mapping in {path}')
+    for relpath, spec in repos.items():
+        if not isinstance(relpath, str) or not relpath or relpath.startswith('/') or '..' in pathlib.PurePosixPath(relpath).parts:
+            raise SystemExit(f'ERROR: unsafe repository path: {relpath!r}')
+        if relpath in all_paths:
+            raise SystemExit(f'ERROR: duplicate repository path: {relpath}')
+        all_paths.add(relpath)
+        if not isinstance(spec, dict):
+            raise SystemExit(f'ERROR: repository spec for {relpath} is not a mapping')
+        if spec.get('type') != 'git':
+            raise SystemExit(f'ERROR: unsupported repository type for {relpath}: {spec.get("type")!r}')
+        for key in ('url', 'version'):
+            if not isinstance(spec.get(key), str) or not spec[key].strip():
+                raise SystemExit(f'ERROR: missing {key} for {relpath}')
+print(f'REPOS MANIFEST PASS: {len(all_paths)} repositories')
 PY
 
 echo "==> Importing missing field-demo repositories into ${SRC_DIR}"
 # Repeatable and non-destructive: existing repositories and local changes are not overwritten.
-vcs import --skip-existing "${SRC_DIR}" < "${REPOS_FILE}"
+for repos_file in "${REPOS_FILES[@]}"; do
+  vcs import --skip-existing "${SRC_DIR}" < "${repos_file}"
+done
 
 echo "==> Verifying exact dependency revisions"
-python3 - "${SRC_DIR}" "${REPOS_FILE}" <<'PY'
+python3 - "${SRC_DIR}" "${REPOS_FILES[@]}" <<'PY'
 import pathlib
 import subprocess
 import sys
 import yaml
 
 src = pathlib.Path(sys.argv[1])
-manifest = pathlib.Path(sys.argv[2])
-repos = yaml.safe_load(manifest.read_text(encoding='utf-8'))['repositories']
 errors = []
-for relpath, spec in repos.items():
-    expected = str(spec['version']).strip()
-    # Tags/branches remain legal in manifests, but exact 40-char revisions are
-    # the reproducibility contract checked here.
-    if len(expected) != 40 or any(c not in '0123456789abcdefABCDEF' for c in expected):
-        continue
-    checkout = src / relpath
-    if not (checkout / '.git').exists():
-        errors.append(f'{relpath}: checkout missing after vcs import')
-        continue
-    actual = subprocess.check_output(
-        ['git', '-C', str(checkout), 'rev-parse', 'HEAD'], text=True
-    ).strip()
-    if actual.lower() != expected.lower():
-        errors.append(f'{relpath}: expected {expected}, found {actual}')
+for filename in sys.argv[2:]:
+    manifest = pathlib.Path(filename)
+    repos = yaml.safe_load(manifest.read_text(encoding='utf-8'))['repositories']
+    for relpath, spec in repos.items():
+        expected = str(spec['version']).strip()
+        # Tags/branches remain legal in manifests, but exact 40-char revisions
+        # are the reproducibility contract checked here.
+        if len(expected) != 40 or any(c not in '0123456789abcdefABCDEF' for c in expected):
+            continue
+        checkout = src / relpath
+        if not (checkout / '.git').exists():
+            errors.append(f'{relpath}: checkout missing after vcs import')
+            continue
+        actual = subprocess.check_output(
+            ['git', '-C', str(checkout), 'rev-parse', 'HEAD'], text=True
+        ).strip()
+        if actual.lower() != expected.lower():
+            errors.append(f'{relpath}: expected {expected}, found {actual}')
 if errors:
     raise SystemExit('ERROR: dependency revision mismatch:\n  ' + '\n  '.join(errors))
 print('DEPENDENCY REVISION PASS')
@@ -317,7 +328,7 @@ if [[ "${DO_BUILD}" -eq 1 ]]; then
   export CMAKE_PREFIX_PATH="${NATIVE_PREFIX}:${CMAKE_PREFIX_PATH:-}"
   colcon build --executor sequential --parallel-workers 1 --symlink-install --event-handlers console_direct+ \
     --packages-skip bbs3d livox_sdk2 \
-    --packages-up-to agt_system_bringup agt_gazebo_sim \
+    --packages-up-to agt_system_bringup agt_mission_bringup agt_gazebo_sim \
     --cmake-args -DCMAKE_PREFIX_PATH="${NATIVE_PREFIX}:${CMAKE_PREFIX_PATH}" \
       -DCMAKE_CXX_FLAGS="-I${NATIVE_PREFIX}/include -L${NATIVE_PREFIX}/lib" \
       -DROS_EDITION=ROS2 -DDISTRO_ROS=humble

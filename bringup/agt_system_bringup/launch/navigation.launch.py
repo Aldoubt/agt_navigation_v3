@@ -7,11 +7,11 @@ import yaml
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
-from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import EnvironmentVariable, LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
+from agt_map_manager.map_catalog import resolve_map
 
 
 CONFIG_FILES = (
@@ -100,14 +100,17 @@ def _build_runtime_params(config_dir):
 
 
 def _launch_runtime(context):
-    map_path = Path(LaunchConfiguration('map').perform(context)).expanduser()
-    if not map_path.is_file():
-        raise RuntimeError(f'map must be an existing Nav2 map YAML: {str(map_path)!r}')
+    robot_profile = LaunchConfiguration('robot').perform(context)
+    map_spec = LaunchConfiguration('map').perform(context)
+    try:
+        selected_map = resolve_map(map_spec, robot_profile, Path(
+            LaunchConfiguration('map_registry').perform(context)))
+    except ValueError as exc:
+        raise RuntimeError(f'MAP_ERROR: {exc}') from exc
+    map_path = selected_map.navigation_map
 
     share = Path(get_package_share_directory('agt_system_bringup'))
     nav2_share = Path(get_package_share_directory('agt_nav2_bringup'))
-    runtime_share = Path(get_package_share_directory('agt_navigation_runtime'))
-    patrol_share = Path(get_package_share_directory('agt_rviz_patrol'))
     params_file = _build_runtime_params(share / 'config')
     use_sim_time = LaunchConfiguration('use_sim_time').perform(context)
 
@@ -164,6 +167,25 @@ def _launch_runtime(context):
             }.items(),
         ),
         Node(
+            package='agt_navigation_supervisor', executable='navigation_supervisor',
+            name='agt_navigation_supervisor', output='screen', parameters=[{
+                'robot_profile': robot_profile,
+                'map_id': selected_map.map_id,
+                'map_version': selected_map.map_version,
+                'map_valid': True,
+                'use_sim_time': ParameterValue(
+                    LaunchConfiguration('use_sim_time'), value_type=bool),
+            }]),
+        Node(
+            package='agt_navigation_capability', executable='navigation_capability',
+            name='agt_navigation_capability', output='screen', parameters=[{
+                'robot_profile': robot_profile,
+                'map_id': selected_map.map_id,
+                'map_version': selected_map.map_version,
+                'use_sim_time': ParameterValue(
+                    LaunchConfiguration('use_sim_time'), value_type=bool),
+            }]),
+        Node(
             package='agt_base_control', executable='cmd_vel_guard',
             name='agt_cmd_vel_guard', output='screen', parameters=[params_file]),
         # Always expose map-frame LIO/wheel trails and the validated RViz
@@ -172,34 +194,18 @@ def _launch_runtime(context):
         Node(
             package='agt_rviz_patrol', executable='rviz_path_tool',
             name='agt_rviz_path_tool', output='screen'),
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                str(runtime_share / 'launch' / 'runtime.launch.py')),
-            condition=IfCondition(LaunchConfiguration('enable_inspection'))),
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                str(patrol_share / 'launch' / 'rviz_patrol.launch.py')),
-            condition=IfCondition(LaunchConfiguration('enable_inspection')),
-            launch_arguments={
-                'map_id': LaunchConfiguration('map_id').perform(context),
-                'mission_dir': LaunchConfiguration('mission_dir').perform(context),
-            }.items(),
-        ),
     ]
 
 
 def generate_launch_description():
     return LaunchDescription([
-        DeclareLaunchArgument('map', description='Absolute Nav2 map YAML path'),
+        DeclareLaunchArgument('map', default_value='auto',
+                              description='auto, active, latest, map_id or map_id/version'),
+        DeclareLaunchArgument('robot', default_value='bunker_v1'),
+        DeclareLaunchArgument('map_registry',
+                              default_value=EnvironmentVariable('AGT_MAP_REGISTRY', default_value='')),
         DeclareLaunchArgument('use_sim_time', default_value='false'),
         DeclareLaunchArgument('autostart', default_value='true'),
-        DeclareLaunchArgument(
-            'enable_inspection', default_value='false',
-            description=(
-                'Start the stop-and-shoot mission runtime and RViz patrol queue. '
-                'False is pure Nav2 navigation.')),
-        DeclareLaunchArgument('map_id', default_value='field_navigation'),
-        DeclareLaunchArgument('mission_dir', default_value='~/.ros/agt_rviz_patrol'),
         DeclareLaunchArgument(
             'obstacle_rear_filter_enabled', default_value='false',
             description='Trial-only short-range rear pole mask on obstacle marking.'),

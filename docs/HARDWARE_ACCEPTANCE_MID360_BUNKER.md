@@ -1,5 +1,7 @@
 # MID360 + Bunker 实机验收流程
 
+> 此文档保留 V3 验收基线，其中的旧地图路径和分终端启动示例尚未迁移到 V4，不能直接用于 V4 现场启动。V4 应先按 [导航启动文档](../导航启动文档.md) 通过 `run_field_stack.sh --map auto --robot bunker_v1` 解析已验证地图，并以 [V4 验收矩阵](acceptance/V4_ACCEPTANCE_MATRIX.md) 判定是否可进入实机测试。
+
 本流程只采集证据，不改变 v3.1 Runtime Refactor 的四入口、节点所有权、TF
 authority、导航参数或安全限速。验收工具不会发布速度、目标点或 TF。
 

@@ -1,0 +1,3 @@
+planner_id: navfn
+plugin: nav2_navfn_planner::NavfnPlanner
+note: Template only. The replay backend must provide an isolated Nav2 planner invocation.

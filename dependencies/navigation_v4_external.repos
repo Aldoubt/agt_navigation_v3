@@ -1,0 +1,13 @@
+repositories:
+  agt_mission:
+    type: git
+    url: https://github.com/Aldoubt/agt_mission.git
+    version: 17c5b91ed60199370414b41833aaeebb0c8e523a
+  agt_robot_platform:
+    type: git
+    url: https://github.com/Aldoubt/agt_robot_platform.git
+    version: dd49ac89b3d11b5ef9a1c34ae3ea6c8931e82369
+  agt_robot_description:
+    type: git
+    url: https://github.com/Aldoubt/agt_chassis_description.git
+    version: c2b9bb5d96ca700192fd7f3ff6a93ecc16ecf875

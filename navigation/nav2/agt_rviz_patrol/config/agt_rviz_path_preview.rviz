@@ -1,0 +1,68 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Tool Properties
+    Name: Tool Properties
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: true
+      Cell Size: 1
+      Alpha: 0.25
+    - Class: rviz_default_plugins/Map
+      Name: Navigation Map
+      Enabled: true
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /map
+      Alpha: 0.85
+      Use Timestamp: false
+    - Class: rviz_default_plugins/TF
+      Name: Preview Robot Origin
+      Enabled: true
+      Show Axes: true
+      Show Names: true
+      Frame Timeout: 1
+    - Class: rviz_default_plugins/Path
+      Name: Hand-drawn Route
+      Enabled: true
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /agt/path_tool/route
+      Line Style: Lines
+      Line Width: 0.10
+      Color: 255; 150; 20
+  Global Options:
+    Fixed Frame: map
+    Frame Rate: 30
+    Background Color: 48; 48; 48
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+    - Class: rviz_default_plugins/PublishPoint
+      Topic:
+        Value: /clicked_point
+      Single click: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/TopDownOrtho
+      Scale: 8
+      Angle: 0
+      X: 18
+      Y: 7
+Window Geometry:
+  Width: 1600
+  Height: 900

@@ -25,6 +25,9 @@ def _localization_nodes(context):
         return LaunchConfiguration(name).perform(context)
 
     global_map, assets = value('global_map'), value('relocalization_assets')
+    map_id, map_version = value('map_id').strip(), value('map_version').strip()
+    if not map_id or not map_version:
+        raise RuntimeError('localization requires the selected map_id and map_version')
     if not global_map or not Path(global_map).expanduser().is_file():
         raise RuntimeError(f'global_map must be an existing PCD file: {global_map!r}')
     if assets and not Path(assets).expanduser().is_dir():
@@ -65,6 +68,8 @@ def _localization_nodes(context):
         }),
         _include('agt_localization_manager', 'localization_manager.launch.py', {
             'use_sim_time': use_sim_time,
+            'map_id': map_id,
+            'map_version': map_version,
         }),
         _include(
             'agt_map_tracker', 'map_tracker.launch.py', {
@@ -80,6 +85,8 @@ def generate_launch_description():
     runtime_share = Path(get_package_share_directory('agt_navigation_runtime'))
     return LaunchDescription([
         DeclareLaunchArgument('global_map', description='Absolute localization PCD path'),
+        DeclareLaunchArgument('map_id', description='Selected map identifier'),
+        DeclareLaunchArgument('map_version', description='Selected map version'),
         DeclareLaunchArgument('relocalization_assets', default_value=''),
         DeclareLaunchArgument('use_sim_time', default_value='false'),
         DeclareLaunchArgument('lidar_topic', default_value='/livox/lidar'),
