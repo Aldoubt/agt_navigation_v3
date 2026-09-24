@@ -6,7 +6,7 @@ repositories:
   agt_robot_platform:
     type: git
     url: https://github.com/Aldoubt/agt_robot_platform.git
-    version: dd49ac89b3d11b5ef9a1c34ae3ea6c8931e82369
+    version: e407c88923ae53cf35cfad29da6938c7135bfd48
   agt_robot_description:
     type: git
     url: https://github.com/Aldoubt/agt_chassis_description.git
