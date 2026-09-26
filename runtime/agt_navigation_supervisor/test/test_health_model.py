@@ -12,6 +12,10 @@ def ready(**updates):
 def test_ready_busy_and_fail_closed_regression():
     assert decide(ready()).status == 'READY'
     assert decide(ready(goal_active=True)).status == 'BUSY'
+    assert decide(ready(base_alive=False)).status == 'READY'
+    assert decide(ready(base_alive=False, goal_active=True), ever_ready=True).status == 'BUSY'
+    assert decide(ready(platform_ready=False), ever_ready=True).error_code == 'PLATFORM_UNAVAILABLE'
+    assert decide(ready(odom_alive=False), ever_ready=True).error_code == 'ODOM_UNAVAILABLE'
     lost = decide(ready(localized=False, goal_active=True), ever_ready=True)
     assert lost.status == 'DEGRADED'
     assert lost.error_code == 'LOCALIZATION_UNAVAILABLE'

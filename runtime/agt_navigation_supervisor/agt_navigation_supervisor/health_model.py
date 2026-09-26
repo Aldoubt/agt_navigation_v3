@@ -37,7 +37,9 @@ def decide(values: Inputs, ever_ready: bool = False) -> Decision:
     if not values.map_valid:
         return Decision('ERROR', 'MAP_ERROR', 'MAP_ERROR', 'map package or robot compatibility invalid')
     stages = (
-        (values.platform_ready and values.base_alive, 'WAIT_PLATFORM', 'PLATFORM_UNAVAILABLE'),
+        # Wheel odometry is diagnostic only. The platform check is the static
+        # chassis TF; motion authority comes from LiDAR odometry below.
+        (values.platform_ready, 'WAIT_PLATFORM', 'PLATFORM_UNAVAILABLE'),
         (values.lidar_alive and values.imu_alive, 'WAIT_SENSORS', 'SENSOR_UNAVAILABLE'),
         (values.odom_alive, 'WAIT_ODOMETRY', 'ODOM_UNAVAILABLE'),
         (values.localized and values.tf_ready, 'RELOCALIZING', 'LOCALIZATION_UNAVAILABLE'),

@@ -57,6 +57,12 @@ class NavigationSupervisor(Node):
             ('odom_max_age_sec', 1.0), ('localization_max_age_sec', 2.0),
             ('min_lidar_hz', 2.0), ('min_imu_hz', 20.0),
             ('min_base_hz', 5.0), ('min_odom_hz', 5.0),
+            # Input topics follow agt_robot_bringup/config/robot_topics.yaml;
+            # defaults match the MID360 + Bunker reference robot.
+            ('lidar_topic', '/livox/lidar'), ('imu_topic', '/livox/imu'),
+            ('wheel_odom_topic', '/wheel/odom'),
+            ('local_odom_topic', '/agt/odometry/local'),
+            ('localization_status_topic', '/agt/localization/status'),
         ):
             self.declare_parameter(name, default)
         self.lidar, self.imu, self.base, self.odom = (Stream() for _ in range(4))
@@ -64,6 +70,7 @@ class NavigationSupervisor(Node):
         self.localization_received = 0.0
         self.goal_active = False
         self.ever_ready = False
+        self._last_health_fault = None
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
         self.nav_client = ActionClient(self, NavigateToPose, '/navigate_to_pose')
@@ -71,15 +78,16 @@ class NavigationSupervisor(Node):
         for name in ('planner_server', 'controller_server', 'bt_navigator'):
             client = self.create_client(GetState, f'/{name}/get_state')
             self.lifecycle[name] = {'client': client, 'active': False, 'pending': None}
-        self.create_subscription(CustomMsg, '/livox/lidar',
+        topic = lambda name: str(self.get_parameter(name).value)  # noqa: E731
+        self.create_subscription(CustomMsg, topic('lidar_topic'),
                                  lambda m: self.lidar.observe(m.header.stamp), qos_profile_sensor_data)
-        self.create_subscription(Imu, '/livox/imu',
+        self.create_subscription(Imu, topic('imu_topic'),
                                  lambda m: self.imu.observe(m.header.stamp), qos_profile_sensor_data)
-        self.create_subscription(Odometry, '/wheel/odom',
+        self.create_subscription(Odometry, topic('wheel_odom_topic'),
                                  lambda m: self.base.observe(m.header.stamp), qos_profile_sensor_data)
-        self.create_subscription(Odometry, '/agt/odometry/local',
+        self.create_subscription(Odometry, topic('local_odom_topic'),
                                  lambda m: self.odom.observe(m.header.stamp), qos_profile_sensor_data)
-        self.create_subscription(LocalizationStatus, '/agt/localization/status',
+        self.create_subscription(LocalizationStatus, topic('localization_status_topic'),
                                  self._on_localization, 10)
         self.create_subscription(Bool, '/navigation/goal_active',
                                  lambda m: setattr(self, 'goal_active', bool(m.data)), 10)
@@ -141,6 +149,19 @@ class NavigationSupervisor(Node):
             odom_alive=odom_ok, localized=localized, tf_ready=bool(global_tf),
             nav2_active=nav2_ok, goal_active=self.goal_active)
         result = decide(snapshot, self.ever_ready)
+        if result.status in ('DEGRADED', 'ERROR'):
+            fault = (result.state, result.error_code, snapshot)
+            if fault != self._last_health_fault:
+                self.get_logger().warning(
+                    f'navigation health {result.status}: {result.error_code}; '
+                    f'platform={snapshot.platform_ready} lidar={snapshot.lidar_alive} '
+                    f'imu={snapshot.imu_alive} base={snapshot.base_alive} '
+                    f'odom={snapshot.odom_alive} localized={snapshot.localized} '
+                    f'tf={snapshot.tf_ready} nav2={snapshot.nav2_active}')
+            self._last_health_fault = fault
+        elif self._last_health_fault is not None:
+            self.get_logger().info(f'navigation health recovered: {result.status}')
+            self._last_health_fault = None
         if result.status in ('READY', 'BUSY'):
             self.ever_ready = True
         msg = NavigationHealth()
@@ -153,6 +174,7 @@ class NavigationSupervisor(Node):
         msg.platform_ready = snapshot.platform_ready
         msg.lidar_alive = lidar_ok
         msg.imu_alive = imu_ok
+        # Expose wheel reception for diagnostics; it is not a readiness gate.
         msg.base_alive = base_ok
         msg.odom_alive = odom_ok
         msg.localized = localized
