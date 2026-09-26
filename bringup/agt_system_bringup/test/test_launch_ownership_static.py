@@ -1,4 +1,5 @@
 from pathlib import Path
+import importlib.util
 
 import yaml
 
@@ -6,11 +7,31 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_local_obstacle_trial_keeps_static_map_and_disables_live_layer():
+    launch_file = ROOT / 'launch' / 'navigation.launch.py'
+    spec = importlib.util.spec_from_file_location('agt_navigation_trial_launch', launch_file)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    config_dir = ROOT.parents[1] / 'config'
+
+    normal = yaml.safe_load(Path(module._build_runtime_params(config_dir)).read_text())
+    trial = yaml.safe_load(Path(module._build_runtime_params(
+        config_dir, local_obstacle_avoidance=False)).read_text())
+    normal_local = normal['local_costmap']['local_costmap']['ros__parameters']
+    trial_local = trial['local_costmap']['local_costmap']['ros__parameters']
+    assert normal_local['plugins'] == ['voxel_layer', 'inflation_layer']
+    assert trial_local['plugins'] == ['static_layer', 'inflation_layer']
+    assert 'voxel_layer' not in trial_local
+    assert trial_local['static_layer'] == trial['global_costmap'][
+        'global_costmap']['ros__parameters']['static_layer']
+
+
 def test_navigation_top_level_launch_files_exclude_mission():
     names = sorted(path.name for path in (ROOT / 'launch').glob('*.launch.py'))
     assert names == [
         'debug.launch.py',
         'hardware.launch.py',
+        'initialization_view.launch.py',
         'localization.launch.py',
         'navigation.launch.py',
     ]
@@ -46,7 +67,13 @@ def test_navigation_and_inspection_modes_are_explicit():
     assert "'enable_legacy_inspection', default_value='false'" in mission
     assert "if value('enable_legacy_inspection').lower() == 'true':" in mission
     assert "'agt_navigation_runtime'," not in mission.split("if value('enable_legacy_inspection')")[0]
-    assert "'enable_camera_gimbal', default_value='true'" in hardware
+    # Device defaults moved to the whole-robot config (single source); the Bunker
+    # inspection robot still enables the camera gimbal by default.
+    assert 'enable_camera_gimbal' in hardware
+    bunker = yaml.safe_load((ROOT.parents[2] / 'agt_robot_platform' / 'agt_robot_bringup' /
+                             'config' / 'robots' / 'bunker_inspection' / 'robot.yaml')
+                            .read_text(encoding='utf-8'))
+    assert bunker['payloads']['camera_gimbal']['enabled'] is True
 
 
 def test_six_config_sources_are_installed():

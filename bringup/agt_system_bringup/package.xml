@@ -26,6 +26,8 @@
   <exec_depend>agt_pointcloud_preprocessor</exec_depend>
   <exec_depend>agt_nav2_bringup</exec_depend>
   <exec_depend>nav2_bringup</exec_depend>
+  <exec_depend>nav2_map_server</exec_depend>
+  <exec_depend>nav2_lifecycle_manager</exec_depend>
   <exec_depend>nav2_bt_navigator</exec_depend>
   <exec_depend>agt_base_control</exec_depend>
   <exec_depend>agt_rviz_patrol</exec_depend>

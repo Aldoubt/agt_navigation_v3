@@ -16,7 +16,8 @@ from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Bool
 
-from .policy import health_allows_motion, navigation_succeeded
+from .policy import (HEALTH_MAX_AGE_SEC, health_allows_motion, navigation_succeeded,
+                     payload_permission_ok)
 
 
 class NavigationCapability(Node):
@@ -25,12 +26,20 @@ class NavigationCapability(Node):
         for name, default in (('robot_profile', 'bunker_v1'), ('map_id', ''),
                               ('map_version', ''), ('nav2_server_timeout_sec', 3.0)):
             self.declare_parameter(name, default)
+        # Payload (arm) interlock, same contract as agt_cmd_vel_guard.
+        self.declare_parameter('require_payload_drive_permission', False)
+        self.declare_parameter('payload_drive_permission_topic', '/agt/payload/drive_permission')
+        self.declare_parameter('payload_drive_permission_timeout_sec', 0.5)
+        self.payload_value = False
+        self.payload_received = None
+        self.payload_lost = False
         self.health = None
         self.health_received = 0.0
         self.running = False
         self._running_lock = threading.Lock()
         self.nav_goal = None
         self.health_lost = False
+        self.health_lost_detail = ''
         group = ReentrantCallbackGroup()
         self.nav_client = ActionClient(self, NavigateToPose, '/navigate_to_pose',
                                        callback_group=group)
@@ -53,20 +62,64 @@ class NavigationCapability(Node):
             QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL,
                        reliability=ReliabilityPolicy.RELIABLE), callback_group=group)
         self.active_pub = self.create_publisher(Bool, '/navigation/goal_active', 10)
+        self.create_subscription(
+            Bool, str(self.get_parameter('payload_drive_permission_topic').value),
+            self._on_payload, 20, callback_group=group)
+        self.create_timer(0.1, self._watch_payload, callback_group=group)
+        self.create_timer(0.1, self._watch_health, callback_group=group)
+
+    def _payload_ok(self):
+        return payload_permission_ok(
+            bool(self.get_parameter('require_payload_drive_permission').value),
+            self.payload_value, self.payload_received, time.monotonic(),
+            float(self.get_parameter('payload_drive_permission_timeout_sec').value))
+
+    def _on_payload(self, msg):
+        self.payload_value = bool(msg.data)
+        self.payload_received = time.monotonic()
+        self._watch_payload()
+
+    def _watch_payload(self):
+        if self.running and not self._payload_ok():
+            if not self.payload_lost:
+                self.get_logger().warning('canceling navigation: payload drive permission lost')
+            self.payload_lost = True
+            if self.nav_goal is not None:
+                self.nav_goal.cancel_goal_async()
 
     def _health_ok(self):
         value = lambda name: str(self.get_parameter(name).value)
+        with self._running_lock:
+            health, received = self.health, self.health_received
         return health_allows_motion(
-            self.health, time.monotonic() - self.health_received,
+            health, time.monotonic() - received,
             value('robot_profile'), value('map_id'), value('map_version'))
 
     def _on_health(self, msg):
-        self.health = msg
-        self.health_received = time.monotonic()
-        if self.running and not self._health_ok():
+        with self._running_lock:
+            self.health = msg
+            self.health_received = time.monotonic()
+        self._watch_health()
+
+    def _watch_health(self):
+        """Latch a bad or stale Health update once and cancel the active Nav2 goal."""
+        value = lambda name: str(self.get_parameter(name).value)
+        with self._running_lock:
+            if not self.running or self.health_lost:
+                return
+            health = self.health
+            age = time.monotonic() - self.health_received
+            if health_allows_motion(health, age, value('robot_profile'),
+                                    value('map_id'), value('map_version')):
+                return
             self.health_lost = True
-            if self.nav_goal is not None:
-                self.nav_goal.cancel_goal_async()
+            self.health_lost_detail = (
+                'health_update_stale' if health is None or age > HEALTH_MAX_AGE_SEC
+                else health.last_error_code or health.state or 'health_unavailable')
+            detail, nav_goal = self.health_lost_detail, self.nav_goal
+        self.get_logger().warning(f'canceling navigation after health loss: {detail}')
+        if nav_goal is not None:
+            nav_goal.cancel_goal_async()
 
     @staticmethod
     def _goal(_request):
@@ -94,17 +147,22 @@ class NavigationCapability(Node):
             if self.running:
                 return False
             self.running = True
-        self.health_lost = False
+            self.health_lost = False
+            self.health_lost_detail = ''
+            self.payload_lost = False
         self.active_pub.publish(Bool(data=True))
         return True
 
     def _release(self):
-        self.nav_goal = None
         with self._running_lock:
+            self.nav_goal = None
             self.running = False
         self.active_pub.publish(Bool(data=False))
 
     async def _execute(self, goal):
+        if not self._payload_ok():
+            return self._result(goal, 'ARM_NOT_DRIVE_SAFE',
+                                'payload drive permission is not granted')
         if not self._health_ok() or self.health.status != NavigationHealth.READY:
             return self._result(goal, 'NOT_READY', 'navigation health is not READY')
         if not self._claim():
@@ -113,6 +171,12 @@ class NavigationCapability(Node):
             if not self.nav_client.wait_for_server(
                     timeout_sec=float(self.get_parameter('nav2_server_timeout_sec').value)):
                 return self._result(goal, 'NAV2_UNAVAILABLE', 'Nav2 action server unavailable')
+            if self.health_lost or not self._health_ok():
+                return self._result(goal, 'HEALTH_DEGRADED',
+                                    self.health_lost_detail or 'health lost before Nav2 goal')
+            if self.payload_lost or not self._payload_ok():
+                return self._result(goal, 'ARM_NOT_DRIVE_SAFE',
+                                    'payload drive permission lost before Nav2 goal')
             request = NavigateToPose.Goal()
             request.pose = goal.request.pose
             nav_future = self.nav_client.send_goal_async(request)
@@ -120,13 +184,18 @@ class NavigationCapability(Node):
             if not nav_goal.accepted:
                 return self._result(goal, 'NAV2_REJECTED', 'Nav2 rejected goal')
             self.nav_goal = nav_goal
-            if self.health_lost or goal.is_cancel_requested:
+            if self.health_lost or self.payload_lost or goal.is_cancel_requested:
                 nav_goal.cancel_goal_async()
             wrapped = await nav_goal.get_result_async()
             if goal.is_cancel_requested:
                 return self._result(goal, 'CANCELED', 'navigation canceled', canceled=True)
+            if self.payload_lost or not self._payload_ok():
+                return self._result(goal, 'ARM_NOT_DRIVE_SAFE',
+                                    'payload drive permission lost during navigation')
             if self.health_lost or not self._health_ok():
-                return self._result(goal, 'HEALTH_DEGRADED', 'health degraded during navigation')
+                detail = self.health_lost_detail or 'health_update_stale'
+                return self._result(goal, 'HEALTH_DEGRADED',
+                                    f'health degraded during navigation: {detail}')
             if not navigation_succeeded(wrapped.status, self._health_ok()):
                 return self._result(goal, 'NAV2_FAILED',
                                     f'Nav2 terminal status {wrapped.status}')
@@ -148,6 +217,9 @@ class NavigationCapability(Node):
         if path.header.frame_id != 'map' or len(path.poses) < 2:
             return self._result(goal, 'INVALID_ROUTE', 'map-frame path with two poses required',
                                 result_type=result_type)
+        if not self._payload_ok():
+            return self._result(goal, 'ARM_NOT_DRIVE_SAFE',
+                                'payload drive permission is not granted', result_type=result_type)
         if not self._health_ok() or self.health.status != NavigationHealth.READY:
             return self._result(goal, 'NOT_READY', 'navigation health is not READY',
                                 result_type=result_type)
@@ -171,6 +243,14 @@ class NavigationCapability(Node):
             if not self.follow_client.wait_for_server(timeout_sec=3.0):
                 return self._result(goal, 'NAV2_UNAVAILABLE', 'Nav2 FollowPath unavailable',
                                     result_type=result_type)
+            if self.health_lost or not self._health_ok():
+                return self._result(goal, 'HEALTH_DEGRADED',
+                                    self.health_lost_detail or 'health lost before FollowPath',
+                                    result_type=result_type)
+            if self.payload_lost or not self._payload_ok():
+                return self._result(goal, 'ARM_NOT_DRIVE_SAFE',
+                                    'payload drive permission lost before FollowPath',
+                                    result_type=result_type)
             request = FollowPath.Goal()
             request.path = path
             request.controller_id = 'FollowPath'
@@ -180,14 +260,20 @@ class NavigationCapability(Node):
                 return self._result(goal, 'NAV2_REJECTED', 'Nav2 rejected path',
                                     result_type=result_type)
             self.nav_goal = nav_goal
-            if self.health_lost or goal.is_cancel_requested:
+            if self.health_lost or self.payload_lost or goal.is_cancel_requested:
                 nav_goal.cancel_goal_async()
             wrapped = await nav_goal.get_result_async()
             if goal.is_cancel_requested:
                 return self._result(goal, 'CANCELED', 'route canceled', canceled=True,
                                     result_type=result_type)
+            if self.payload_lost or not self._payload_ok():
+                return self._result(goal, 'ARM_NOT_DRIVE_SAFE',
+                                    'payload drive permission lost during route',
+                                    result_type=result_type)
             if self.health_lost or not self._health_ok():
-                return self._result(goal, 'HEALTH_DEGRADED', 'health degraded during route',
+                detail = self.health_lost_detail or 'health_update_stale'
+                return self._result(goal, 'HEALTH_DEGRADED',
+                                    f'health degraded during route: {detail}',
                                     result_type=result_type)
             if not navigation_succeeded(wrapped.status, self._health_ok()):
                 return self._result(goal, 'NAV2_FAILED', f'Nav2 status {wrapped.status}',

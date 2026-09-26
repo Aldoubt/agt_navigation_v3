@@ -6,7 +6,7 @@ import rclpy
 from agt_robot_interfaces.msg import LocalizationStatus
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
-from std_msgs.msg import String
+from std_msgs.msg import Bool, String
 
 
 class CmdVelGuard(Node):
@@ -30,6 +30,14 @@ class CmdVelGuard(Node):
         self.declare_parameter('require_localization_status', True)
         self.declare_parameter('localization_status_timeout_sec', 0.75)
         self.declare_parameter('allow_degraded_localization', False)
+        # Payload (arm) interlock. When required, motion needs a fresh True on
+        # the topic; missing / stale / False is a hard stop in every mode.
+        self.declare_parameter('require_payload_drive_permission', False)
+        self.declare_parameter('payload_drive_permission_topic', '/agt/payload/drive_permission')
+        self.declare_parameter('payload_drive_permission_timeout_sec', 0.5)
+        # Acknowledgement for the arm: True only while the payload gate is
+        # closed AND the output to the base is zero (published every tick).
+        self.declare_parameter('payload_hold_topic', '/agt/cmd_vel_guard/payload_hold')
         self.declare_parameter('max_linear_x', 0.55)
         self.declare_parameter('max_reverse_x', 0.20)
         self.declare_parameter('max_angular_z', 0.65)
@@ -46,6 +54,8 @@ class CmdVelGuard(Node):
         self.last_localization_rx_ns = 0
         self.localization_status = None
         self._last_gate_reason = None
+        self.payload_permission = False
+        self.last_payload_rx_ns = 0
 
         input_topic = self.get_parameter('input_topic').value
         manual_input_topic = self.get_parameter('manual_input_topic').value
@@ -62,7 +72,15 @@ class CmdVelGuard(Node):
             self._on_localization_status,
             20,
         )
+        self.create_subscription(
+            Bool,
+            str(self.get_parameter('payload_drive_permission_topic').value),
+            self._on_payload_permission,
+            20,
+        )
         self.pub = self.create_publisher(Twist, output_topic, 20)
+        self.hold_pub = self.create_publisher(
+            Bool, str(self.get_parameter('payload_hold_topic').value), 20)
 
         rate = max(float(self.get_parameter('publish_rate_hz').value), 1.0)
         self.create_timer(1.0 / rate, self._tick)
@@ -70,13 +88,15 @@ class CmdVelGuard(Node):
             f'cmd_vel guard: nav={input_topic}, manual={manual_input_topic} -> {output_topic} '
             f'@ {rate:.1f} Hz; default mode={self.control_mode}; '
             'motion is fail-closed on LocalizationStatus'
+            + ('; payload drive permission REQUIRED'
+               if bool(self.get_parameter('require_payload_drive_permission').value) else '')
         )
 
     def _on_cmd(self, msg: Twist) -> None:
         if self.control_mode != 'navigation':
             return
         now_ns = self.get_clock().now().nanoseconds
-        localization_ok, _ = self._localization_allows_motion(now_ns)
+        localization_ok, _ = self._motion_allowed(now_ns)
         if not localization_ok:
             # Never cache motion intent while localization is unsafe. This
             # guarantees that reopening the gate cannot replay a command that
@@ -91,7 +111,7 @@ class CmdVelGuard(Node):
         if self.control_mode != 'manual':
             return
         now_ns = self.get_clock().now().nanoseconds
-        localization_ok, _ = self._localization_allows_motion(now_ns)
+        localization_ok, _ = self._motion_allowed(now_ns)
         if not localization_ok:
             self.manual_target = Twist()
             self.last_manual_rx_ns = 0
@@ -122,7 +142,10 @@ class CmdVelGuard(Node):
         self.localization_status = msg
         self.last_localization_rx_ns = self.get_clock().now().nanoseconds
         allowed, reason = self._localization_allows_motion(self.last_localization_rx_ns)
-        self._report_gate(reason, allowed)
+        # Report the combined gate (localization + payload) so the log never
+        # claims OPEN while the payload interlock holds the base.
+        combined, combined_reason = self._motion_allowed(self.last_localization_rx_ns)
+        self._report_gate(combined_reason, combined)
         if not allowed:
             # A localization fault is a hard stop, not a slew-limited stop. Clear
             # the cached upstream command as well so recovery requires a fresh
@@ -133,6 +156,43 @@ class CmdVelGuard(Node):
             self.last_manual_rx_ns = 0
             self.output = Twist()
             self.pub.publish(self.output)
+
+    def _hard_stop(self) -> None:
+        self.target = Twist()
+        self.manual_target = Twist()
+        self.last_rx_ns = 0
+        self.last_manual_rx_ns = 0
+        self.output = Twist()
+        self.pub.publish(self.output)
+
+    def _on_payload_permission(self, msg: Bool) -> None:
+        self.payload_permission = bool(msg.data)
+        self.last_payload_rx_ns = self.get_clock().now().nanoseconds
+        if bool(self.get_parameter('require_payload_drive_permission').value) \
+                and not self.payload_permission:
+            self._report_gate('payload_drive_permission_false', False)
+            self._hard_stop()
+
+    def _payload_allows_motion(self, now_ns: int) -> tuple[bool, str]:
+        if not bool(self.get_parameter('require_payload_drive_permission').value):
+            return True, 'payload_gate_disabled'
+        if self.last_payload_rx_ns <= 0:
+            return False, 'payload_drive_permission_missing'
+        age = max(0.0, (now_ns - self.last_payload_rx_ns) / 1e9)
+        if age > float(self.get_parameter('payload_drive_permission_timeout_sec').value):
+            return False, f'payload_drive_permission_stale:{age:.2f}s'
+        if not self.payload_permission:
+            return False, 'payload_drive_permission_false'
+        return True, 'payload_drive_permitted'
+
+    def _motion_allowed(self, now_ns: int) -> tuple[bool, str]:
+        ok, reason = self._localization_allows_motion(now_ns)
+        if not ok:
+            return ok, reason
+        payload_ok, payload_reason = self._payload_allows_motion(now_ns)
+        if not payload_ok:
+            return payload_ok, payload_reason
+        return True, reason
 
     def _localization_allows_motion(self, now_ns: int) -> tuple[bool, str]:
         if not bool(self.get_parameter('require_localization_status').value):
@@ -183,6 +243,19 @@ class CmdVelGuard(Node):
         return current + max(-step, min(step, delta))
 
     def _tick(self) -> None:
+        self._tick_inner()
+        now_ns = self.get_clock().now().nanoseconds
+        _payload_ok, payload_reason = self._payload_allows_motion(now_ns)
+        zero = all(abs(v) < 1e-9 for v in (
+            self.output.linear.x, self.output.linear.y, self.output.linear.z,
+            self.output.angular.x, self.output.angular.y, self.output.angular.z))
+        required = bool(self.get_parameter('require_payload_drive_permission').value)
+        # R3.1b: hold acknowledges a *received, fresh* denial only; a missing or
+        # stale permission also stops the base but is not an acknowledgement.
+        self.hold_pub.publish(Bool(data=bool(
+            required and payload_reason == 'payload_drive_permission_false' and zero)))
+
+    def _tick_inner(self) -> None:
         now_ns = self.get_clock().now().nanoseconds
         dt = max((now_ns - self.last_tick_ns) / 1e9, 1e-4)
         self.last_tick_ns = now_ns
@@ -196,8 +269,15 @@ class CmdVelGuard(Node):
             active_rx_ns = self.last_rx_ns
         stale = active_rx_ns <= 0 or (now_ns - active_rx_ns) / 1e9 > timeout
 
-        localization_ok, localization_reason = self._localization_allows_motion(now_ns)
+        localization_ok, localization_reason = self._motion_allowed(now_ns)
         self._report_gate(localization_reason, localization_ok)
+        if not localization_ok and localization_reason.startswith('payload_'):
+            # Payload interlock also drops cached intent so reopening the gate
+            # can never replay a command produced while the arm was working.
+            self.target = Twist()
+            self.manual_target = Twist()
+            self.last_rx_ns = 0
+            self.last_manual_rx_ns = 0
 
         if stale or not localization_ok:
             # Stale upstream motion command is a fault. Do not continue ramping an

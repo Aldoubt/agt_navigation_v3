@@ -21,3 +21,5 @@ def test_success_requires_nav2_reached_and_fresh_health():
         status, 2.0, 'bunker_v1', 'orchard', 'v1'))
     assert not navigation_succeeded(4, health_allows_motion(
         healthy(localized=False), 0.2, 'bunker_v1', 'orchard', 'v1'))
+    assert health_allows_motion(healthy(base_alive=False), 0.2, 'bunker_v1', 'orchard', 'v1')
+    assert not health_allows_motion(healthy(odom_alive=False), 0.2, 'bunker_v1', 'orchard', 'v1')
