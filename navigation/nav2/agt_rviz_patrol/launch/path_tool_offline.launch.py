@@ -1,5 +1,6 @@
 """Offline RViz preview for the point-and-draw FollowPath operator flow."""
 
+import os
 from pathlib import Path
 from agt_map_manager.map_catalog import resolve_map
 
@@ -12,6 +13,11 @@ from launch_ros.actions import Node
 
 
 def _launch_preview(context):
+    # This launch owns a fake map -> base_link. Never silently join the default vehicle domain.
+    domain = os.environ.get('ROS_DOMAIN_ID', '')
+    if not domain.isdigit() or not 1 <= int(domain) <= 232 or os.environ.get('ROS_LOCALHOST_ONLY') != '1':
+        raise RuntimeError('Offline preview requires a dedicated ROS_DOMAIN_ID (1..232) and '
+                           'ROS_LOCALHOST_ONLY=1; never reuse the vehicle domain.')
     package_share = Path(get_package_share_directory('agt_rviz_patrol'))
     rviz_config = package_share / 'config' / 'agt_rviz_path_preview.rviz'
 
@@ -43,7 +49,8 @@ def _launch_preview(context):
         Node(
             package='agt_rviz_patrol', executable='rviz_path_tool',
             name='agt_rviz_path_tool', output='screen',
-            parameters=[{'preview_only': True}]),
+            parameters=[{'preview_only': True, 'map_id': selected.map_id,
+                         'map_version': selected.map_version}]),
         Node(
             package='rviz2', executable='rviz2', name='agt_path_tool_preview_rviz',
             output='screen', arguments=['-d', str(rviz_config)],

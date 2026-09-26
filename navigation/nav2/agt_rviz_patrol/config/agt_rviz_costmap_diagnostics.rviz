@@ -1,10 +1,12 @@
 Panels:
+  - Class: agt_rviz_route_tools/Workbench
+    Name: 路线工作台
   - Class: rviz_common/Displays
-    Name: Displays
+    Name: 显示项
   - Class: rviz_common/Tool Properties
-    Name: Tool Properties
+    Name: 工具属性
   - Class: rviz_common/Views
-    Name: Views
+    Name: 视图
   - Class: rviz_common/Time
     Name: Time
   - Class: nav2_rviz_plugins/Navigation 2
@@ -12,8 +14,16 @@ Panels:
 Visualization Manager:
   Class: ""
   Displays:
+    - Class: rviz_default_plugins/Marker
+      Name: 路线顶点
+      Enabled: true
+      Topic:
+        Value: /agt/path_tool/vertices
+        Depth: 1
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
     - Class: rviz_default_plugins/Grid
-      Name: Grid
+      Name: 网格
       Enabled: true
       Cell Size: 1
       Alpha: 0.3
@@ -49,6 +59,7 @@ Visualization Manager:
       Enabled: true
       Topic:
         Value: /agt/navigation/points_obstacles
+        Reliability Policy: Best Effort
       Queue Size: 5
       Style: Points
       Size (Pixels): 2
@@ -59,6 +70,7 @@ Visualization Manager:
       Enabled: true
       Topic:
         Value: /agt/debug/points_obstacles_base
+        Reliability Policy: Best Effort
       Style: Points
       Size (Pixels): 3
       Color Transformer: FlatColor
@@ -68,6 +80,7 @@ Visualization Manager:
       Enabled: false
       Topic:
         Value: /agt/livox/points
+        Reliability Policy: Best Effort
       Style: Points
       Size (Pixels): 1
       Color Transformer: AxisColor
@@ -168,8 +181,12 @@ Visualization Manager:
       Topic:
         Value: /agt/path_tool/route
       Line Style: Lines
-      Line Width: 0.10
-      Color: 255; 150; 20
+      Line Width: 0.03
+      Color: 255; 0; 0
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0.08
     - Class: rviz_default_plugins/Path
       Name: Local Plan
       Enabled: true
@@ -187,6 +204,9 @@ Visualization Manager:
     Frame Rate: 30
     Background Color: 48; 48; 48
   Tools:
+    - Class: agt_rviz_route_tools/StraightRoute
+    - Class: agt_rviz_route_tools/DrawRoute
+    - Class: agt_rviz_route_tools/EditWaypoints
     - Class: rviz_default_plugins/Interact
     - Class: rviz_default_plugins/MoveCamera
     - Class: rviz_default_plugins/Select

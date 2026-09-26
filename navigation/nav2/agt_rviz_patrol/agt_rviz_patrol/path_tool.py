@@ -86,12 +86,12 @@ class RvizPathTool(Node):
             'lio_odom_topic': '/agt/odometry/local',
             'wheel_odom_topic': '/wheel/odom',
             'follow_route_action': '/navigation/follow_route',
-            'preview_only': False,
+            'preview_only': True,
             # Match the 5 cm costmap resolution so footprint validation does
             # not jump across unchecked cells between route poses.
             'route_spacing': 0.05,
             'trail_sample_distance': 0.05,
-            'max_trail_points': 20000,
+            'max_trail_points': 1000,
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -147,7 +147,7 @@ class RvizPathTool(Node):
         try:
             transform = self.tf_buffer.lookup_transform(
                 self.global_frame, self.base_frame, Time(),
-                timeout=Duration(seconds=0.1))
+                timeout=Duration(seconds=0.0))
         except TransformException:
             return None
         t = transform.transform.translation
@@ -194,7 +194,7 @@ class RvizPathTool(Node):
                 pose[0] - points[-1][0], pose[1] - points[-1][1]) < sample_distance:
             return False
         points.append(pose)
-        max_points = int(self.get_parameter('max_trail_points').value)
+        max_points = min(1000, max(1, int(self.get_parameter('max_trail_points').value)))
         if len(points) > max_points:
             del points[:len(points) - max_points]
         return True
@@ -384,12 +384,15 @@ class RvizPathTool(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = RvizPathTool()
+    from .workbench import RouteWorkbench
+    node = RouteWorkbench()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
         pass
     finally:
+        node.follow_client.destroy()
+        node.tf_listener.unregister()
         node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()

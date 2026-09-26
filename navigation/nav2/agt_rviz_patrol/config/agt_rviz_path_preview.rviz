@@ -1,20 +1,30 @@
 Panels:
+  - Class: agt_rviz_route_tools/Workbench
+    Name: 路线工作台
   - Class: rviz_common/Displays
-    Name: Displays
+    Name: 显示项
   - Class: rviz_common/Tool Properties
-    Name: Tool Properties
+    Name: 工具属性
   - Class: rviz_common/Views
-    Name: Views
+    Name: 视图
 Visualization Manager:
   Class: ""
   Displays:
+    - Class: rviz_default_plugins/Marker
+      Name: 路线顶点
+      Enabled: true
+      Topic:
+        Value: /agt/path_tool/vertices
+        Depth: 1
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
     - Class: rviz_default_plugins/Grid
-      Name: Grid
+      Name: 网格
       Enabled: true
       Cell Size: 1
       Alpha: 0.25
     - Class: rviz_default_plugins/Map
-      Name: Navigation Map
+      Name: 导航地图
       Enabled: true
       Topic:
         Depth: 1
@@ -25,13 +35,13 @@ Visualization Manager:
       Alpha: 0.85
       Use Timestamp: false
     - Class: rviz_default_plugins/TF
-      Name: Preview Robot Origin
+      Name: 预览机器人位置
       Enabled: true
       Show Axes: true
       Show Names: true
       Frame Timeout: 1
     - Class: rviz_default_plugins/Path
-      Name: Hand-drawn Route
+      Name: 手绘路线
       Enabled: true
       Topic:
         Depth: 1
@@ -40,13 +50,20 @@ Visualization Manager:
         Reliability Policy: Reliable
         Value: /agt/path_tool/route
       Line Style: Lines
-      Line Width: 0.10
-      Color: 255; 150; 20
+      Line Width: 0.03
+      Color: 255; 0; 0
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0.08
   Global Options:
     Fixed Frame: map
     Frame Rate: 30
     Background Color: 48; 48; 48
   Tools:
+    - Class: agt_rviz_route_tools/StraightRoute
+    - Class: agt_rviz_route_tools/DrawRoute
+    - Class: agt_rviz_route_tools/EditWaypoints
     - Class: rviz_default_plugins/Interact
     - Class: rviz_default_plugins/MoveCamera
     - Class: rviz_default_plugins/Select

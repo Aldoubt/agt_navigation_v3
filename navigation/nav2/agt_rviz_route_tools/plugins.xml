@@ -1,0 +1,14 @@
+<library path="agt_rviz_route_tools">
+  <class name="agt_rviz_route_tools/StraightRoute" type="agt_rviz_route_tools::StraightRouteTool" base_class_type="rviz_common::Tool">
+    <description>点击起点和终点，实时显示距离，可连续绘制直线段。</description>
+  </class>
+  <class name="agt_rviz_route_tools/DrawRoute" type="agt_rviz_route_tools::DrawRouteTool" base_class_type="rviz_common::Tool">
+    <description>Continuous local-feedback route drawing; release commits a stroke.</description>
+  </class>
+  <class name="agt_rviz_route_tools/EditWaypoints" type="agt_rviz_route_tools::EditRouteTool" base_class_type="rviz_common::Tool">
+    <description>Add, drag and delete route vertices.</description>
+  </class>
+  <class name="agt_rviz_route_tools/Workbench" type="agt_rviz_route_tools::RoutePanel" base_class_type="rviz_common::Panel">
+    <description>Preview, validate and explicitly confirm route execution.</description>
+  </class>
+</library>
