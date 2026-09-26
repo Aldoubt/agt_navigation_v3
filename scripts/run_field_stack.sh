@@ -13,12 +13,17 @@ set -euo pipefail
 
 MAP_SPEC=auto
 ROBOT_PROFILE=bunker_v1
+ROBOT_PROFILE_EXPLICIT=""
+ROBOT_CONFIG=""
 MAP_REGISTRY=${AGT_MAP_REGISTRY:-"$WS_ROOT/maps/registry.yaml"}
 MAP_ROOT_OVERRIDE=""
 MAP_ID_OVERRIDE=""
 MODE=navigation
-LIO_BACKEND=batch_lio
+LOCALIZATION_MODE=auto
+LIO_BACKEND=fastlio2
 LIO_CONFIG=""
+YHS_LIVOX_CONFIG=""
+YHS_NAV_CONFIG_DIR=""
 ENABLE_RTK=false
 ENABLE_RVIZ=false
 DRY_RUN=false
@@ -31,6 +36,7 @@ OBSTACLE_STATS=""
 OBSTACLE_DEBUG_BASE_CLOUD=false
 OBSTACLE_LOG_INTERVAL=0.0
 REAR_POINTCLOUD_MASK=false
+LOCAL_OBSTACLE_AVOIDANCE=true
 RVIZ_CONFIG=""
 
 usage() {
@@ -42,10 +48,28 @@ Options:
                     navigation: Nav2 only, camera and capture task disabled.
                     inspection: stop at each queued point, capture three views,
                     save images and metadata, then continue/return home.
-  --lio-backend NAME Local odometry: batch_lio (default) or fastlio2; mutually exclusive.
+  --lio-backend NAME Local odometry: fastlio2 (default) or batch_lio (explicit opt-in); mutually exclusive.
   --lio-config PATH  Optional runtime YAML for the selected LIO backend.
+  --localization-mode MODE
+                    auto (default): two automatic attempts, then exit on failure.
+                    auto_then_manual: two attempts, then wait for RViz /initialpose.
+                    manual: skip global search, wait for operator seed + local GICP.
+                    Waiting keeps sensors/LIO alive but never starts Nav2.
+                    Add --rviz for the map-only initialization window.
   --map SPEC        auto (default), active, latest, map_id or map_id/version.
-  --robot PROFILE   Robot profile (default: bunker_v1).
+  --robot PROFILE   Legacy robot profile (default: bunker_v1 -> robot config
+                    bunker_inspection). Must match --robot-config if both are given.
+  --robot-config ID|PATH
+                    Whole-robot combination from agt_robot_bringup/config/robots
+                    (bunker_inspection; yhs_harvesting is BLOCKED and refuses to start).
+                    Stop any running stack before switching robots (no hot switch).
+  --yhs-livox-config PATH
+                    Required when yhs_harvesting is eventually field-validated:
+                    independently generated YHS MID360 IP JSON; never Bunker default.
+                    Requires devices.yaml navigation_lidar.driver_mode=mapping_custom.
+  --yhs-nav-config-dir PATH
+                    Required for YHS: reviewed YHS-only robot footprint, Nav2
+                    parameters and safety limits; never Bunker defaults.
   --map-registry PATH
                     Validated map registry (default: <workspace>/maps/registry.yaml).
   --map-root PATH   Legacy map package selection; must be in the V4 registry.
@@ -65,6 +89,9 @@ Options:
   --rear-pointcloud-mask
                     Trial mask for the rear-mounted pole: base_link bearing
                     180 +/- 35 deg, planar range 0.5-1.0 m. Obstacle marking only.
+  --no-local-obstacle-avoidance
+                    Trial mode: local costmap uses the static map and inflation,
+                    without live LiDAR obstacle marking or clearing.
   -h, --help        Show this help.
 
 The script starts the staged runtime in dependency order.
@@ -83,8 +110,20 @@ while [[ $# -gt 0 ]]; do
       LIO_BACKEND=${2:?--lio-backend requires batch_lio or fastlio2}
       shift 2
       ;;
+    --localization-mode)
+      LOCALIZATION_MODE=${2:?--localization-mode requires auto, auto_then_manual or manual}
+      shift 2
+      ;;
     --lio-config)
       LIO_CONFIG=${2:?--lio-config requires a path}
+      shift 2
+      ;;
+    --yhs-livox-config)
+      YHS_LIVOX_CONFIG=${2:?--yhs-livox-config requires a verified YHS JSON path}
+      shift 2
+      ;;
+    --yhs-nav-config-dir)
+      YHS_NAV_CONFIG_DIR=${2:?--yhs-nav-config-dir requires a measured YHS Nav2 config directory}
       shift 2
       ;;
     --map-root)
@@ -101,6 +140,11 @@ while [[ $# -gt 0 ]]; do
       ;;
     --robot)
       ROBOT_PROFILE=${2:?--robot requires a profile}
+      ROBOT_PROFILE_EXPLICIT=$ROBOT_PROFILE
+      shift 2
+      ;;
+    --robot-config)
+      ROBOT_CONFIG=${2:?--robot-config requires an id or robot.yaml path}
       shift 2
       ;;
     --map-registry)
@@ -139,6 +183,10 @@ while [[ $# -gt 0 ]]; do
       REAR_POINTCLOUD_MASK=true
       shift
       ;;
+    --no-local-obstacle-avoidance)
+      LOCAL_OBSTACLE_AVOIDANCE=false
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -162,6 +210,15 @@ case "$MODE" in
     printf 'Invalid --mode %s; expected navigation or inspection\n' "$MODE" >&2
     exit 2
     ;;
+esac
+if [[ "$ENABLE_INSPECTION" == true && "$LOCAL_OBSTACLE_AVOIDANCE" == false ]]; then
+  printf '%s\n' '--no-local-obstacle-avoidance is supported only in navigation mode' >&2
+  exit 2
+fi
+
+case "$LOCALIZATION_MODE" in
+  auto|auto_then_manual|manual) ;;
+  *) printf 'Invalid --localization-mode: %s\n' "$LOCALIZATION_MODE" >&2; exit 2 ;;
 esac
 
 case "$LIO_BACKEND" in
@@ -216,6 +273,137 @@ if [[ -n "$MAP_ID_OVERRIDE" && "$MAP_ID_OVERRIDE" != "${MAP_SPEC%%/*}" ]]; then
   printf 'Conflicting --map-id and --map-root\n' >&2
   exit 2
 fi
+# Whole-robot combination (agt_robot_bringup/config/robots). Fails closed: a
+# blocked or conflicting config never falls back to another robot.
+ROBOT_CONFIG_RESOLVER="$WS_ROOT/install/agt_robot_bringup/lib/agt_robot_bringup/robot_config.py"
+if [[ ! -f "$ROBOT_CONFIG_RESOLVER" ]]; then
+  printf 'Missing robot config resolver: %s\n' "$ROBOT_CONFIG_RESOLVER" >&2
+  printf 'Rebuild: colcon build --packages-select agt_robot_bringup --symlink-install\n' >&2
+  exit 2
+fi
+# Device policy (single place):
+#  * The whole-robot YAML decides which devices start.
+#  * --mode inspection REQUIRES the camera: forced on, rejected if not installed.
+#  * --mode navigation with an explicit --robot-config: YAML decides the camera.
+#  * --mode navigation without --robot-config (legacy commands): camera off,
+#    exactly as before the robot config existed.
+#  * --rtk forces RTK on (metadata only); otherwise YAML decides.
+# The same override set is used for the preflight resolution and the launch.
+declare -a HW_OVERRIDES=()
+declare -a HW_LAUNCH_ARGS=()
+if [[ "$ENABLE_INSPECTION" == true ]]; then
+  HW_OVERRIDES+=(--set enable_camera_gimbal=true)
+  HW_LAUNCH_ARGS+=(enable_camera_gimbal:=true)
+  CAMERA_POLICY=inspection_requires_camera
+elif [[ -z "$ROBOT_CONFIG" ]]; then
+  HW_OVERRIDES+=(--set enable_camera_gimbal=false)
+  HW_LAUNCH_ARGS+=(enable_camera_gimbal:=false)
+  CAMERA_POLICY=legacy_navigation_camera_off
+else
+  CAMERA_POLICY=robot_config
+fi
+if [[ "$ENABLE_RTK" == true ]]; then
+  HW_OVERRIDES+=(--set enable_rtk=true)
+  HW_LAUNCH_ARGS+=(enable_rtk:=true)
+fi
+if ! ROBOT_CONFIG_SELECTION=$(python3 "$ROBOT_CONFIG_RESOLVER" resolve \
+    --robot-config "$ROBOT_CONFIG" --robot "$ROBOT_PROFILE_EXPLICIT" "${HW_OVERRIDES[@]}"); then
+  printf 'Robot config rejected; nothing was started. Resolve the error above; stop any running stack before switching robots.\n' >&2
+  exit 2
+fi
+while IFS='=' read -r key value; do
+  case "$key" in
+    robot_config) ROBOT_CONFIG_ID=$value ;;
+    robot_config_dir) ROBOT_CONFIG_DIR=$value ;;
+    enable_camera_gimbal) RESOLVED_CAMERA=$value ;;
+    enable_rtk) RESOLVED_RTK=$value ;;
+    robot_profile) ROBOT_PROFILE=$value ;;
+    base_adapter) ROBOT_BASE_ADAPTER=$value ;;
+    mid360_driver_mode) RESOLVED_MID360_DRIVER_MODE=$value ;;
+    reserved_payloads) ROBOT_RESERVED_PAYLOADS=$value ;;
+    payload_interlock) ROBOT_PAYLOAD_INTERLOCK=$value ;;
+  esac
+done <<< "$ROBOT_CONFIG_SELECTION"
+
+# Navigation must use the same independently measured YHS MID360 network
+# configuration as YHS mapping. Never silently inherit the vendor/Bunker JSON.
+# The whole-robot resolver above still blocks YHS until geometry, gear and
+# other field checks are complete; this flag is NOT an unblock override.
+if [[ "$ROBOT_CONFIG_ID" == yhs_harvesting ]]; then
+  if [[ -z "$YHS_LIVOX_CONFIG" ]]; then
+    printf 'YHS navigation requires --yhs-livox-config with the verified YHS MID360 IP JSON\n' >&2
+    exit 2
+  fi
+  if [[ "${RESOLVED_MID360_DRIVER_MODE:-}" != mapping_custom ]]; then
+    printf 'YHS devices.yaml must select navigation_lidar.driver_mode=mapping_custom; refusing vendor/Bunker default\n' >&2
+    exit 2
+  fi
+  if [[ ! -f "$YHS_LIVOX_CONFIG" ]]; then
+    printf 'YHS MID360 JSON missing: %s\n' "$YHS_LIVOX_CONFIG" >&2
+    exit 2
+  fi
+  YHS_LIVOX_CONFIG=$(realpath -- "$YHS_LIVOX_CONFIG")
+  if ! python3 - "$YHS_LIVOX_CONFIG" <<'PY_YHS_LIVOX'
+import ipaddress
+import json
+import sys
+with open(sys.argv[1], encoding='utf-8') as stream:
+    config = json.load(stream)
+net = config['MID360']['host_net_info']
+keys = ('cmd_data_ip', 'push_msg_ip', 'point_data_ip', 'imu_data_ip')
+hosts = {str(ipaddress.IPv4Address(net[key])) for key in keys}
+if len(hosts) != 1:
+    raise ValueError('YHS MID360 JSON host IPs differ across streams')
+lidars = config['lidar_configs']
+if not isinstance(lidars, list) or len(lidars) != 1:
+    raise ValueError('YHS MID360 JSON requires exactly one LiDAR IP')
+lidar = str(ipaddress.IPv4Address(lidars[0]['ip']))
+if lidar in hosts:
+    raise ValueError('YHS MID360 JSON must use different host and LiDAR IPs')
+PY_YHS_LIVOX
+  then
+    printf 'Invalid YHS MID360 JSON; regenerate with measured host/lidar IPs\n' >&2
+    exit 2
+  fi
+  if [[ -z "$YHS_NAV_CONFIG_DIR" || ! -d "$YHS_NAV_CONFIG_DIR" ]]; then
+    printf 'YHS navigation requires --yhs-nav-config-dir with measured and reviewed Nav2 YAML\n' >&2
+    exit 2
+  fi
+  YHS_NAV_CONFIG_DIR=$(realpath -- "$YHS_NAV_CONFIG_DIR")
+  if [[ "$YHS_NAV_CONFIG_DIR" == "$WS_ROOT/install/agt_system_bringup/share/agt_system_bringup/config" ||
+        "$YHS_NAV_CONFIG_DIR" == "$WS_ROOT/src/agt_navigation_v3/config" ]]; then
+    printf 'YHS Nav2 config must be dedicated; refusing canonical Bunker directory\n' >&2
+    exit 2
+  fi
+  if ! python3 - "$YHS_NAV_CONFIG_DIR" <<'PY_YHS_NAV'
+import pathlib
+import sys
+import yaml
+root = pathlib.Path(sys.argv[1])
+marker = yaml.safe_load((root / 'field_profile.yaml').read_text(encoding='utf-8'))
+if (not isinstance(marker, dict) or marker.get('robot_profile') != 'yhs_v1' or
+        marker.get('field_verified') is not True or not marker.get('verified_by')):
+    raise ValueError('YHS field_profile.yaml must attest reviewed YHS measurements')
+required = ('robot.yaml', 'navigation.yaml', 'controller.yaml', 'costmap.yaml',
+            'perception.yaml', 'safety.yaml')
+missing = [name for name in required if not (root / name).is_file()]
+if missing:
+    raise ValueError(f'YHS Nav2 config missing: {missing}')
+PY_YHS_NAV
+  then
+    printf 'Invalid YHS Nav2 config directory; no hardware was started\n' >&2
+    exit 2
+  fi
+  if [[ "$MAP_SPEC" != */* ]]; then
+    printf 'YHS navigation requires explicit --map map_id/version; refusing auto, active or Bunker default\n' >&2
+    exit 2
+  fi
+  HW_LAUNCH_ARGS+=("mapping_livox_config:=$YHS_LIVOX_CONFIG")
+elif [[ -n "$YHS_LIVOX_CONFIG" || -n "$YHS_NAV_CONFIG_DIR" ]]; then
+  printf '%s\n' 'YHS-specific network/Nav2 flags are only valid for robot_config yhs_harvesting' >&2
+  exit 2
+fi
+
 MAP_SELECTION=$(ros2 run agt_map_manager resolve_map --map "$MAP_SPEC" --robot "$ROBOT_PROFILE" --registry "$MAP_REGISTRY") || exit 2
 while IFS='=' read -r key value; do
   case "$key" in
@@ -236,28 +424,55 @@ done
 
 if [[ "$DRY_RUN" == true ]]; then
   printf 'mode=%s\n' "$MODE"
+  printf 'localization_mode=%s\n' "$LOCALIZATION_MODE"
   printf 'lio_backend=%s\n' "$LIO_BACKEND"
   printf 'lio_config=%s\n' "$LIO_CONFIG"
+  if [[ "$ROBOT_CONFIG_ID" == yhs_harvesting ]]; then
+    printf 'yhs_livox_config=%s\nyhs_nav_config_dir=%s\n' "$YHS_LIVOX_CONFIG" "$YHS_NAV_CONFIG_DIR"
+  fi
   printf 'lio_raw_odometry=%s\n' "$LIO_RAW_ODOM"
+  printf 'initialization_mode=%s\n' "$LOCALIZATION_MODE"
   printf 'rear_pointcloud_mask=%s\n' "$REAR_POINTCLOUD_MASK"
+  printf 'local_obstacle_avoidance=%s\n' "$LOCAL_OBSTACLE_AVOIDANCE"
   if [[ "$REAR_POINTCLOUD_MASK" == true ]]; then
     printf 'rear_pointcloud_mask_sector=center:180deg,width:70deg,range:0.5-1.0m\n'
   fi
   printf 'map_root=%s\n' "$MAP_ROOT"
   printf 'map_registry=%s\n' "$MAP_REGISTRY"
   printf 'map_spec=%s\nrobot_profile=%s\n' "$MAP_SPEC" "$ROBOT_PROFILE"
+  printf 'robot_config=%s\nbase_adapter=%s\nreserved_payloads=%s\n' \
+    "$ROBOT_CONFIG_ID" "$ROBOT_BASE_ADAPTER" "$ROBOT_RESERVED_PAYLOADS"
+  printf '%s\n' "$ROBOT_CONFIG_SELECTION" | sed -n 's/^\(enable_[a-z0-9_]*=\)/hardware_\1/p'
   printf 'map_id=%s\n' "$MAP_ID"
   printf 'map_version=%s\n' "$MAP_VERSION"
   printf 'navigation_map=%s\n' "$NAV_MAP"
   printf 'localization_map=%s\n' "$GLOBAL_MAP"
   printf 'relocalization_assets=%s\n' "$RELOCALIZATION_ASSETS"
-  printf 'camera_gimbal=%s\n' "$ENABLE_INSPECTION"
+  printf 'camera_gimbal=%s\n' "$RESOLVED_CAMERA"
+  printf 'camera_policy=%s\nrtk=%s\nrobot_config_dir=%s\n' "$CAMERA_POLICY" "$RESOLVED_RTK" "$ROBOT_CONFIG_DIR"
+  printf 'hardware_launch_args=%s\n' "${HW_LAUNCH_ARGS[*]}"
   printf 'inspection_runtime=%s\n' "$ENABLE_INSPECTION"
+  printf 'payload_interlock=%s\n' "${ROBOT_PAYLOAD_INTERLOCK:-false}"
   printf 'rviz_config=%s\n' "$RVIZ_CONFIG"
   exit 0
 fi
 
+# After moving the hardware package to agt_robot_platform, an old symlink in
+# install/ can still make the package discoverable while its launch file is gone.
+ROBOT_HARDWARE_LAUNCH="$WS_ROOT/install/agt_robot_bringup/share/agt_robot_bringup/launch/robot_hardware.launch.py"
+if [[ ! -f "$ROBOT_HARDWARE_LAUNCH" ]]; then
+  printf 'Missing robot hardware launch: %s\n' "$ROBOT_HARDWARE_LAUNCH" >&2
+  printf 'Rebuild the moved package: cd %s && source /opt/ros/humble/setup.bash && colcon build --packages-select agt_robot_bringup --symlink-install --cmake-clean-cache\n' "$WS_ROOT" >&2
+  exit 2
+fi
+
 mkdir -p -- "$RUN_DIR"
+# Launch exactly the robot config that passed preflight: snapshot the resolved
+# directory (not the ID, which could resolve elsewhere) into this run's log dir.
+ROBOT_CONFIG_SNAPSHOT="$RUN_DIR/robot_config/$ROBOT_CONFIG_ID"
+mkdir -p -- "$RUN_DIR/robot_config"
+cp -a -- "$ROBOT_CONFIG_DIR" "$ROBOT_CONFIG_SNAPSHOT"
+printf '%s\n' "$ROBOT_CONFIG_SELECTION" > "$RUN_DIR/robot_config/resolved.txt"
 declare -a CHILD_PIDS=()
 declare -a CHILD_LABELS=()
 
@@ -285,13 +500,23 @@ wait_for_topic() {
   local label=$1
   local topic=$2
   local timeout_sec=$3
+  local owner=${4:-}
   local deadline=$((SECONDS + timeout_sec))
+  local i
   printf '[WAIT]  %-12s topic=%s\n' "$label" "$topic"
   while (( SECONDS < deadline )); do
     if timeout 3 ros2 topic echo "$topic" --once >/dev/null 2>&1; then
       printf '[PASS]  %-12s topic=%s\n' "$label" "$topic"
       return 0
     fi
+    for ((i=0; i<${#CHILD_LABELS[@]}; i++)); do
+      if [[ "${CHILD_LABELS[$i]}" == "$owner" ]] \
+          && ! kill -0 -- "-${CHILD_PIDS[$i]}" 2>/dev/null; then
+        printf '[FAIL]  %-12s %s launch exited before %s became ready\n' \
+          "$label" "$owner" "$topic" >&2
+        return 1
+      fi
+    done
     sleep 1
   done
   printf '[FAIL]  %-12s no message on %s within %ss\n' \
@@ -368,7 +593,8 @@ wait_for_localized() {
       printf '[PASS]  localization state=LOCALIZED\n'
       return 0
     fi
-    if grep -Eq '^reason: global_relocalization_(failed|rejected):' <<<"$output"; then
+    # ros2 topic echo YAML-quotes reasons containing ': ', as backend errors do.
+    if grep -Eq "^reason: ['\"]?global_relocalization_(failed|rejected):" <<<"$output"; then
       printf '%s\n' "$output" >&2
       printf '[FAIL]  global relocalization reached a terminal failure\n' >&2
       return 1
@@ -445,6 +671,8 @@ ensure_localization_ready() {
   return 1
 }
 
+source "$SCRIPT_DIR/localization_initialization.sh"
+
 stop_process_group() {
   local label=$1
   local pid=$2
@@ -506,7 +734,9 @@ cp -- "$LIO_CONFIG" "$RUN_DIR/lio_config_input.yaml"
 {
   printf 'mode=%s\nlio_backend=%s\nlio_config_source=%s\n' "$MODE" "$LIO_BACKEND" "$LIO_CONFIG"
   printf 'lio_raw_odometry=%s\n' "$LIO_RAW_ODOM"
+  printf 'initialization_mode=%s\n' "$LOCALIZATION_MODE"
   printf 'rear_pointcloud_mask=%s\n' "$REAR_POINTCLOUD_MASK"
+  printf 'local_obstacle_avoidance=%s\n' "$LOCAL_OBSTACLE_AVOIDANCE"
   if [[ "$REAR_POINTCLOUD_MASK" == true ]]; then
     printf 'rear_pointcloud_mask_sector=center:180deg,width:70deg,range:0.5-1.0m\n'
   fi
@@ -519,28 +749,32 @@ declare -a LIO_LAUNCH_ARGS=(
 
 start_child hardware \
   ros2 launch agt_system_bringup hardware.launch.py \
-  robot:="$ROBOT_PROFILE" \
-  bunker_can_port:=can0 enable_rtk:="$ENABLE_RTK" \
-  enable_camera_gimbal:="$ENABLE_INSPECTION"
-wait_for_topic MID360 /livox/lidar 45 || { tail_failure hardware; exit 1; }
-wait_for_topic MID360-IMU /livox/imu 30 || { tail_failure hardware; exit 1; }
-wait_for_topic Bunker /wheel/odom 30 || { tail_failure hardware; exit 1; }
+  robot_config:="$ROBOT_CONFIG_SNAPSHOT" robot:="$ROBOT_PROFILE" \
+  "${HW_LAUNCH_ARGS[@]}"
+wait_for_topic MID360 /livox/lidar 45 hardware || { tail_failure hardware; exit 1; }
+wait_for_topic MID360-IMU /livox/imu 30 hardware || { tail_failure hardware; exit 1; }
+# Wheel odometry is recorded for diagnostics; LIO is the navigation authority.
 
 start_child localization \
   ros2 launch agt_system_bringup localization.launch.py \
   global_map:="$GLOBAL_MAP" \
   map_id:="$MAP_ID" map_version:="$MAP_VERSION" \
   relocalization_assets:="$RELOCALIZATION_ASSETS" \
-  auto_relocalize:=false \
+  query_capture_dir:="$RUN_DIR/relocalization_queries" \
+  auto_relocalize:=false localization_mode:="$LOCALIZATION_MODE" \
   "${LIO_LAUNCH_ARGS[@]}"
 wait_for_service /agt/localization/relocalize 45 || { tail_failure localization; exit 1; }
 wait_for_adapter 60 || { tail_failure localization; exit 1; }
-if ! relocalize_until_ready relocalize; then
+if ! initialize_localization; then
   tail_failure localization
   exit 1
 fi
 
 declare -a NAV_OBS_ARGS=()
+NAV_OBS_ARGS+=("local_obstacle_avoidance:=$LOCAL_OBSTACLE_AVOIDANCE")
+if [[ "$ROBOT_CONFIG_ID" == yhs_harvesting ]]; then
+  NAV_OBS_ARGS+=("nav_config_dir:=$YHS_NAV_CONFIG_DIR")
+fi
 if [[ -n "$OBSTACLE_STATS" ]]; then
   NAV_OBS_ARGS+=("obstacle_statistics_output:=$OBSTACLE_STATS")
 fi
@@ -559,7 +793,6 @@ if [[ "$REAR_POINTCLOUD_MASK" == true ]]; then
     "obstacle_rear_filter_max_range_m:=1.0"
   )
 fi
-
 navigation_ready=false
 NAV_PACKAGE=agt_system_bringup
 NAV_LAUNCH=navigation.launch.py
@@ -573,6 +806,7 @@ for attempt in 1 2; do
   start_child navigation \
     ros2 launch "$NAV_PACKAGE" "$NAV_LAUNCH" \
     map:="$MAP_SPEC" robot:="$ROBOT_PROFILE" map_registry:="$MAP_REGISTRY" \
+    robot_config:="$ROBOT_CONFIG_SNAPSHOT" payload_interlock:="${ROBOT_PAYLOAD_INTERLOCK:-auto}" \
     ${MISSION_ARGS[@]+"${MISSION_ARGS[@]}"} \
     ${NAV_OBS_ARGS[@]+"${NAV_OBS_ARGS[@]}"}
   if wait_for_service /navigate_to_pose/_action/send_goal 60; then
@@ -622,8 +856,11 @@ ros2 run agt_navigation_supervisor wait_navigation_ready --timeout 45 --samples 
   | tee "$RUN_DIR/navigation_health_gate.txt"
 
 printf '\n[READY] Hardware, localization and Nav2 passed preflight.\n'
-printf '[READY] Mode: %s\n' "$MODE"
+printf '[READY] Mode: %s; initialization: %s\n' "$MODE" "$LOCALIZATION_MODE"
 printf '[READY] LIO backend: %s (raw odometry: %s)\n' "$LIO_BACKEND" "$LIO_RAW_ODOM"
+if [[ "$LOCAL_OBSTACLE_AVOIDANCE" == false ]]; then
+  printf '[READY] Local costmap: static map + inflation; live LiDAR obstacles OFF\n'
+fi
 if [[ "$REAR_POINTCLOUD_MASK" == true ]]; then
   printf '[READY] Rear pole mask: ON (180 +/- 35 deg, 0.5-1.0 m; obstacle marking only)\n'
 else

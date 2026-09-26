@@ -46,14 +46,15 @@ fi
 
 # A resolvable reverse path is normal TF inversion, not a graph cycle. tf2
 # rejects multiple parents internally; owner uniqueness is checked separately.
-if ros2 node list 2>/dev/null | awk '$0 == "/agt_localization_manager" {n++} END {exit n == 1 ? 0 : 1}'; then
+nodes=$(ros2 node list --no-daemon --spin-time 2 2>/dev/null) || nodes=""
+if printf '%s\n' "$nodes" | awk '$0 == "/agt_localization_manager" {n++} END {exit n == 1 ? 0 : 1}'; then
   printf 'PASS map->odom owner /agt_localization_manager count=1\n'
 else
   printf 'FAIL map->odom owner count is not 1\n' >&2
   failed=1
 fi
 
-if ros2 node list 2>/dev/null | awk '$0 == "/robot_state_publisher" {n++} END {exit n == 1 ? 0 : 1}'; then
+if printf '%s\n' "$nodes" | awk '$0 == "/robot_state_publisher" {n++} END {exit n == 1 ? 0 : 1}'; then
   printf 'PASS static chassis TF owner /robot_state_publisher count=1\n'
 else
   printf 'FAIL robot_state_publisher count is not 1\n' >&2

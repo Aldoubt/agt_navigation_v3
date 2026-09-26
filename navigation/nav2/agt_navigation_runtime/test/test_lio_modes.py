@@ -92,11 +92,13 @@ def test_only_selected_lio_launch_is_constructed(tmp_path, monkeypatch, backend,
     context = LaunchContext()
     context.launch_configurations.update({
         'global_map': str(global_map), 'relocalization_assets': str(tmp_path),
-        'lio_backend': backend, 'use_sim_time': 'true',
+        'map_id': 'synthetic', 'map_version': 'v1',
+        'lio_backend': backend, 'use_sim_time': 'true', 'localization_mode': 'auto',
         'batch_config': str(RUNTIME / 'config/batch_lio_mid360.yaml'),
         'fastlio_config': str(RUNTIME / 'config/fastlio2_mid360_navigation.yaml'),
         'lidar_topic': '/livox/lidar', 'imu_topic': '/livox/imu',
         'auto_relocalize': 'false', 'enable_map_tracking': 'false',
+        'query_capture_dir': '',
     })
     actions = module._localization_nodes(context)
     frontends = [x for x in actions if x[0] == 'agt_navigation_runtime']
@@ -162,24 +164,29 @@ def test_fastlio_launch_converts_resolved_clock_argument_to_bool(tmp_path, monke
 
 
 @pytest.mark.parametrize('mode', ['navigation', 'inspection'])
-@pytest.mark.parametrize('backend', ['batch_lio', 'fastlio2'])
-def test_field_dry_run_selects_backend_without_creating_run_or_starting_nodes(tmp_path, mode, backend):
+@pytest.mark.parametrize('backend', [None, 'batch_lio', 'fastlio2'])
+def test_field_dry_run_selects_backend_without_creating_run_or_starting_nodes(tmp_path, monkeypatch, mode, backend):
     ws = ROOT.parent.parent
     if not (ws / 'install/setup.bash').is_file() or not Path('/opt/ros/humble/setup.bash').is_file():
         pytest.skip('requires an existing sourced Humble workspace for the shell dry run')
-    for name in ['localization/relocalization', 'navigation']:
-        (tmp_path / name).mkdir(parents=True, exist_ok=True)
-    (tmp_path / 'localization/global_map.pcd').write_text('')
-    (tmp_path / 'navigation/map.yaml').write_text('{}')
-    config = RUNTIME / 'config' / ('batch_lio_mid360.yaml' if backend == 'batch_lio'
+    # Reuse the map-manager's synthetic validated registry, never production maps.
+    monkeypatch.syspath_prepend(str(ROOT / 'map_data_manager/agt_map_manager/test'))
+    from test_map_catalog import _registered_map
+    package, registry = _registered_map(tmp_path)
+    effective_backend = backend or 'fastlio2'
+    config = RUNTIME / 'config' / ('batch_lio_mid360.yaml' if effective_backend == 'batch_lio'
                                   else 'fastlio2_mid360_navigation.yaml')
+    backend_args = ['--lio-backend', backend] if backend else []
     env = dict(os.environ, AGT_FIELD_LOG_DIR=str(tmp_path / 'must_not_exist'))
     result = subprocess.run(['bash', str(ROOT / 'scripts/run_field_stack.sh'), '--mode', mode,
-                             '--lio-backend', backend, '--lio-config', str(config),
-                             '--map-root', str(tmp_path), '--dry-run'], env=env,
+                             '--lio-config', str(config), '--map-registry', str(registry),
+                             '--dry-run'] + backend_args, env=env,
                             text=True, capture_output=True, timeout=15)
     assert result.returncode == 0, result.stdout + result.stderr
-    assert f'lio_backend={backend}' in result.stdout
+    assert f'lio_backend={effective_backend}' in result.stdout
+    assert f'map_root={package}' in result.stdout
+    expected_raw = '/fastlio2/lio_odom' if effective_backend == 'fastlio2' else '/aft_mapped_to_init'
+    assert f'lio_raw_odometry={expected_raw}' in result.stdout
     assert f'inspection_runtime={str(mode == "inspection").lower()}' in result.stdout
     assert '[START]' not in result.stdout
     assert not (tmp_path / 'must_not_exist').exists()
@@ -198,7 +205,68 @@ def test_runtime_check_rejects_simultaneous_backends(tmp_path):
     assert 'unselected backend' in result.stderr
 
 
+def test_runtime_check_uses_live_graph_when_daemon_cache_is_empty(tmp_path):
+    fake = tmp_path / 'ros2'
+    fake.write_text(
+        '#!/bin/sh\n'
+        'case " $* " in\n'
+        '  *" --no-daemon "*) printf "%s\\n" /agt_localization_manager '
+        '/robot_state_publisher /agt_pointcloud_preprocessor '
+        '/agt_fastlio_adapter /fastlio2/lio_node ;;\n'
+        'esac\n'
+    )
+    fake.chmod(0o755)
+    env = dict(os.environ, PATH=str(tmp_path) + ':' + os.environ.get('PATH', ''))
+    result = subprocess.run(
+        ['bash', str(ROOT / 'scripts/check_runtime.sh'), '--lio-backend', 'fastlio2'],
+        env=env, text=True, capture_output=True, timeout=10)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert 'PASS runtime owner uniqueness' in result.stdout
+
+
+def test_runtime_check_waits_for_partial_discovery(tmp_path):
+    fake = tmp_path / 'ros2'
+    calls = tmp_path / 'calls'
+    fake.write_text(
+        '#!/bin/sh\n'
+        'count=$(cat "$AGT_TEST_CALLS" 2>/dev/null || printf 0)\n'
+        'count=$((count + 1))\n'
+        'printf "%s\\n" "$count" > "$AGT_TEST_CALLS"\n'
+        'printf "%s\\n" /agt_pointcloud_preprocessor /fastlio2/lio_node\n'
+        'if [ "$count" -gt 1 ]; then\n'
+        '  printf "%s\\n" /agt_localization_manager /robot_state_publisher /agt_fastlio_adapter\n'
+        'fi\n'
+    )
+    fake.chmod(0o755)
+    env = dict(os.environ, PATH=str(tmp_path) + ':' + os.environ.get('PATH', ''),
+               AGT_TEST_CALLS=str(calls))
+    result = subprocess.run(
+        ['bash', str(ROOT / 'scripts/check_runtime.sh'), '--lio-backend', 'fastlio2'],
+        env=env, text=True, capture_output=True, timeout=10)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert int(calls.read_text()) == 3
+    assert 'PASS runtime owner uniqueness' in result.stdout
+
+
 def test_existing_stack_is_rejected_before_overwriting_its_lio_snapshot():
     source = (ROOT / 'scripts/run_field_stack.sh').read_text()
     assert source.index('Refusing to create duplicate owner') < source.index('cp -- "$LIO_CONFIG"')
     assert source.index('cp -- "$LIO_CONFIG"') < source.index('start_child hardware')
+
+
+def test_top_level_localization_defaults_to_fastlio2():
+    from launch import LaunchContext
+    from launch.actions import DeclareLaunchArgument
+    module = load_localization_launch()
+    declarations = module.generate_launch_description().entities
+    backend = next(action for action in declarations
+                   if isinstance(action, DeclareLaunchArgument) and action.name == 'lio_backend')
+    context = LaunchContext()
+    assert ''.join(context.perform_substitution(item) for item in backend.default_value) == 'fastlio2'
+
+
+def test_default_map_selection_remains_registry_based():
+    source = (ROOT / 'scripts/run_field_stack.sh').read_text()
+    assert 'MAP_SPEC=auto' in source
+    assert 'MAP_REGISTRY=${AGT_MAP_REGISTRY:-"$WS_ROOT/maps/registry.yaml"}' in source
+    assert 'LIO_BACKEND=fastlio2' in source

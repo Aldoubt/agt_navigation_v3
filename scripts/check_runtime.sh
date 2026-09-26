@@ -29,11 +29,63 @@ elif [[ "$LIO_BACKEND" == fastlio2 ]]; then
   FORBIDDEN_NODES+=(/agt_batch_lio_adapter /laserMapping /batch_lio)
 fi
 
-mapfile -t NODES < <(ros2 node list 2>/dev/null | sed '/^[[:space:]]*$/d')
+# Query DDS directly. Discovery may return a partial graph for several seconds
+# while Nav2 and RViz start. Require two consecutive complete snapshots before
+# judging ownership, so one transient snapshot cannot shut down a healthy stack.
+NODES=()
+query_error=""
+stable=0
+node_count() {
+  local expected=$1 count=0 node
+  for node in "${NODES[@]}"; do
+    [[ "$node" == "$expected" ]] && count=$((count + 1))
+  done
+  printf '%s\n' "$count"
+}
+
+printf '[WAIT]  runtime owners in ROS graph\n'
+for attempt in 1 2 3 4 5; do
+  if graph=$(ros2 node list --no-daemon --spin-time 2 2>&1); then
+    mapfile -t NODES < <(printf '%s\n' "$graph" | sed '/^[[:space:]]*$/d')
+    query_error=""
+  else
+    NODES=()
+    query_error=$graph
+  fi
+
+  complete=true
+  for expected in "${EXPECTED_NODES[@]}"; do
+    [[ $(node_count "$expected") == 1 ]] || complete=false
+  done
+  forbidden_seen=false
+  for retired in "${FORBIDDEN_NODES[@]}"; do
+    if [[ $(node_count "$retired") != 0 ]]; then
+      forbidden_seen=true
+      complete=false
+    fi
+  done
+  # A seen duplicate owner is a real safety violation; retry only missing owners.
+  [[ "$forbidden_seen" == true ]] && break
+  if [[ "$complete" == true && ${#NODES[@]} -gt 0 ]]; then
+    stable=$((stable + 1))
+    (( stable >= 2 )) && break
+  else
+    stable=0
+  fi
+  (( attempt < 5 )) && sleep 1
+done
+if [[ ${#NODES[@]} -eq 0 ]]; then
+  printf 'FAIL ROS graph query: %s\n' "${query_error:-node list returned an empty graph}" >&2
+  exit 1
+fi
 failed=0
+if (( stable < 2 )); then
+  printf 'FAIL runtime owners were not observed in two consecutive ROS graph snapshots\n' >&2
+  failed=1
+fi
 
 for expected in "${EXPECTED_NODES[@]}"; do
-  count=$(printf '%s\n' "${NODES[@]}" | awk -v name="$expected" '$0 == name {count++} END {print count+0}')
+  count=$(node_count "$expected")
   if [[ "$count" -eq 1 ]]; then
     printf 'PASS node %-34s count=1\n' "$expected"
   else
@@ -43,7 +95,7 @@ for expected in "${EXPECTED_NODES[@]}"; do
 done
 
 for retired in "${FORBIDDEN_NODES[@]}"; do
-  count=$(printf '%s\n' "${NODES[@]}" | awk -v name="$retired" '$0 == name {count++} END {print count+0}')
+  count=$(node_count "$retired")
   if [[ "$count" -ne 0 ]]; then
     printf 'FAIL retired or unselected backend node still running: %s count=%s\n' "$retired" "$count" >&2
     failed=1

@@ -10,7 +10,10 @@ def test_field_script_preserves_navigation_and_inspection_modes():
     assert 'MODE=navigation' in text
     assert 'navigation)\n    ENABLE_INSPECTION=false' in text
     assert 'inspection)\n    ENABLE_INSPECTION=true' in text
-    assert 'enable_camera_gimbal:="$ENABLE_INSPECTION"' in text
+    # R3: the camera default comes from the whole-robot config; inspection
+    # forces it on and legacy navigation (no robot_config) forces it off.
+    assert 'if [[ "$ENABLE_INSPECTION" == true ]]; then\n  HW_OVERRIDES+=(--set enable_camera_gimbal=true)\n  HW_LAUNCH_ARGS+=(enable_camera_gimbal:=true)' in text
+    assert 'HW_LAUNCH_ARGS+=(enable_camera_gimbal:=false)' in text
     assert 'NAV_LAUNCH=navigation.launch.py' in text
     assert 'NAV_PACKAGE=agt_mission_bringup' in text
     assert 'NAV_LAUNCH=mission.launch.py' in text
@@ -31,7 +34,14 @@ def test_field_script_retries_transient_global_relocalization_once():
     text=(ROOT/'scripts/run_field_stack.sh').read_text()
     assert 'for attempt in 1 2' in text
     assert '${log_prefix}_service_${attempt}.txt' in text
-    assert 'relocalize_until_ready relocalize' in text
+    helper=(ROOT/'scripts/localization_initialization.sh').read_text()
+    assert 'relocalize_until_ready relocalize' in helper
+    assert 'if ! initialize_localization; then' in text
+
+
+def test_field_startup_does_not_gate_on_wheel_odometry():
+    source = (ROOT / 'scripts/run_field_stack.sh').read_text()
+    assert 'wait_for_topic Bunker /wheel/odom' not in source
 
 
 def test_field_script_revalidates_localization_after_nav2_startup():
@@ -51,7 +61,7 @@ def test_field_script_revalidates_localization_after_nav2_startup():
 def test_post_startup_check_preserves_an_accepted_global_correction():
     text=(ROOT/'scripts/run_field_stack.sh').read_text()
     start=text.index('ensure_localization_ready()')
-    end=text.index('\n}\n\nstop_process_group()', start) + 2
+    end=text.index('\n}\n', start) + 2
     function=text[start:end]
     assert 'wait_for_localization_settle 15' in function
     assert "grep -Eq '^global_correction_valid: true$'" in function

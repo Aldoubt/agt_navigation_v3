@@ -78,6 +78,8 @@ TOPICS=(
   /agt/localization/status
   /agt/localization/metrics
   /agt/global_relocalization/status
+  /navigation/health
+  /navigation/goal_active
   /diagnostics
   /agt/navigation/points_obstacles
   /agt/debug/points_obstacles_base
@@ -100,6 +102,8 @@ TOPICS=(
   /follow_path/_action/feedback
   /follow_path/_action/status
   /follow_path/_action/result
+  /navigation/follow_route/_action/status
+  /navigation/follow_route/_action/result
 )
 if [[ "${ACCEPTANCE_RECORD_RAW:-$RECORD_RAW_DEFAULT}" == "1" ]]; then
   TOPICS+=(/livox/lidar /livox/imu)
