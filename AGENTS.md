@@ -32,7 +32,7 @@ Canonical physical constants are also stored in `config/field_hardware.env`.
 ## Architecture invariants — do not casually break these
 
 1. `agt_localization_manager` is the only owner of `map -> odom`.
-2. Navigation local odometry has mutually exclusive backends: default `Functionhx/Batch-LIO -> agt_batch_lio_adapter`, or second mode `fastlio2 -> agt_fastlio_adapter`; both publish `/agt/odometry/local` and navigation TF. Select with `--lio-backend batch_lio|fastlio2`, never run both. The selected frontend runtime YAML is its internal calibration authority; do not copy signs between configurations.
+2. Navigation local odometry has mutually exclusive backends: default `fastlio2 -> agt_fastlio_adapter`, or explicit opt-in `Functionhx/Batch-LIO -> agt_batch_lio_adapter`; both publish `/agt/odometry/local` and navigation TF. Select with `--lio-backend batch_lio|fastlio2`, never run both. The selected frontend runtime YAML is its internal calibration authority; do not copy signs between configurations.
 3. Mapping is `robotics-laboratory/fast-lio2 + PGO`, optional HBA afterward.
 4. Global relocalization is `3D-BBS coarse -> local-submap small_gicp fine`; no `/initialpose` and no RTK seed in V1.
 5. FAST-LIO2/Batch-LIO raw LiDAR path must preserve Livox point timing. Do not put generic voxel/self filters before the LIO front-end.

@@ -1,9 +1,9 @@
 # AGT Navigation V3
 
 AGT Navigation V3 是面向 Bunker 类履带底盘与 Livox MID360 的 ROS 2 Humble
-导航栈：连续 Batch-LIO 局部里程计、3D 全局重定位、单一全局校正 TF，以及 Nav2
-导航。FAST-LIO2、PGO、地图保存和重定位资产生成属于独立的
-`agt-lio-pgo-mapping` producer，不在本仓库启动。
+导航栈：默认 FAST-LIO2 连续局部里程计、3D 全局重定位、单一全局校正 TF，以及 Nav2
+导航。Batch-LIO 保留为显式可选后端。导航只运行选中的局部 LIO 与适配器，
+PGO、建图保存和地图生产流程属于独立的 `agt_mapping_framework`，不随导航启动。
 
 当前里程碑：**v0.3.0 定位合同冻结**。下一阶段为 P3 运行时验收、Nav2 现场验证与
 操作员工作流。
@@ -16,7 +16,8 @@ AGT Navigation V3 是面向 Bunker 类履带底盘与 Livox MID360 的 ROS 2 Hum
 
 ```text
 MID360 / IMU
-  -> Batch-LIO -> agt_batch_lio_adapter -> /agt/odometry/local, odom -> base_footprint
+  -> FAST-LIO2（默认）-> agt_fastlio_adapter -> /agt/odometry/local, odom -> base_footprint
+     或显式 Batch-LIO -> agt_batch_lio_adapter（互斥）
   -> mapping_body 全局重定位 -> /agt/relocalization/pose
   -> agt_localization_manager -> map -> odom
   -> Nav2 -> velocity smoother -> cmd_vel_guard -> 外部 Bunker 驱动
@@ -72,6 +73,14 @@ bash src/agt_navigation_v3/scripts/field_build_smoke.sh
 依赖和 bootstrap 说明见
 [docs/BOOTSTRAP_AND_ROSBAG_GATE.md](docs/BOOTSTRAP_AND_ROSBAG_GATE.md) 与
 [docs/MIGRATION.md](docs/MIGRATION.md)。
+
+### 默认地图与里程计（2026-09-24）
+
+现场脚本和顶层 localization launch 默认 `fastlio2`。默认选图为 `auto`，读取
+`<工作空间>/maps/registry.yaml` 的 `latest_validated`；本机当前是
+`bunker_mid360/20260924-trav-integration-v1`，不读取未发布实验候选或旧 active 指针。
+地图目录、覆盖规则与验证记录见 [默认配置核查](docs/mcp-navigation-defaults-20260924.md)。
+显式回退 Batch-LIO 使用 `--lio-backend batch_lio`，先正常退出旧栈再静止重启和重定位。
 
 ### 无硬件配置检查
 
@@ -253,7 +262,7 @@ ros2 run agt_navigation_runtime demo_preflight --ros-args -p require_camera:=tru
 最关键的启动前检查是：
 
 - 传感器提供 Livox `CustomMsg` 和 `sensor_msgs/Imu`，并已启动真实安装位姿的 URDF/static TF。
-- `Batch-LIO` 输出 `/agt/odometry/local`，形成 `odom -> base_link` 连续局部运动。
+- 默认 FAST-LIO2 经 `agt_fastlio_adapter` 输出 `/agt/odometry/local`；消息位姿为 `odom -> base_link`，适配器发布 `odom -> base_footprint` TF。Batch-LIO 仅显式可选。
 - PointCloud2 bridge 输出 `/agt/livox/points`，只供障碍物、全局重定位和可选 tracker 使用。
 - Map Package 同时提供 Nav2 `map.yaml`、最终 PGO `global_map.pcd` 和 Polar/BBS 资产。
 - 全局定位成功后，只有 `agt_localization_manager` 发布 `map -> odom`。
@@ -262,7 +271,7 @@ ros2 run agt_navigation_runtime demo_preflight --ros-args -p require_camera:=tru
 
 ### 当前能力
 
-- 通过 `agt_batch_lio_adapter` 输出 Batch-LIO 局部里程计。
+- 默认通过 `agt_fastlio_adapter` 输出 FAST-LIO2 局部里程计；可显式选择 Batch-LIO，不能同时启动。
 - 正式 `mapping_body` 全局重定位：Polar Context 候选检索、候选局部 3D-BBS 与
   `small_gicp` 精配准。
 - `LocalizationManager` 全局锚点交接，以及唯一的 `map -> odom` ownership。
@@ -320,3 +329,18 @@ P3 运行时验收进行中。不得依据 build、回放、Gazebo 或单次重�
 [docs/acceptance/PRE_ACCEPTANCE_GATE.md](docs/acceptance/PRE_ACCEPTANCE_GATE.md)
 中的有序 gate：解决地图 REVIEW、补齐运行时 TF/LIO/定位证据、冻结 tracker policy、
 验证 Nav2/guarded motion，并记录物理现场测量结果。
+
+### 初始化定位保底（2026-09-24）
+
+新增 `--localization-mode auto|auto_then_manual|manual`。默认 `auto` 不变；
+`auto_then_manual` 两次自动失败后保持后台等待 RViz 初始位姿，经局部 GICP 和 Manager 校验成功才启动 Nav2。
+不发布虚假定位、不同时运行两个重定位节点。使用步骤和测试边界见
+[人工定位保底说明](docs/mcp-manual-initialization-fallback.md)。
+原四个主阶段入口不变，新增 `initialization_view.launch.py` 仅作人工初始化地图显示辅助。
+
+
+## RViz 绘线工作台（2026-09-24）
+
+已接入原生连续拖画、航点编辑与 Route Workbench 面板。离线必须使用独立 ROS domain；
+`/agt/path_tool/preview` 与 `/start` 已分离，在线需预览校验后确认执行。
+操作、编译、测试证据与实车验收边界见 [实现说明](docs/mcp-rviz-workbench-implementation.md)。

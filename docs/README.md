@@ -1,5 +1,7 @@
 # AGT Navigation V3 Documentation
 
+本轮工作空间改造统一入口：[工作空间改造收敛与部署启动方案](upgrade/WORKSPACE_CONSOLIDATION_PLAN.md)，包含目标、仓库边界、预期目录、部署启动和验收顺序。
+
 This is the single entry point for developers and AI agents reading the
 documentation under `docs/`.
 

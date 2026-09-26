@@ -1,3 +1,8 @@
+> 2026-09-24 更新：原生拖画/航点编辑工作台已实现，请先阅读
+> [RViz 工作台实现与操作说明](mcp-rviz-workbench-implementation.md)。
+> 下文部分旧启动入口/后端描述属于历史流程，不应覆盖当前正式启动文档。
+> 离线预览不启动 Nav2 控制器；手绘执行现要求先 Preview/Validate 再确认 Execute。
+
 # RViz field acceptance — current stage
 
 This is the only acceptance path for the current design stage. HMI integration,

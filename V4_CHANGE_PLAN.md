@@ -1,5 +1,7 @@
 # AGT Navigation Runtime V4 变更计划
 
+> 本轮后续目标已统一到 [工作空间改造收敛与部署启动方案](docs/upgrade/WORKSPACE_CONSOLIDATION_PLAN.md)。本文保留原 V4 基线和阶段记录；新增范围与使用流程以统一方案为入口，验收仍沿用 V4 验收矩阵。
+
 审计日期：2026-09-23。基线分支为 `refactor/navigation-runtime-v4`，HEAD 为
 `e27abeb3fd63280ee8e48a47966e06588f8eebd8`。本文件先记录现状和实施边界；
 本轮开始前已有的 8 项导航工作区修改属于用户现场工作，逐项见

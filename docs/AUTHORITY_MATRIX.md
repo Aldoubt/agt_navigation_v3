@@ -6,6 +6,7 @@ primary authority listed here.
 
 | Question | Primary authority | Supporting documents | Authority note |
 |---|---|---|---|
+| 本轮 V3.1/V4 收敛目标、部署流程和预期目录是什么？ | [upgrade/WORKSPACE_CONSOLIDATION_PLAN.md](upgrade/WORKSPACE_CONSOLIDATION_PLAN.md) | [../导航启动文档.md](../导航启动文档.md), [acceptance/V4_ACCEPTANCE_MATRIX.md](acceptance/V4_ACCEPTANCE_MATRIX.md) | 统一实施目标；区分现有命令、待实现能力和实机验收 |
 | What is the current milestone and what decisions are frozen? | [CODEX_CONTEXT.md](CODEX_CONTEXT.md) | [MAINLINE_POLICY.md](MAINLINE_POLICY.md) | Current context; not a detailed runtime contract |
 | What is the target package and functional topology? | [architecture/TARGET_FUNCTIONAL_ARCHITECTURE.md](architecture/TARGET_FUNCTIONAL_ARCHITECTURE.md) | [architecture/RUNTIME_ARCHITECTURE.md](architecture/RUNTIME_ARCHITECTURE.md) | Target structure is distinct from historical audits |
 | What is the V4 working-tree topology and its remaining integration boundary? | [architecture/NAVIGATION_RUNTIME_V4.md](architecture/NAVIGATION_RUNTIME_V4.md) | [../V4_CHANGE_PLAN.md](../V4_CHANGE_PLAN.md), [../V4_MIGRATION_REPORT.md](../V4_MIGRATION_REPORT.md) | Dated source snapshot; does not override TF or field contracts |
