@@ -1,5 +1,6 @@
 import math
 import json
+from types import SimpleNamespace
 
 import pytest
 from std_msgs.msg import String
@@ -171,6 +172,23 @@ def test_backend_rejection_leaves_relocalizing_for_wait_global():
     assert manager._reason == (
         'global_relocalization_rejected:small_gicp did not converge')
     assert not manager._recovery_pending
+
+
+def test_backend_rejection_remains_visible_after_periodic_state_update():
+    manager = object.__new__(LocalizationManager)
+    manager._state = LocalizationState.WAIT_GLOBAL
+    manager._reason = 'global_relocalization_rejected:small_gicp did not converge'
+    manager._backend_debug_state = 'REJECTED'
+    manager._correction_current = None
+    manager._last_odom_rx_ns = 1
+    manager._recovery = _RecoveryStateMachine(cooldown_sec=5.0)
+    manager._local_age = lambda: 0.0
+    manager.get_parameter = lambda _: SimpleNamespace(value=1.0)
+
+    LocalizationManager._update_state(manager)
+
+    assert manager._state == LocalizationState.WAIT_GLOBAL
+    assert manager._reason == 'global_relocalization_rejected:small_gicp did not converge'
 
 
 def test_backend_collecting_remains_relocalizing_while_pending():

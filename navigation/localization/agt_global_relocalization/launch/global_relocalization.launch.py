@@ -25,6 +25,8 @@ def generate_launch_description():
             'relocalization_executable', default_value='global_relocalization',
             description='global_relocalization or manual_seed_relocalization.'),
         DeclareLaunchArgument('auto_request', default_value='false'),
+        DeclareLaunchArgument('initialization_mode', default_value='auto',
+                              choices=['auto', 'auto_then_manual', 'manual']),
         DeclareLaunchArgument(
             'relocalization_query_frame_mode', default_value='mapping_body',
             description='Formal PGO map mode mapping_body; deprecated compatibility base_link or body_aligned alias.'),
@@ -41,6 +43,8 @@ def generate_launch_description():
             'follow_map_manager', default_value='true',
             description='Follow /agt/map/status for active PCD and BBS assets.'),
         DeclareLaunchArgument('sdk_timeout_sec', default_value='18.0'),
+        DeclareLaunchArgument('query_capture_dir', default_value='',
+                              description='Optional directory for replayable relocalization queries.'),
         DeclareLaunchArgument(
             'gicp_constraint_mode', default_value='full_se3',
             description='Manual-seed experiment: full_se3, gravity_constrained, or gravity_prior.'),
@@ -64,6 +68,7 @@ def generate_launch_description():
                 cfg,
                 {
                     'global_map': LaunchConfiguration('global_map'),
+                    'initialization_mode': LaunchConfiguration('initialization_mode'),
                     'batch_lio_config_file': LaunchConfiguration('batch_lio_config_file'),
                     'body_to_base_calibration_file': LaunchConfiguration(
                         'body_to_base_calibration_file'),
@@ -72,6 +77,7 @@ def generate_launch_description():
                         LaunchConfiguration('follow_map_manager'), value_type=bool),
                     'sdk_timeout_sec': ParameterValue(
                         LaunchConfiguration('sdk_timeout_sec'), value_type=float),
+                    'query_capture_dir': LaunchConfiguration('query_capture_dir'),
                     'backend_local_map_radius_xy': ParameterValue(
                         LaunchConfiguration('local_map_radius_xy'), value_type=float),
                     'backend_local_map_half_height': ParameterValue(

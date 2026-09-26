@@ -4,9 +4,11 @@ import json
 import math
 import os
 import shlex
+import shutil
 import statistics
 import subprocess
 import tempfile
+import time
 from collections import deque
 from pathlib import Path
 
@@ -65,6 +67,7 @@ class GlobalRelocalization(Node):
         p('backend_local_map_half_height', 8.0)
         p('backend_min_local_map_points', 800)
         p('work_dir', '~/.ros/agt_global_relocalization')
+        p('query_capture_dir', '')
         p('sdk_timeout_sec', 10.0)
         p('accumulate_clouds', 5)
         p('min_points', 2000)
@@ -74,10 +77,8 @@ class GlobalRelocalization(Node):
         p('query_voxel_leaf_m', 0.25)
         p('require_stationary', True)
         p('local_odom_topic', '/agt/odometry/local')
-        # A tracked chassis can be physically stopped while LiDAR odometry
-        # reports vibration-driven XYZ velocity.  Keep the legacy local-odom
-        # parameter as a fallback, but allow the measured wheel odometry to be
-        # the production stationary authority.
+        # Navigation uses LiDAR odometry for the stationary gate. An empty
+        # override resolves to local_odom_topic; wheel data is diagnostic only.
         p('stationary_odom_topic', '')
         p('odom_freshness_sec', 0.50)
         p('stationary_linear_threshold_mps', 0.05)
@@ -734,6 +735,29 @@ class GlobalRelocalization(Node):
                 base_from_body_qz=base_from_body['qz'],
                 base_from_body_qw=base_from_body['qw'],
             )
+            capture_stem = None
+            capture_dir = str(self.get_parameter('query_capture_dir').value).strip()
+            if capture_dir:
+                try:
+                    root = Path(capture_dir).expanduser()
+                    root.mkdir(parents=True, exist_ok=True)
+                    capture_stem = root / f'query_{time.time_ns()}'
+                    saved_scan = capture_stem.with_suffix('.pcd')
+                    shutil.copyfile(scan_pcd, saved_scan)
+                    replay_command = [str(saved_scan) if part == str(scan_pcd) else part
+                                      for part in shlex.split(cmd)]
+                    capture_stem.with_suffix('.json').write_text(json.dumps({
+                        'map': global_map,
+                        'assets_dir': assets_dir,
+                        'query_frame': query_frame,
+                        'bbs_query_frame_mode': bbs_mode,
+                        'point_count': len(rows),
+                        'replay_command': replay_command,
+                    }, indent=2) + '\n', encoding='utf-8')
+                    self.get_logger().info(f'Saved relocalization query: {saved_scan}')
+                except OSError as exc:
+                    self.get_logger().warn(f'Could not save relocalization query: {exc}')
+                    capture_stem = None
             self.status(
                 'BBS_SEARCHING',
                 'calling 3D relocalization backend',
@@ -751,6 +775,15 @@ class GlobalRelocalization(Node):
                 map_generation=generation,
             )
             proc = subprocess.run(shlex.split(cmd), capture_output=True, text=True, timeout=timeout, check=False)
+            if capture_stem is not None:
+                try:
+                    capture_stem.with_suffix('.backend.json').write_text(json.dumps({
+                        'returncode': proc.returncode,
+                        'stdout': proc.stdout,
+                        'stderr': proc.stderr,
+                    }, indent=2) + '\n', encoding='utf-8')
+                except OSError as exc:
+                    self.get_logger().warn(f'Could not save relocalization backend result: {exc}')
             if proc.returncode != 0:
                 detail = proc.stderr.strip() or proc.stdout.strip() or 'no backend diagnostics'
                 raise RuntimeError(f'backend returned {proc.returncode}: {detail}')

@@ -21,5 +21,6 @@ setup(
     entry_points={'console_scripts': [
         'global_relocalization = agt_global_relocalization.global_relocalization:main',
         'manual_seed_relocalization = agt_global_relocalization.manual_seed_relocalization:main',
+        'initialization_relocalization = agt_global_relocalization.initialization_relocalization:main',
     ]},
 )

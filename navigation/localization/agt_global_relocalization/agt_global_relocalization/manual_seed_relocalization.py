@@ -176,6 +176,9 @@ class ManualSeedRelocalization(GlobalRelocalization):
                 ManualSeedRelocalization._rpy_from_xyzw(dx, dy, dz, dw),
         }
 
+    def validate_refined_seed(self, initial, refined, fitness, overlap):
+        """Initialization wrapper may add finite-value and seed-distance gates."""
+
     def run_seeded_once(self, seed: PoseWithCovarianceStamped) -> None:
         rows = self.merged_points()
         min_points = int(self.get_parameter('min_points').value)
@@ -329,6 +332,7 @@ class ManualSeedRelocalization(GlobalRelocalization):
             roll_delta_deg=result.get('roll_delta_deg'),
             pitch_delta_deg=result.get('pitch_delta_deg'),
         )
+        self.validate_refined_seed(initial_base_audit, backend_refined_base, fitness, overlap)
         if fitness > float(self.get_parameter('manual_seed_max_fitness').value):
             raise RuntimeError(
                 f'manual GICP fitness rejected: {fitness:.4f} > '

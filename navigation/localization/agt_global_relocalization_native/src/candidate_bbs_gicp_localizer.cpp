@@ -415,7 +415,17 @@ int main(int argc, char** argv) {
     auto result =
       small_gicp::align(gicp_target, scan_points, best.pose, setting);
     if (!result.converged || result.num_inliers == 0) {
-      emit_failure("small_gicp did not converge after candidate-guided BBS");
+      emit_failure(
+        "small_gicp did not converge after candidate-guided BBS; patch=" +
+        best.candidate.entry.patch_name +
+        " bbs_score=" + std::to_string(best.bbs_score) +
+        " descriptor_similarity=" + std::to_string(best.candidate.sector_similarity) +
+        " inliers=" + std::to_string(result.num_inliers) +
+        " target_points=" + std::to_string(gicp_target.size()) +
+        " full_map_fallback=" + (full_map_fallback ? "true" : "false") +
+        " coarse_xyz=" + std::to_string(best.pose.translation().x()) + "," +
+        std::to_string(best.pose.translation().y()) + "," +
+        std::to_string(best.pose.translation().z()));
       return 4;
     }
 

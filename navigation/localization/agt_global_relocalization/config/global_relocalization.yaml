@@ -39,10 +39,9 @@ agt_global_relocalization:
     tf_timeout_sec: 0.10
     require_stationary: true
     local_odom_topic: /agt/odometry/local
-    # Bunker wheel odometry is the measured stationary authority. LiDAR odom
-    # remains the localization source, but its XYZ velocity is vibration-prone
-    # on a powered tracked chassis.
-    stationary_odom_topic: /wheel/odom
+    # FAST-LIO2 is the only motion authority for navigation and relocalization.
+    # Wheel odometry remains available for diagnostics but cannot block a query.
+    stationary_odom_topic: /agt/odometry/local
     odom_freshness_sec: 0.50
     stationary_linear_threshold_mps: 0.05
     stationary_angular_threshold_rps: 0.08
@@ -65,7 +64,7 @@ agt_global_relocalization:
       ros2 run agt_global_relocalization_native candidate_bbs_gicp_localizer
       --map {global_map} --scan {scan_pcd} {assets_arg}
       --timeout {timeout_sec}
-      --candidate-top-k 2 --descriptor-prefilter 40
+      --candidate-top-k 4 --descriptor-prefilter 40
       --candidate-xy-radius 4.0 --candidate-z-radius 2.0
       --candidate-yaw-range-deg 0.0 --roll-pitch-range-deg 0.0
       --bbs-query-frame-mode {bbs_query_frame_mode}

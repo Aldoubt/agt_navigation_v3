@@ -84,12 +84,12 @@ def test_relocalization_query_requires_every_configured_cloud():
     assert GlobalRelocalization.has_complete_query(6, 5)
 
 
-def test_field_stationary_authority_uses_bunker_wheel_odometry():
+def test_field_stationary_authority_uses_local_lio_odometry():
     root = Path(__file__).resolve().parents[4]
     config = yaml.safe_load((root / 'navigation/localization/agt_global_relocalization/'
                              'config/global_relocalization.yaml').read_text(encoding='utf-8'))
     params = config['agt_global_relocalization']['ros__parameters']
-    assert params['stationary_odom_topic'] == '/wheel/odom'
+    assert params['stationary_odom_topic'] == '/agt/odometry/local'
     assert params['stationary_filter_window_samples'] >= 3
     assert params['stationary_hard_linear_threshold_mps'] > params[
         'stationary_linear_threshold_mps']

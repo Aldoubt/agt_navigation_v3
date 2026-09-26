@@ -586,6 +586,15 @@ class LocalizationManager(Node):
             return
 
         self._backend_debug_state = state
+        if self._correction_current is None and state in {
+                'WAIT_MANUAL_INITIAL_POSE', 'MANUAL_SEED_REJECTED', 'MANUAL_GICP_REJECTED'}:
+            self._state = LocalizationState.WAIT_GLOBAL
+            self._reason = 'waiting_manual_initial_pose' if state == 'WAIT_MANUAL_INITIAL_POSE' else state.lower()
+            return
+        if self._correction_current is None and state == 'MANUAL_GICP_REFINING':
+            self._state = LocalizationState.RELOCALIZING
+            self._reason = 'manual_gicp_refining'
+            return
         if state in {
                 'WAIT_STATIONARY', 'COLLECTING', 'QUERY_READY',
                 'BBS_SEARCHING', 'BBS_COARSE_FOUND', 'GICP_REFINING'}:
@@ -700,7 +709,15 @@ class LocalizationManager(Node):
             return
         if self._correction_current is None:
             self._state = LocalizationState.WAIT_GLOBAL
-            self._reason = 'waiting_global_pose'
+            # Keep the backend's terminal result visible until a new request
+            # changes state. Otherwise this periodic tick hides REJECTED before
+            # the field launcher can stop waiting and report the real error.
+            if not self._reason.startswith((
+                    'global_relocalization_failed:',
+                    'global_relocalization_rejected:')):
+                self._reason = ('waiting_manual_initial_pose' if self._backend_debug_state in {
+                    'WAIT_MANUAL_INITIAL_POSE', 'MANUAL_SEED_REJECTED', 'MANUAL_GICP_REJECTED'}
+                    else 'waiting_global_pose')
             return
         if age > lost:
             self._state = LocalizationState.LOST
