@@ -188,6 +188,16 @@ rollback path are in `localization_manager_cpp_feasibility.md`. The Python
 manager remains the sole `map -> odom` owner. P5 did not run a rosbag replay,
 runtime graph inspection, C++ parity test, or hardware test.
 
+## P6 sensor-layer disposition
+
+P6 preserved the raw MID360 `/livox/lidar` CustomMsg + `/livox/imu` path to the
+one selected LIO frontend. The C++ Livox format bridge remains a separate
+`/agt/livox/points` PointCloud2 branch for local perception, relocalization,
+and tracking. RTK remains metadata-only, and C1 camera/gimbal retain their
+existing atomic owner. Static launch/topic checks and an isolated fake Livox
+bridge graph passed; no physical sensor, base, or arm was started. See
+`sensor_runtime_contract_audit.md` and the P6 entries in the acceptance matrix.
+
 ## P0 result, remediation, and commands
 
 The complete source inventory and intended-owner evidence are recorded above. The audit surfaced a production `/initialpose` fallback contrary to the V1 contract. Before P0 exit, the field startup path was narrowed to automatic global relocalization only; the standalone experimental manual-seed node remains available outside the V1 path. Targeted package build and tests were run after that correction.

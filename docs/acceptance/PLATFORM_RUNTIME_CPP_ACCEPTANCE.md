@@ -321,11 +321,90 @@ P4 commits: `agt_robot_description` `a0e91268aed0f39cab6e1959b014f74fade2b750`; 
 
 | ID | Gate | Evidence required | Result |
 |---|---|---|---|
-| G01 | Livox raw timing path preserved | source/topic contract audit | NOT_RUN |
-| G02 | no generic pre-LIO filtering introduced | launch/data-path inspection | NOT_RUN |
-| G03 | secondary perception cloud remains available | topic/replay evidence | NOT_RUN |
-| G04 | each physical sensor has one launch owner | static/runtime graph evidence | NOT_RUN |
-| G05 | sensor-only stack runs without Nav2 | rosbag/mock or hardware-safe test | NOT_RUN |
+| G01 | Livox raw timing path preserved | source/topic contract audit | PASS — vendor and mapping MID360 launch contracts both select the raw CustomMsg path; FAST-LIO2 and Batch-LIO still consume `/livox/lidar` plus `/livox/imu`. See `docs/upgrade/sensor_runtime_contract_audit.md`. |
+| G02 | no generic pre-LIO filtering introduced | launch/data-path inspection | PASS — the obstacle preprocessor is downstream of the independent `/agt/livox/points` PointCloud2 branch; LIO launch selection does not include it. |
+| G03 | secondary perception cloud remains available | topic/replay evidence | PASS — isolated fake ROS sample passed through the C++ bridge with point geometry, frame, `timebase`, `offset_time`, and per-point timestamp verified; relocalization/tracker/preprocessor source configs consume `/agt/livox/points`. |
+| G04 | each physical sensor has one launch owner | static/runtime graph evidence | PASS — LiDAR, RTK and camera atomics are selected once by the profile-resolved aggregator; source owner tests passed. Physical runtime graph inspection remains NOT_RUN. |
+| G05 | sensor-only stack runs without Nav2 | rosbag/mock or hardware-safe test | PASS — the mock Livox -> bridge graph ran in `ROS_DOMAIN_ID=231` without Nav2 or any physical device. `sensors.launch.py --show-args` also exited 0; hardware sensor atomics were not started. |
+
+P6 sensor contract/build/test evidence (2026-10-02; static and mock only):
+
+- Audit: `docs/upgrade/sensor_runtime_contract_audit.md` records vendor input,
+  canonical topics/types, timing fields, each driver/atomic owner, downstream
+  consumers, and the preserved raw/secondary branch split.
+- The first source test run found two test assertion mistakes (the relocalizer
+  YAML key and a helper argument type); those assertions were corrected. Final
+  static launch/sensor test result: 14 passed.
+- The first isolated build attempt did not source the P4 overlay and stopped
+  at `agt_system_bringup` because `agt_base_runtime/package.sh` was not in the
+  environment. The three independent P6 packages completed. The system package
+  then built successfully after sourcing the P4 overlay. Build/install/log
+  outputs stayed under `/tmp/agt_runtime_v4_p6`:
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  colcon --log-base /tmp/agt_runtime_v4_p6/log build --base-paths /home/yangxuan/ros2_ws/src/agt_navigation_v3 /home/yangxuan/ros2_ws/src/agt_robot_platform --packages-select agt_livox_tools agt_pointcloud_preprocessor agt_system_bringup agt_robot_bringup --build-base /tmp/agt_runtime_v4_p6/build --install-base /tmp/agt_runtime_v4_p6/install
+  ```
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  source /tmp/agt_runtime_v4_p4/install/local_setup.bash
+  colcon --log-base /tmp/agt_runtime_v4_p6/log build --base-paths /home/yangxuan/ros2_ws/src/agt_navigation_v3 /home/yangxuan/ros2_ws/src/agt_robot_platform --packages-select agt_system_bringup --build-base /tmp/agt_runtime_v4_p6/build --install-base /tmp/agt_runtime_v4_p6/install
+  ```
+
+- Selected package tests — PASS; `colcon test-result` reported 58 tests, 0
+  errors, 0 failures, 0 skipped. The sensor consumer and launch-owner source
+  test file ran 14 cases. The Livox tools package has no registered colcon
+  unit test; its bridge was checked by the isolated ROS mock below:
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  source /tmp/agt_runtime_v4_p4/install/local_setup.bash
+  source /tmp/agt_runtime_v4_p6/install/local_setup.bash
+  export ROS_DOMAIN_ID=237
+  colcon --log-base /tmp/agt_runtime_v4_p6/log test --base-paths /home/yangxuan/ros2_ws/src/agt_navigation_v3 /home/yangxuan/ros2_ws/src/agt_robot_platform --packages-select agt_livox_tools agt_pointcloud_preprocessor agt_system_bringup agt_robot_bringup --build-base /tmp/agt_runtime_v4_p6/build --install-base /tmp/agt_runtime_v4_p6/install --event-handlers console_direct+
+  colcon test-result --test-result-base /tmp/agt_runtime_v4_p6/build --verbose
+  ```
+
+- Sensor aggregator argument inspection — PASS; arguments printed and command
+  returned 0. `--show-args` did not start launch nodes:
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  source /tmp/agt_runtime_v4_p4/install/local_setup.bash
+  source /tmp/agt_runtime_v4_p6/install/local_setup.bash
+  ros2 launch agt_robot_bringup sensors.launch.py --show-args
+  ```
+
+- Mock bridge graph — PASS. In one terminal, start the converter using an
+  isolated domain; it has no hardware device access:
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  source /tmp/agt_runtime_v4_p4/install/local_setup.bash
+  source /tmp/agt_runtime_v4_p6/install/local_setup.bash
+  export ROS_DOMAIN_ID=231
+  ros2 run agt_livox_tools livox_format_bridge
+  ```
+
+  In a second terminal with the same sourced overlays and `ROS_DOMAIN_ID=231`:
+
+  ```bash
+  python3 /home/yangxuan/ros2_ws/src/agt_navigation_v3/sensor/agt_livox_tools/test/fake_custommsg_pipeline_smoke.py
+  ```
+
+  Result: `PASS fake CustomMsg -> /agt/livox/points; geometry and point timing preserved`.
+  The bridge process was stopped with SIGINT after the probe. No Nav2, LIO,
+  bag player, physical sensor, camera, RTK, base, or arm process ran.
+- An initial bridge startup with `ROS_DOMAIN_ID=238` was rejected by the local
+  DDS port range before a node started; domain 231 succeeded. No rosbag replay
+  was run in P6. Real hardware and physical driver graph inspection remain
+  NOT_RUN.
 
 ## H. Localization Manager migration decision
 

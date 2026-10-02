@@ -332,3 +332,93 @@ def test_rear_pole_trial_keeps_short_range_marking_only_mask():
     lio = (repo / 'navigation/nav2/agt_navigation_runtime/launch/fastlio_navigation_lio.launch.py').read_text()
     assert "default_value='/livox/lidar'" in lio
     assert 'points_obstacles' not in lio
+
+
+def test_mid360_raw_timing_and_secondary_pointcloud_branches_are_separate():
+    repo = ROOT.parents[1]
+    workspace = repo.parent
+    livox = workspace / 'external/livox_ros_driver2'
+    platform = workspace / 'agt_robot_platform/agt_robot_bringup'
+    runtime = repo / 'navigation/nav2/agt_navigation_runtime'
+    bridge = repo / 'sensor/agt_livox_tools'
+
+    vendor_launch = (livox / 'launch_ROS2/msg_MID360_launch.py').read_text()
+    vendor_driver = (livox / 'src/lddc.cpp').read_text()
+    assert 'xfer_format   = 1' in vendor_launch
+    assert 'multi_topic   = 0' in vendor_launch
+    assert 'publish_freq  = 10.0' in vendor_launch
+    assert "frame_id      = 'livox_frame'" in vendor_launch
+    assert 'std::string topic_name("livox/lidar")' in vendor_driver
+    assert 'std::string topic_name("livox/imu")' in vendor_driver
+    assert 'create_publisher<CustomMsg>(topic_name, queue_size)' in vendor_driver
+    assert 'create_publisher<ImuMsg>(topic_name' in vendor_driver
+
+    hardware_actions = (platform / 'tools/robot_hardware_components.py').read_text()
+    assert "'xfer_format': 1" in hardware_actions
+    assert "'output_data_type': 0" in hardware_actions
+    assert "include('livox_ros_driver2', 'msg_MID360_launch.py'" in hardware_actions
+    assert "'livox_ros_driver2', executable='livox_ros_driver2_node'" in hardware_actions
+
+    fastlio = (runtime / 'config/fastlio2_mid360_navigation.yaml').read_text()
+    fastlio_launch = (runtime / 'launch/fastlio_navigation_lio.launch.py').read_text()
+    batch_launch = (runtime / 'launch/navigation_lio.launch.py').read_text()
+    selector = (runtime / 'launch/lio.launch.py').read_text()
+    assert 'lidar_topic: /livox/lidar' in fastlio
+    assert 'imu_topic: /livox/imu' in fastlio
+    assert "default_value='/livox/lidar'" in fastlio_launch
+    assert "default_value='/livox/imu'" in fastlio_launch
+    assert "default_value='/livox/lidar'" in batch_launch
+    assert "default_value='/livox/imu'" in batch_launch
+    assert "'/agt/sensors/lidar/custom', lidar_topic.perform(context)" in batch_launch
+    assert "'/agt/sensors/imu/data', imu_topic.perform(context)" in batch_launch
+    assert "'fastlio2', 'batch_lio'" in selector
+    assert "'agt_pointcloud_preprocessor'" not in selector
+
+    bridge_config = yaml.safe_load((bridge / 'config/custom_to_pointcloud2.yaml').read_text())
+    bridge_params = bridge_config['livox_format_bridge']['ros__parameters']
+    bridge_source = (bridge / 'src/livox_format_bridge.cpp').read_text()
+    assert bridge_params['input_topic'] == '/livox/lidar'
+    assert bridge_params['output_topic'] == '/agt/livox/points'
+    assert 'create_subscription<livox_ros_driver2::msg::CustomMsg>' in bridge_source
+    assert 'create_publisher<sensor_msgs::msg::PointCloud2>' in bridge_source
+    assert 'out.header.stamp = ns_to_stamp(msg->timebase)' in bridge_source
+    assert '"offset_time"' in bridge_source and 'msg->timebase + p.offset_time' in bridge_source
+
+    local = (ROOT / 'launch/localization.launch.py').read_text()
+    relocalization = yaml.safe_load(
+        (repo / 'navigation/localization/agt_global_relocalization/config/global_relocalization.yaml').read_text())
+    tracker = yaml.safe_load(
+        (repo / 'navigation/localization/agt_map_tracker/config/map_tracker.yaml').read_text())
+    perception = yaml.safe_load((repo / 'config/perception.yaml').read_text())
+    assert "'agt_livox_tools', 'livox_format_bridge.launch.py'" in local
+    assert "'scan_topic': '/agt/livox/points'" in local
+    assert relocalization['agt_global_relocalization']['ros__parameters']['scan_topic'] == '/agt/livox/points'
+    assert tracker['agt_map_tracker']['ros__parameters']['scan_topic'] == '/agt/livox/points'
+    assert perception['agt_pointcloud_preprocessor']['ros__parameters']['input_topic'] == '/agt/livox/points'
+    assert perception['agt_pointcloud_preprocessor']['ros__parameters']['output_topic'] == '/agt/navigation/points_obstacles'
+
+
+def test_sensor_only_aggregator_has_single_physical_sensor_owner_and_no_nav2():
+    repo = ROOT.parents[1]
+    platform_launch = repo.parent / 'agt_robot_platform/agt_robot_bringup/launch'
+    helper = (repo.parent / 'agt_robot_platform/agt_robot_bringup/tools/robot_hardware_components.py').read_text()
+    sensors = (platform_launch / 'sensors.launch.py').read_text()
+    hardware = (platform_launch / 'robot_hardware.launch.py').read_text()
+    system = (ROOT / 'launch/system.launch.py').read_text()
+
+    assert 'aggregator_actions(context, sensors_only=True)' in sensors
+    assert 'aggregator_actions(context)' in hardware
+    assert 'if not sensors_only' in helper
+    for component in ('lidar', 'rtk', 'camera'):
+        assert f"component_actions(context, '{component}')" in (
+            (platform_launch / f'{component}.launch.py').read_text())
+    assert "include('agt_robot_bringup', 'lidar.launch.py'" in helper
+    assert "include('agt_robot_bringup', 'rtk.launch.py'" in helper
+    assert "include('agt_robot_bringup', 'camera.launch.py'" in helper
+    assert "include('agt_robot_bringup', 'base.launch.py'" in helper
+    assert 'nav2' not in sensors.lower()
+    assert 'nav2' not in helper.lower()
+    assert "'hardware.launch.py'" in system
+    assert "'sensors.launch.py'" not in system
+    assert _has_node_action(platform_launch / 'sensors.launch.py') is False
+    assert _has_node_action(platform_launch / 'robot_hardware.launch.py') is False
