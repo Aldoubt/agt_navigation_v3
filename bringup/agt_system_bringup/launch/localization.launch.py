@@ -45,19 +45,22 @@ def _localization_nodes(context):
         calibration = str(Path(value('batch_config')).expanduser().resolve())
         if not Path(calibration).is_file():
             raise RuntimeError(f'Batch-LIO configuration does not exist: {calibration}')
-        lio_launch = 'navigation_lio.launch.py'
-        lio_args = dict(common, batch_config=calibration)
+        lio_args = dict(common, batch_config=calibration,
+                        lio_backend=backend,
+                        fastlio_config=value('fastlio_config'),
+                        body_to_base_calibration_file=calibration)
     else:
         # Share one frozen calibration with relocalization and the FAST adapter.
         calibration = freeze_fastlio_config(
             value('fastlio_config'), common['lidar_topic'], common['imu_topic'])
-        lio_launch = 'fastlio_navigation_lio.launch.py'
-        lio_args = dict(common, fastlio_config=calibration,
+        lio_args = dict(common, lio_backend=backend,
+                        batch_config=value('batch_config'),
+                        fastlio_config=calibration,
                         body_to_base_calibration_file=calibration)
 
     return [
         # Only one frontend launch is constructed. The other backend is not started.
-        _include('agt_navigation_runtime', lio_launch, lio_args),
+        _include('agt_navigation_runtime', 'lio.launch.py', lio_args),
         # Raw CustomMsg remains untouched; this is a separate PointCloud2 branch.
         _include('agt_livox_tools', 'livox_format_bridge.launch.py'),
         _include('agt_global_relocalization', 'global_relocalization.launch.py', {

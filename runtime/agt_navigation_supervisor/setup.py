@@ -6,6 +6,7 @@ setup(
     data_files=[
         ('share/ament_index/resource_index/packages', ['resource/agt_navigation_supervisor']),
         ('share/agt_navigation_supervisor', ['package.xml']),
+        ('share/agt_navigation_supervisor/launch', ['launch/navigation_supervisor.launch.py']),
     ],
     install_requires=['setuptools'], zip_safe=True,
     maintainer='AGT', maintainer_email='contact@aldoubt.com',

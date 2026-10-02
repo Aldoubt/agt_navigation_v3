@@ -1,4 +1,5 @@
 from pathlib import Path
+import ast
 import importlib.util
 
 import yaml
@@ -34,42 +35,144 @@ def test_navigation_top_level_launch_files_exclude_mission():
         'initialization_view.launch.py',
         'localization.launch.py',
         'navigation.launch.py',
+        'system.launch.py',
     ]
 
 
-def test_unique_owner_inclusions():
-    launch_text = {
-        path.name: path.read_text(encoding='utf-8')
-        for path in (ROOT / 'launch').glob('*.launch.py')
-    }
-    all_text = '\n'.join(launch_text.values())
-    assert all_text.count("'agt_localization_manager', 'localization_manager.launch.py'") == 1
-    assert all_text.count("package='agt_pointcloud_preprocessor'") == 1
-    assert "FindPackageShare('agt_robot_bringup')" in launch_text['hardware.launch.py']
-    assert 'livox_ros_driver2' not in launch_text['hardware.launch.py']
-    assert 'bunker_base' not in launch_text['hardware.launch.py']
-    assert 'agt_robot_description' not in launch_text['localization.launch.py']
-    assert 'agt_robot_description' not in launch_text['navigation.launch.py']
-    assert "agt_localization_manager" not in launch_text['debug.launch.py']
+def _has_node_action(path):
+    tree = ast.parse(path.read_text(encoding='utf-8'))
+    return any(isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and
+               node.func.id == 'Node' for node in ast.walk(tree))
 
-    robot_owner = ROOT.parents[2] / 'agt_robot_platform' / 'agt_robot_bringup' / 'launch' / 'robot_hardware.launch.py'
-    owner_text = robot_owner.read_text(encoding='utf-8')
-    assert owner_text.count("'agt_robot_description', 'display.launch.py'") == 1
-    assert owner_text.count("'livox_ros_driver2', 'msg_MID360_launch.py'") == 1
-    assert owner_text.count("'bunker_base', 'bunker_base.launch.py'") == 1
+
+def _node_specs(path):
+    tree = ast.parse(path.read_text(encoding='utf-8'))
+    specs = []
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and
+                node.func.id == 'Node'):
+            continue
+        fields = {}
+        for keyword in node.keywords:
+            if isinstance(keyword.value, ast.Constant) and isinstance(keyword.value.value, str):
+                fields[keyword.arg] = keyword.value.value
+        specs.append((fields.get('package'), fields.get('executable'), fields.get('name')))
+    return specs
+
+
+def test_atomic_launch_entries_and_aggregator_node_ownership():
+    repo = ROOT.parents[1]
+    platform = repo.parent / 'agt_robot_platform' / 'agt_robot_bringup' / 'launch'
+    description = repo.parent / 'agt_robot_description' / 'launch'
+    atomics = [
+        description / 'description.launch.py',
+        platform / 'lidar.launch.py',
+        platform / 'base.launch.py',
+        repo / 'navigation/nav2/agt_navigation_runtime/launch/lio.launch.py',
+        repo / 'cleaning/agt_pointcloud_preprocessor/launch/local_perception.launch.py',
+        repo / 'navigation/localization/agt_global_relocalization/launch/global_relocalization.launch.py',
+        repo / 'navigation/localization/agt_localization_manager/launch/localization_manager.launch.py',
+        repo / 'platform/agt_base_runtime/launch/motion_guard.launch.py',
+        repo / 'navigation/nav2/agt_nav2_bringup/launch/nav2.launch.py',
+        repo / 'navigation/nav2/agt_rviz_patrol/launch/rviz.launch.py',
+    ]
+    assert all(path.is_file() for path in atomics)
+
+    # Convenience layers compose atomic owners. A direct Node action here would
+    # silently create a second owner when the component is launched separately.
+    aggregators = [
+        ROOT / 'launch/hardware.launch.py',
+        ROOT / 'launch/localization.launch.py',
+        ROOT / 'launch/navigation.launch.py',
+        ROOT / 'launch/system.launch.py',
+        platform / 'robot_hardware.launch.py',
+        platform / 'sensors.launch.py',
+    ]
+    assert all(not _has_node_action(path) for path in aggregators)
+
+    local = (repo / 'bringup/agt_system_bringup/launch/localization.launch.py').read_text()
+    navigation = (repo / 'bringup/agt_system_bringup/launch/navigation.launch.py').read_text()
+    system = (repo / 'bringup/agt_system_bringup/launch/system.launch.py').read_text()
+    assert "'agt_navigation_runtime', 'lio.launch.py'" in local
+    assert "'agt_localization_manager', 'localization_manager.launch.py'" in local
+    assert "'agt_pointcloud_preprocessor', 'local_perception.launch.py'" in navigation
+    assert "'agt_base_runtime', 'motion_guard.launch.py'" in navigation
+    assert "'agt_nav2_bringup', 'nav2.launch.py'" in navigation
+    assert "'agt_robot_bringup'), 'launch'" not in system
+    assert "'hardware.launch.py'" in system
+    assert "'localization.launch.py'" in system
+    assert "'navigation.launch.py'" in system
+
+
+def test_singleton_node_definitions_have_atomic_owners():
+    repo = ROOT.parents[1]
+    description = repo.parent / 'agt_robot_description/launch/description.launch.py'
+    manager = repo / 'navigation/localization/agt_localization_manager/launch/localization_manager.launch.py'
+    guard_cpp = repo / 'platform/agt_base_runtime/launch/motion_guard.launch.py'
+    guard_py = repo / 'bringup/agt_base_control/launch/cmd_vel_guard.launch.py'
+    nav2 = repo / 'navigation/nav2/agt_nav2_bringup/launch/nav2.launch.py'
+    lidar_helper = repo.parent / 'agt_robot_platform/agt_robot_bringup/tools/robot_hardware_components.py'
+
+    assert "package='robot_state_publisher'" in description.read_text()
+    assert "package='agt_localization_manager'" in manager.read_text()
+    assert "executable='motion_guard'" in guard_cpp.read_text()
+    assert "executable='cmd_vel_guard'" in guard_py.read_text()
+    assert "package='nav2_map_server'" in nav2.read_text()
+    helper = lidar_helper.read_text()
+    assert "package='livox_ros_driver2'" in helper
+    assert "'bunker_base', 'bunker_base.launch.py'" in helper
+    assert "'publish_odom_tf': 'false'" in helper
+    assert 'YHS base startup is BLOCKED' in helper
+
+    # Parse the production launch trees and count concrete Node declarations.
+    # Simulation, offline fixtures and the explicit path-tool offline helper are
+    # separate test/utility graphs and are intentionally excluded.
+    launch_roots = [
+        repo / 'bringup/agt_system_bringup/launch',
+        repo / 'bringup/agt_base_control/launch',
+        repo / 'cleaning/agt_pointcloud_preprocessor/launch',
+        repo / 'navigation/localization/agt_localization_manager/launch',
+        repo / 'navigation/localization/agt_global_relocalization/launch',
+        repo / 'navigation/nav2/agt_navigation_runtime/launch',
+        repo / 'navigation/nav2/agt_nav2_bringup/launch',
+        repo / 'navigation/nav2/agt_rviz_patrol/launch',
+        repo / 'platform/agt_base_runtime/launch',
+        repo.parent / 'agt_robot_description/launch',
+        repo.parent / 'agt_robot_platform/agt_robot_bringup/launch',
+    ]
+    sources = [path for root in launch_roots for path in root.glob('*.launch.py')
+               if path.name not in ('path_tool_offline.launch.py',
+                                    'mq4_planner_fixture.launch.py')]
+    specs = [spec for path in sources for spec in _node_specs(path)]
+    assert specs.count(('robot_state_publisher', 'robot_state_publisher',
+                        'robot_state_publisher')) == 1
+    assert specs.count(('agt_localization_manager', 'localization_manager',
+                        'agt_localization_manager')) == 1
+    assert specs.count(('agt_pointcloud_preprocessor', 'agt_pointcloud_preprocessor',
+                        'agt_pointcloud_preprocessor')) == 1
+    assert specs.count(('nav2_map_server', 'map_server', 'map_server')) == 1
+    assert specs.count(('agt_base_runtime', 'motion_guard', 'agt_cmd_vel_guard')) == 1
+    assert specs.count(('agt_base_control', 'cmd_vel_guard', 'agt_cmd_vel_guard')) == 1
+
+    lio_selector = (repo / 'navigation/nav2/agt_navigation_runtime/launch/lio.launch.py').read_text()
+    assert "if backend == 'fastlio2'" in lio_selector
+    assert "elif backend == 'batch_lio'" in lio_selector
 
 
 def test_navigation_starts_one_motion_guard_with_cpp_default_and_python_rollback():
     launch_text = (ROOT / 'launch' / 'navigation.launch.py').read_text(encoding='utf-8')
     assert "'motion_guard_backend'," in launch_text
     assert "EnvironmentVariable('AGT_MOTION_GUARD_BACKEND', default_value='cpp')" in launch_text
-    assert launch_text.count(
-        '_motion_guard_action(motion_guard_backend, params_file, payload_interlock)') == 1
-    assert "'output_topic': '/agt/base/cmd_vel'" in launch_text
-    assert launch_text.count('_base_adapter_action(base_adapter)') == 1
+    assert "'agt_base_runtime', 'motion_guard.launch.py'" in launch_text
+    assert "'agt_base_runtime', 'base_adapter.launch.py'" in launch_text
+    assert not _has_node_action(ROOT / 'launch/navigation.launch.py')
     assert "return 'agt_base_runtime', 'bunker_adapter'" in launch_text
     assert "return 'agt_base_runtime', 'motion_guard'" in launch_text
     assert "return 'agt_base_control', 'cmd_vel_guard'" in launch_text
+
+    guard_launch = (ROOT.parents[1] / 'platform/agt_base_runtime/launch/motion_guard.launch.py').read_text()
+    assert "DeclareLaunchArgument('backend', default_value='cpp'" in guard_launch
+    assert "if backend == 'python'" in guard_launch
 
     python_guard = (ROOT.parents[1] / 'bringup/agt_base_control/agt_base_control/'
                     'cmd_vel_guard.py').read_text(encoding='utf-8')
@@ -92,8 +195,8 @@ def test_field_wrapper_validates_and_exports_motion_guard_backend():
 def test_navigation_and_inspection_modes_are_explicit():
     mission = (ROOT.parents[2] / 'agt_mission' / 'agt_mission_bringup' / 'launch' /
                'mission.launch.py').read_text(encoding='utf-8')
-    hardware = (ROOT.parents[2] / 'agt_robot_platform' / 'agt_robot_bringup' / 'launch' /
-                'robot_hardware.launch.py').read_text(encoding='utf-8')
+    hardware = (ROOT.parents[2] / 'agt_robot_platform' / 'agt_robot_bringup' / 'tools' /
+                'robot_hardware_components.py').read_text(encoding='utf-8')
     assert "'enable_legacy_inspection', default_value='false'" in mission
     assert "if value('enable_legacy_inspection').lower() == 'true':" in mission
     assert "'agt_navigation_runtime'," not in mission.split("if value('enable_legacy_inspection')")[0]
@@ -197,7 +300,7 @@ def test_tracked_chassis_controller_uses_stable_path_and_lag_aware_preview():
     bt_name = 'navigate_w_recovery_and_replanning_only_if_path_becomes_invalid.xml'
     system_launch = (ROOT / 'launch/navigation.launch.py').read_text()
     nav2_launch = (
-        repo / 'navigation/nav2/agt_nav2_bringup/launch/navigation.launch.py'
+        repo / 'navigation/nav2/agt_nav2_bringup/launch/nav2.launch.py'
     ).read_text()
     assert bt_name in system_launch
     assert bt_name in nav2_launch
@@ -213,7 +316,9 @@ def test_rear_pole_trial_keeps_short_range_marking_only_mask():
     }
     launch = (ROOT / 'launch' / 'navigation.launch.py').read_text()
     assert "'obstacle_rear_filter_enabled', default_value='false'" in launch
-    assert "'rear_filter.enabled': observation['rear_filter_enabled']" in launch
+    assert "'obstacle_rear_filter_enabled').perform(context)" in launch
+    atomic_perception = (repo / 'cleaning/agt_pointcloud_preprocessor/launch/local_perception.launch.py').read_text()
+    assert "'rear_filter.enabled': ParameterValue(" in atomic_perception
     source = (repo / 'cleaning/agt_pointcloud_preprocessor/src/obstacle_cloud_node.cpp').read_text()
     assert 'if (rear_enabled_ && inside_rear_sector(p_base))' in source
     assert 'std::hypot(p.x(), p.y())' in source

@@ -34,5 +34,7 @@
   <exec_depend>agt_rviz_patrol</exec_depend>
   <exec_depend>agt_robot_bringup</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
+  <test_depend>ament_cmake_pytest</test_depend>
+  <test_depend>python3-pytest</test_depend>
   <export><build_type>ament_cmake</build_type></export>
 </package>

@@ -17,6 +17,8 @@ setup(
         ('share/' + package_name + '/launch', [
             'launch/rviz_patrol.launch.py',
             'launch/path_tool_offline.launch.py',
+            'launch/path_tool.launch.py',
+            'launch/rviz.launch.py',
         ]),
     ],
     install_requires=['setuptools', 'PyYAML'],

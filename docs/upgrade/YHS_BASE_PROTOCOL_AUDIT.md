@@ -46,6 +46,14 @@ The following must be tied to the actual vehicle serial/configuration and firmwa
 
 Keep YHS `BLOCKED`. Do not classify it as Ackermann, tracked/skid-steer, or swerve from the directory name or generic manual. Do not fill in `yhs_drive_gear`, wheelbase, steering limits, or a Nav2 field profile by inference. Keep the current bringup refusal when drive gear is unset, and do not launch the physical YHS driver as part of these software-only phases.
 
+### P4 software enforcement update (2026-10-02)
+
+The platform adapter registry now marks YHS `blocked` independently of the
+whole-robot YAML status, and the atomic hardware launch helper raises before
+creating a YHS driver or command bridge action. P4 `--show-args` and source
+tests confirm the launch remains fail-closed; this is software evidence only
+and does not change any unresolved physical fact above.
+
 The next audit can only close this block with vehicle-specific written protocol/kinematic confirmation and controlled bench evidence approved by the operator. No motion test was run or authorized here.
 
 ## Evidence not collected

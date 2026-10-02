@@ -13,7 +13,7 @@ setup(
             'config/fastlio2_mid360_navigation.yaml']),
         ('share/' + package_name + '/launch', [
             'launch/runtime.launch.py', 'launch/navigation_lio.launch.py',
-            'launch/fastlio_navigation_lio.launch.py']),
+            'launch/fastlio_navigation_lio.launch.py', 'launch/lio.launch.py']),
     ],
     install_requires=['setuptools', 'PyYAML'],
     zip_safe=True,

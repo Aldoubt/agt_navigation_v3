@@ -17,4 +17,12 @@ install(FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/../../config/perception.yaml
   ${CMAKE_CURRENT_SOURCE_DIR}/../../config/safety.yaml
   DESTINATION share/${PROJECT_NAME}/config)
+
+if(BUILD_TESTING)
+  find_package(ament_cmake_pytest REQUIRED)
+  ament_add_pytest_test(test_launch_ownership_static
+    test/test_launch_ownership_static.py
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+endif()
+
 ament_package()

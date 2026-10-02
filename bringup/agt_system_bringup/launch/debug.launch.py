@@ -5,8 +5,12 @@ from pathlib import Path
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
+from launch.actions import IncludeLaunchDescription
 from launch.conditions import IfCondition
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
+from launch.substitutions import PathJoinSubstitution
+from launch_ros.substitutions import FindPackageShare
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
@@ -23,11 +27,14 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'rviz_config',
             default_value=str(nav2_share / 'rviz' / 'nav2_default_view.rviz')),
-        Node(
-            package='rviz2', executable='rviz2', name='agt_navigation_debug_rviz',
-            output='screen', arguments=['-d', LaunchConfiguration('rviz_config')],
-            condition=IfCondition(LaunchConfiguration('launch_rviz')),
-            parameters=[{'use_sim_time': LaunchConfiguration('use_sim_time')}]),
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(PathJoinSubstitution([
+                FindPackageShare('agt_rviz_patrol'), 'launch', 'rviz.launch.py'])),
+            launch_arguments={
+                'config_file': LaunchConfiguration('rviz_config'),
+                'use_sim_time': LaunchConfiguration('use_sim_time'),
+            }.items(),
+            condition=IfCondition(LaunchConfiguration('launch_rviz'))),
         Node(
             package='agt_navigation_runtime', executable='demo_preflight',
             name='agt_demo_preflight', output='screen',

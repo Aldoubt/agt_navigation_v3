@@ -232,18 +232,80 @@ The Ackermann test-only profile uses explicit synthetic values (`wheelbase=1.0 m
 
 | ID | Gate | Evidence required | Result |
 |---|---|---|---|
-| E01 | Description starts independently | launch/dry-run/static test | NOT_RUN |
-| E02 | LiDAR starts independently | launch/dry-run; one driver owner | NOT_RUN |
-| E03 | Base starts independently | launch/dry-run; one driver owner | NOT_RUN |
-| E04 | LIO starts independently | exactly one selected backend | NOT_RUN |
-| E05 | Local perception starts independently | no hardware duplication | NOT_RUN |
-| E06 | Global relocalization starts independently | no Nav2/hardware hidden startup | NOT_RUN |
-| E07 | Localization manager starts independently | one `map->odom` authority | NOT_RUN |
-| E08 | Motion guard starts independently | no vendor driver duplication | NOT_RUN |
-| E09 | Nav2 starts independently | does not own physical hardware | NOT_RUN |
-| E10 | RViz starts independently | does not own TF/navigation state | NOT_RUN |
-| E11 | Aggregators include, not duplicate | static launch ownership test | NOT_RUN |
+| E01 | Description starts independently | launch/dry-run/static test | PASS — atomic `--show-args` exit 0; source scan finds one `robot_state_publisher` owner |
+| E02 | LiDAR starts independently | launch/dry-run; one driver owner | PASS — LiDAR atomic `--show-args` exit 0; hardware plan selects one LiDAR atomic; raw CustomMsg branch preserved |
+| E03 | Base starts independently | launch/dry-run; one driver owner | PASS — Bunker base atomic `--show-args` exit 0; source pins `publish_odom_tf=false`; YHS remains blocked |
+| E04 | LIO starts independently | exactly one selected backend | PASS — LIO atomic `--show-args` exit 0; selector branches to exactly one FAST-LIO2 or Batch-LIO include |
+| E05 | Local perception starts independently | no hardware duplication | PASS — local perception atomic `--show-args` exit 0; one obstacle-cloud node owner |
+| E06 | Global relocalization starts independently | no Nav2/hardware hidden startup | PASS — relocalization atomic `--show-args` exit 0; system localization composes it separately from Nav2/hardware |
+| E07 | Localization manager starts independently | one `map->odom` authority | PASS — manager atomic `--show-args` exit 0; parsed production launch scan finds one manager node declaration |
+| E08 | Motion guard starts independently | no vendor driver duplication | PASS — guard atomic `--show-args` exit 0; one selected C++ default or Python rollback launch |
+| E09 | Nav2 starts independently | does not own physical hardware | PASS — Nav2 atomic `--show-args` exit 0; no physical hardware launch is included |
+| E10 | RViz starts independently | does not own TF/navigation state | PASS — RViz atomic `--show-args` exit 0; UI node only |
+| E11 | Aggregators include, not duplicate | static launch ownership test | PASS — 12 static owner tests plus profile launch-plan tests; aggregators contain no direct `Node` actions |
 | E12 | Shutdown leaves no orphan owner | repeated start/stop test in isolated ROS domain | NOT_RUN |
+
+P4 execution evidence (2026-10-02; isolated build and ROS domain; unit/mock + static/show-args only):
+
+- The build covered 11 changed runtime/platform/description packages. Build/install/log outputs used `/tmp/agt_runtime_v4_p4/{build,install,log}`; the shared workspace `build/` and `install/` were not written.
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  colcon --log-base /tmp/agt_runtime_v4_p4/log build --base-paths /home/yangxuan/ros2_ws/src/agt_navigation_v3 /home/yangxuan/ros2_ws/src/agt_robot_platform /home/yangxuan/ros2_ws/src/agt_robot_description --packages-select agt_base_runtime agt_base_control agt_system_bringup agt_navigation_runtime agt_rviz_patrol agt_nav2_bringup agt_pointcloud_preprocessor agt_navigation_supervisor agt_navigation_capability agt_robot_bringup agt_robot_description --build-base /tmp/agt_runtime_v4_p4/build --install-base /tmp/agt_runtime_v4_p4/install
+  ```
+
+  Result: PASS, 11 packages finished. An earlier invocation put `--log-base` after `build` and was rejected by colcon; the corrected command above completed.
+
+- Selected package tests ran with `ROS_DOMAIN_ID=231` and plugin autoload disabled for these non-launch graph tests:
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  source /tmp/agt_runtime_v4_p4/install/local_setup.bash
+  export ROS_DOMAIN_ID=231
+  export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
+  colcon --log-base /tmp/agt_runtime_v4_p4/test-log test --base-paths /home/yangxuan/ros2_ws/src/agt_navigation_v3 /home/yangxuan/ros2_ws/src/agt_robot_platform /home/yangxuan/ros2_ws/src/agt_robot_description --packages-select agt_base_runtime agt_base_control agt_system_bringup agt_navigation_runtime agt_rviz_patrol agt_nav2_bringup agt_pointcloud_preprocessor agt_navigation_supervisor agt_navigation_capability agt_robot_bringup agt_robot_description --build-base /tmp/agt_runtime_v4_p4/build
+  colcon --log-base /tmp/agt_runtime_v4_p4/test-log test-result --all --verbose --test-result-base /tmp/agt_runtime_v4_p4/build
+  ```
+
+  Result: PASS, zero errors/failures/skips. The result summary contains 100 entries including CTest aggregate XML and leaf reports; leaf suites report 90 cases: base runtime 18, pointcloud preprocessing 4, platform launch/config 36, robot description 20, and static launch ownership 12.
+
+- Additional launch-policy tests:
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  source /tmp/agt_runtime_v4_p4/install/local_setup.bash
+  export ROS_DOMAIN_ID=231
+  export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
+  python3 -m pytest -q /home/yangxuan/ros2_ws/src/agt_navigation_v3/bringup/agt_system_bringup/test/test_payload_interlock_launch.py /home/yangxuan/ros2_ws/src/agt_navigation_v3/bringup/agt_system_bringup/test/test_payload_interlock_resolution.py /home/yangxuan/ros2_ws/src/agt_navigation_v3/bringup/agt_system_bringup/test/test_yhs_nav_config_guard.py
+  ```
+
+  Result: PASS, 14 passed.
+
+- Independently executed `ros2 launch <package> <entry>.launch.py --show-args` with the same sourced ROS/workspace/P4 overlay and `ROS_DOMAIN_ID=231`; all returned exit code 0. Entries:
+
+  ```text
+  agt_robot_description description.launch.py
+  agt_robot_bringup lidar.launch.py, base.launch.py, camera.launch.py, rtk.launch.py
+  agt_navigation_runtime lio.launch.py
+  agt_pointcloud_preprocessor local_perception.launch.py
+  agt_global_relocalization global_relocalization.launch.py
+  agt_localization_manager localization_manager.launch.py
+  agt_base_runtime motion_guard.launch.py, base_adapter.launch.py
+  agt_nav2_bringup nav2.launch.py
+  agt_rviz_patrol rviz.launch.py
+  agt_system_bringup localization.launch.py, navigation.launch.py, system.launch.py
+  ```
+
+  Compatibility entries also returned 0: `agt_system_bringup hardware.launch.py`, platform `robot_hardware.launch.py`/`robot_bringup.launch.py`/`sensors.launch.py`, `agt_nav2_bringup navigation.launch.py`, `agt_robot_description display.launch.py`/`rviz.launch.py`, `agt_pointcloud_preprocessor pointcloud_preprocessor.launch.py`, and Python rollback `agt_base_control cmd_vel_guard.launch.py`. These were show-args queries; no process or hardware driver was started.
+
+- A direct source `pytest` attempt before sourcing the installed workspace failed collection because the package index lacked `agt_system_bringup`; after sourcing the build underlay and running the isolated CTest/targeted pytest commands above, all applicable tests passed.
+
+E12 remains `NOT_RUN`: no launch graph restart/shutdown test was executed. No rosbag replay, real hardware, CAN command, chassis motion, or arm action was run. `J08` compatibility launch availability is `PASS` by isolated build and compatibility `--show-args` results.
+
+P4 commits: `agt_robot_description` `a0e91268aed0f39cab6e1959b014f74fade2b750`; `agt_robot_platform` `079f8663629f3a11bf5464a68bffc406ff9264da`; one `agt_navigation_v3` commit recorded as the P4 phase commit in the branch history.
 
 ## F. TF and odometry invariants
 
@@ -296,7 +358,7 @@ The Ackermann test-only profile uses explicit synthetic values (`wheelbase=1.0 m
 | J05 | stale-command fault injection stops command output | automated log/test | NOT_RUN |
 | J06 | localization-health loss blocks command output | automated log/test | NOT_RUN |
 | J07 | atomic restart works | each layer restarted without duplicate owner/orphan | NOT_RUN |
-| J08 | legacy compatibility launch still available | dry-run/build evidence | NOT_RUN |
+| J08 | legacy compatibility launch still available | dry-run/build evidence | PASS — compatibility launch files build and all requested wrapper `--show-args` checks return 0 |
 
 ## K. Real hardware acceptance
 

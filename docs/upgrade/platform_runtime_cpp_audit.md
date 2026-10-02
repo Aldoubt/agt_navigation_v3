@@ -99,6 +99,9 @@ The Bunker source calls `EnableCommandedMode()` before creating the velocity sub
 
 ## Launch and duplicate-owner audit
 
+The table below records the P0 baseline before launch changes. P4 has since
+introduced the owners and composition paths in the follow-up table.
+
 | Resource | Intended active owner | Alternate path / collision risk |
 |---|---|---|
 | Whole physical hardware and robot description | `agt_robot_bringup/robot_hardware.launch.py`, reached by `scripts/run_bunker_hardware.sh` | `agt_robot_description/display.launch.py`, vendor device launches, direct Bunker launch, and driver-specific launches can be started separately; do not combine with the aggregate. |
@@ -113,7 +116,43 @@ The Bunker source calls `EnableCommandedMode()` before creating the velocity sub
 | `run_field_stack.sh` | Preflight, then separate process groups for localization and navigation; expects `/robot_state_publisher`, `/bunker`, `/livox_lidar_publisher` to exist | It does not start physical hardware. `run_bunker_hardware.sh` is a separate owner. Inspection selects external `agt_mission_bringup` with legacy inspection enabled. |
 | YHS | Current whole-robot config is `BLOCKED` and refuses to start with unknown gear | If later enabled, driver + `agt_yhs_adapter` must be the only YHS base/command adapter; physical protocol audit is still blocked in `YHS_BASE_PROTOCOL_AUDIT.md`. |
 
-Atomic launch split remains a P4 task. The aggregator must ultimately include atomic launch descriptions only and must not reconstruct a duplicate `Node` instance.
+### P4 launch ownership after atomic split
+
+| Responsibility | Atomic owner | Aggregation / single-owner rule |
+|---|---|---|
+| Robot description and fixed TF | `agt_robot_description/description.launch.py` | Platform `robot_hardware.launch.py` includes it once when enabled; legacy `display.launch.py` composes the description and RViz atomics. |
+| MID360 driver | `agt_robot_bringup/lidar.launch.py` | `robot_hardware.launch.py` or `sensors.launch.py` includes the same atomic; the raw CustomMsg path stays direct to LIO. |
+| Bunker physical driver | `agt_robot_bringup/base.launch.py` | Hardware aggregate includes one driver launch with `publish_odom_tf=false`; remote/manual arbitration remains in the chassis. |
+| C1 and RTK drivers | `agt_robot_bringup/camera.launch.py`, `rtk.launch.py` | Optional only when enabled by the validated whole-robot config; `sensors.launch.py` composes sensor atomics only. |
+| Navigation LIO | `agt_navigation_runtime/lio.launch.py` | A mutually exclusive branch includes either `fastlio_navigation_lio.launch.py` or `navigation_lio.launch.py`; localization includes the selector and no Nav2. |
+| Local obstacle cloud | `agt_pointcloud_preprocessor/local_perception.launch.py` | `navigation.launch.py` includes one atomic; its PointCloud2 input remains separate from raw LIO. |
+| Global relocalization / manager | Existing `global_relocalization.launch.py`, `localization_manager.launch.py` | `localization.launch.py` includes each once, along with the LIO and bridge atomics; only the manager broadcasts `map -> odom`. |
+| Motion guard | `agt_base_runtime/motion_guard.launch.py` | One selected backend: C++ by default or Python rollback. Both publish only `/agt/base/cmd_vel`; navigation includes one guard launch. |
+| Bunker command adapter | `agt_base_runtime/base_adapter.launch.py` | One runtime adapter forwards guarded commands to `/mux/cmd_vel`; the physical Bunker driver remains separately owned by the hardware atomic. |
+| Nav2 map/planning stack | `agt_nav2_bringup/nav2.launch.py` | `navigation.launch.py` includes Nav2; this launch starts no physical driver. `navigation.launch.py` in the same package remains a compatibility include. |
+| RViz UI / path editor / services | `agt_rviz_patrol/rviz.launch.py`, `path_tool.launch.py`; supervisor/capability package launches | Each is independently invocable and owns no TF; navigation aggregates them by include. |
+| Convenience layers | platform `sensors.launch.py`; system `localization.launch.py`, `navigation.launch.py`, `system.launch.py`; `hardware.launch.py` remains a wrapper | Launch-source tests reject direct `Node` actions in these aggregators. Do not start an atomic and its aggregate together in one ROS domain. |
+
+`test_launch_ownership_static.py` parses production launch sources and checks
+the known singleton node declarations and aggregator boundaries. Profile-based
+hardware selection remains fail-closed. YHS is now blocked in the adapter
+registry and `robot_hardware_components.py` explicitly refuses YHS startup;
+the physical YHS driver is not an enabled launch path.
+
+P4 rollback is a reverse-order revert after stopping the runtime: first the
+single P4 commit at the current `agt_navigation_v3` HEAD, then
+`agt_robot_platform` commit
+`079f8663629f3a11bf5464a68bffc406ff9264da`, then
+`agt_robot_description` commit `a0e91268aed0f39cab6e1959b014f74fade2b750`.
+The Python Motion Guard remains independently selectable with
+`motion_guard_backend:=python` / `AGT_MOTION_GUARD_BACKEND=python`. The old
+`hardware.launch.py`, platform `robot_hardware.launch.py`, description
+`display.launch.py`, pointcloud `pointcloud_preprocessor.launch.py`, and Nav2
+`navigation.launch.py` compatibility entries remain available.
+
+P4 evidence is static launch/show-args and software test evidence only. No
+atomic launch was run against a hardware driver; runtime graph ownership and
+shutdown/restart remain unverified.
 
 ## Python/C++ migration rationale
 
@@ -135,7 +174,7 @@ Atomic launch split remains a P4 task. The aggregator must ultimately include at
 4. **RTK:** INS topics and `/agt/rtk/map_pose` are metadata/observation only; neither RTK driver nor RTK manager publishes TF.
 5. **Initialization conflict found and closed in P0:** the source audit found `run_field_stack.sh` defaulted to `auto_then_manual` and exposed RViz `/initialpose`. The field launcher/helper now accept only `auto`, exit when global attempts fail, no longer launch the initialization view, and no longer accept a start-hint seed. System `localization.launch.py` hard-rejects non-auto modes and always selects `global_relocalization`. The manual-seed executable and RViz view remain standalone tools outside the V1 launch path. Automatic 3D-BBS/local-submap GICP is the only V1 production path.
 6. **Hardware remote priority:** driver source requests CAN commanded mode; physical RC/E-stop priority is not established by this software audit and no physical validation was run.
-7. **Atomic aggregator:** system navigation launch currently directly instantiates five ROS nodes. P4 must replace direct instantiation with includes of atomic package launch files and preserve single owners.
+7. **Atomic aggregator:** the P0 baseline directly instantiated runtime nodes. P4 now composes the atomic launch files documented above; static source tests and show-args pass, while graph-level owner inspection and shutdown/restart remain unrun.
 8. **YHS:** see `YHS_BASE_PROTOCOL_AUDIT.md`; all physical YHS support stays `BLOCKED`.
 9. **Ackermann:** no production Ackermann profile/conversion was found in this runtime inventory. Future software tests may use explicitly synthetic geometry only; never reuse test geometry as a robot profile.
 

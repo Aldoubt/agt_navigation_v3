@@ -3,8 +3,11 @@ from pathlib import Path
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
+from launch.actions import IncludeLaunchDescription
 from launch.conditions import IfCondition
-from launch.substitutions import LaunchConfiguration
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch_ros.substitutions import FindPackageShare
 from launch_ros.actions import Node
 
 
@@ -20,7 +23,11 @@ def generate_launch_description():
         Node(package='nav2_lifecycle_manager', executable='lifecycle_manager',
              name='agt_initialization_map_lifecycle', output='screen',
              parameters=[{'autostart': True, 'node_names': ['agt_initialization_map_server']}]),
-        Node(package='rviz2', executable='rviz2', name='agt_initialization_rviz',
-             arguments=['-d', str(share / 'config/initialization.rviz')],
-             condition=IfCondition(LaunchConfiguration('rviz')), output='screen'),
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(PathJoinSubstitution([
+                FindPackageShare('agt_rviz_patrol'), 'launch', 'rviz.launch.py'])),
+            launch_arguments={
+                'config_file': str(share / 'config/initialization.rviz'),
+            }.items(),
+            condition=IfCondition(LaunchConfiguration('rviz'))),
     ])

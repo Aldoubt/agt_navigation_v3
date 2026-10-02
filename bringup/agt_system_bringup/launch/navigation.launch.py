@@ -10,8 +10,6 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import EnvironmentVariable, LaunchConfiguration
-from launch_ros.actions import Node
-from launch_ros.parameter_descriptions import ParameterValue
 from agt_map_manager.map_catalog import resolve_map
 
 
@@ -178,17 +176,6 @@ def motion_guard_node_spec(backend):
     raise RuntimeError(f'motion_guard_backend must be cpp|python, got {backend!r}')
 
 
-def _motion_guard_action(backend, params_file, payload_interlock):
-    package, executable = motion_guard_node_spec(backend)
-    return Node(
-        package=package, executable=executable,
-        name='agt_cmd_vel_guard', output='screen', parameters=[
-            params_file, {
-                'output_topic': '/agt/base/cmd_vel',
-                'require_payload_drive_permission': payload_interlock,
-            }])
-
-
 def base_adapter_node_spec(adapter):
     """Resolve the currently implemented hardware boundary, failing closed otherwise."""
     selected = (adapter or '').strip().lower()
@@ -201,10 +188,16 @@ def base_adapter_node_spec(adapter):
     raise RuntimeError(f'unsupported base adapter {adapter!r}; expected bunker')
 
 
-def _base_adapter_action(adapter):
-    package, executable = base_adapter_node_spec(adapter)
-    return Node(package=package, executable=executable,
-                name='agt_bunker_base_adapter', output='screen')
+def _validate_base_adapter(adapter):
+    base_adapter_node_spec(adapter)
+
+
+def _include(package, launch_file, arguments=None):
+    share = Path(get_package_share_directory(package))
+    return IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(str(share / 'launch' / launch_file)),
+        launch_arguments=(arguments or {}).items(),
+    )
 
 
 def _launch_runtime(context):
@@ -225,7 +218,6 @@ def _launch_runtime(context):
     map_path = selected_map.navigation_map
 
     share = Path(get_package_share_directory('agt_system_bringup'))
-    nav2_share = Path(get_package_share_directory('agt_nav2_bringup'))
     local_obstacle_avoidance = (
         LaunchConfiguration('local_obstacle_avoidance').perform(context).lower() == 'true')
     config_dir = select_navigation_config(
@@ -235,91 +227,65 @@ def _launch_runtime(context):
     motion_guard_backend = LaunchConfiguration('motion_guard_backend').perform(context)
     use_sim_time = LaunchConfiguration('use_sim_time').perform(context)
 
-    observation = {
-        # Explicit field-trial and observation switches. Defaults keep the rear
-        # mask disabled and repeat the canonical perception profile.
-        'rear_filter_enabled': ParameterValue(
-            LaunchConfiguration('obstacle_rear_filter_enabled'), value_type=bool),
-        'rear_filter_center_deg': ParameterValue(
-            LaunchConfiguration('obstacle_rear_filter_center_deg'), value_type=float),
-        'rear_filter_width_deg': ParameterValue(
-            LaunchConfiguration('obstacle_rear_filter_width_deg'), value_type=float),
-        'rear_filter_min_range_m': ParameterValue(
-            LaunchConfiguration('obstacle_rear_filter_min_range_m'), value_type=float),
-        'rear_filter_max_range_m': ParameterValue(
-            LaunchConfiguration('obstacle_rear_filter_max_range_m'), value_type=float),
-        'statistics_output': LaunchConfiguration('obstacle_statistics_output').perform(context),
-        'debug_log_interval_sec': ParameterValue(
-            LaunchConfiguration('obstacle_debug_log_interval_sec'), value_type=float),
-        'debug_base_cloud_enabled': ParameterValue(
-            LaunchConfiguration('obstacle_debug_base_cloud_enabled'), value_type=bool),
-        'debug_base_cloud_topic': LaunchConfiguration('obstacle_debug_base_cloud_topic').perform(context),
-    }
-
+    motion_guard_node_spec(motion_guard_backend)
+    _validate_base_adapter(base_adapter)
     return [
-        # Exactly one producer of /agt/navigation/points_obstacles.
-        Node(
-            package='agt_pointcloud_preprocessor',
-            executable='agt_pointcloud_preprocessor',
-            name='agt_pointcloud_preprocessor',
-            output='screen',
-            parameters=[params_file, {
-                'use_sim_time': ParameterValue(
-                    LaunchConfiguration('use_sim_time'), value_type=bool),
-                'rear_filter.enabled': observation['rear_filter_enabled'],
-                'rear_filter.center_deg': observation['rear_filter_center_deg'],
-                'rear_filter.width_deg': observation['rear_filter_width_deg'],
-                'rear_filter.min_range_m': observation['rear_filter_min_range_m'],
-                'rear_filter.max_range_m': observation['rear_filter_max_range_m'],
-                'statistics_output': observation['statistics_output'],
-                'debug_log_interval_sec': observation['debug_log_interval_sec'],
-                'debug_base_cloud.enabled': observation['debug_base_cloud_enabled'],
-                'debug_base_cloud.topic': observation['debug_base_cloud_topic'],
-            }],
-        ),
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                str(nav2_share / 'launch' / 'navigation.launch.py')),
-            launch_arguments={
-                'map': str(map_path),
-                'nav2_params_file': params_file,
-                'use_sim_time': use_sim_time,
-                'autostart': LaunchConfiguration('autostart').perform(context),
-            }.items(),
-        ),
-        Node(
-            package='agt_navigation_supervisor', executable='navigation_supervisor',
-            name='agt_navigation_supervisor', output='screen', parameters=[{
-                'robot_profile': robot_profile,
-                'map_id': selected_map.map_id,
-                'map_version': selected_map.map_version,
-                'map_valid': True,
-                'use_sim_time': ParameterValue(
-                    LaunchConfiguration('use_sim_time'), value_type=bool),
-            }]),
-        Node(
-            package='agt_navigation_capability', executable='navigation_capability',
-            name='agt_navigation_capability', output='screen', parameters=[{
-                'robot_profile': robot_profile,
-                'map_id': selected_map.map_id,
-                'map_version': selected_map.map_version,
-                'require_payload_drive_permission': payload_interlock,
-                'use_sim_time': ParameterValue(
-                    LaunchConfiguration('use_sim_time'), value_type=bool),
-            }]),
-        _motion_guard_action(motion_guard_backend, params_file, payload_interlock),
-        _base_adapter_action(base_adapter),
-        # Always expose map-frame LIO/wheel trails and the validated RViz
-        # hand-drawn FollowPath entry point. This is independent of the
-        # stop-and-shoot inspection mission queue below.
-        Node(
-            package='agt_rviz_patrol', executable='rviz_path_tool',
-            name='agt_rviz_path_tool', output='screen', parameters=[{
-                'preview_only': False,
-                'map_id': selected_map.map_id,
-                'map_version': selected_map.map_version,
-                'use_sim_time': ParameterValue(LaunchConfiguration('use_sim_time'), value_type=bool),
-            }]),
+        _include('agt_pointcloud_preprocessor', 'local_perception.launch.py', {
+            'params_file': params_file,
+            'use_sim_time': use_sim_time,
+            'rear_filter_enabled': LaunchConfiguration(
+                'obstacle_rear_filter_enabled').perform(context),
+            'rear_filter_center_deg': LaunchConfiguration(
+                'obstacle_rear_filter_center_deg').perform(context),
+            'rear_filter_width_deg': LaunchConfiguration(
+                'obstacle_rear_filter_width_deg').perform(context),
+            'rear_filter_min_range_m': LaunchConfiguration(
+                'obstacle_rear_filter_min_range_m').perform(context),
+            'rear_filter_max_range_m': LaunchConfiguration(
+                'obstacle_rear_filter_max_range_m').perform(context),
+            'statistics_output': LaunchConfiguration(
+                'obstacle_statistics_output').perform(context),
+            'debug_log_interval_sec': LaunchConfiguration(
+                'obstacle_debug_log_interval_sec').perform(context),
+            'debug_base_cloud_enabled': LaunchConfiguration(
+                'obstacle_debug_base_cloud_enabled').perform(context),
+            'debug_base_cloud_topic': LaunchConfiguration(
+                'obstacle_debug_base_cloud_topic').perform(context),
+        }),
+        _include('agt_nav2_bringup', 'nav2.launch.py', {
+            'map': str(map_path),
+            'nav2_params_file': params_file,
+            'use_sim_time': use_sim_time,
+            'autostart': LaunchConfiguration('autostart').perform(context),
+        }),
+        _include('agt_navigation_supervisor', 'navigation_supervisor.launch.py', {
+            'robot_profile': robot_profile,
+            'map_id': selected_map.map_id,
+            'map_version': selected_map.map_version,
+            'map_valid': 'true',
+            'use_sim_time': use_sim_time,
+        }),
+        _include('agt_navigation_capability', 'navigation_capability.launch.py', {
+            'robot_profile': robot_profile,
+            'map_id': selected_map.map_id,
+            'map_version': selected_map.map_version,
+            'require_payload_drive_permission': str(payload_interlock).lower(),
+            'use_sim_time': use_sim_time,
+        }),
+        _include('agt_base_runtime', 'motion_guard.launch.py', {
+            'backend': motion_guard_backend,
+            'params_file': params_file,
+            'require_payload_drive_permission': str(payload_interlock).lower(),
+        }),
+        _include('agt_base_runtime', 'base_adapter.launch.py', {
+            'adapter': base_adapter,
+        }),
+        # Map-frame path editing has its own atomic launch owner.
+        _include('agt_rviz_patrol', 'path_tool.launch.py', {
+            'map_id': selected_map.map_id,
+            'map_version': selected_map.map_version,
+            'use_sim_time': use_sim_time,
+        }),
     ]
 
 

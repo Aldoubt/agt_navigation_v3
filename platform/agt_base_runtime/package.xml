@@ -14,6 +14,10 @@
   <depend>diagnostic_msgs</depend>
   <depend>bunker_msgs</depend>
   <depend>agt_robot_interfaces</depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>agt_base_control</exec_depend>
 
   <test_depend>ament_cmake_gtest</test_depend>
   <test_depend>ament_cmake_pytest</test_depend>
