@@ -331,11 +331,54 @@ P4 commits: `agt_robot_description` `a0e91268aed0f39cab6e1959b014f74fade2b750`; 
 
 | ID | Gate | Evidence required | Result |
 |---|---|---|---|
-| H01 | migration feasibility audit complete | rates, APIs, TF timing, state logic documented | NOT_RUN |
-| H02 | correction math frozen by tests | `T_map_odom = T_map_base * inverse(T_odom_base)` tests | NOT_RUN |
-| H03 | old/new parity if migrated | bag/shadow numeric comparison without dual `/tf` publication | NOT_RUN |
-| H04 | one authority after switch | runtime graph evidence | NOT_RUN |
-| H05 | if kept Python, reason documented | no false “all C++” claim | NOT_RUN |
+| H01 | migration feasibility audit complete | rates, APIs, TF timing, state logic documented | PASS — `docs/upgrade/localization_manager_cpp_feasibility.md` documents source/config rates, interfaces, state machine, timing semantics, test coverage and decision. |
+| H02 | correction math frozen by tests | `T_map_odom = T_map_base * inverse(T_odom_base)` tests | PASS — `test_correction_math.py`: 13 passed, including compose/inverse and the exact correction formula. |
+| H03 | old/new parity if migrated | bag/shadow numeric comparison without dual `/tf` publication | NOT_RUN — P5 chose `KEEP_PYTHON_THIS_RELEASE`; no C++ candidate exists, so no parity result is claimed. |
+| H04 | one authority after switch | runtime graph evidence | NOT_RUN — no authority switch or runtime graph inspection was performed. The source-level owner test passed; it does not establish the live graph. |
+| H05 | if kept Python, reason documented | no false “all C++” claim | PASS — decision and measured-evidence gap are documented; Python remains the only production `map -> odom` publisher. |
+
+P5 feasibility/build/test evidence (2026-10-02; unit/mock and static-source only):
+
+- Decision: `KEEP_PYTHON_THIS_RELEASE`, documented in
+  `docs/upgrade/localization_manager_cpp_feasibility.md`. The historic
+  `NAV_TEST_002` bag audit is read-only archived observation, not a P5 replay,
+  CPU benchmark, deadline measurement, or parity result.
+- `agt_localization_manager` build — PASS, 1 package. Build/install/log outputs
+  are isolated under `/tmp/agt_runtime_v4_p5`; the existing workspace install
+  was only sourced as an underlay:
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  colcon --log-base /tmp/agt_runtime_v4_p5/log build --base-paths /home/yangxuan/ros2_ws/src/agt_navigation_v3 --packages-select agt_localization_manager --build-base /tmp/agt_runtime_v4_p5/build --install-base /tmp/agt_runtime_v4_p5/install
+  ```
+
+- Correction-math unit tests — PASS, 13 passed. No ROS process or node was
+  started; a separate domain ID was set for isolation:
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  source /tmp/agt_runtime_v4_p5/install/local_setup.bash
+  export ROS_DOMAIN_ID=231
+  export PYTHONPATH=/home/yangxuan/ros2_ws/src/agt_navigation_v3/navigation/localization/agt_localization_manager${PYTHONPATH:+:$PYTHONPATH}
+  export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
+  python3 -m pytest -q /home/yangxuan/ros2_ws/src/agt_navigation_v3/navigation/localization/agt_localization_manager/test/test_correction_math.py
+  ```
+
+- Static launch-owner test — PASS, 12 passed. This parses source only; it does
+  not start a graph or prove live `/tf` ownership:
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  source /tmp/agt_runtime_v4_p4/install/local_setup.bash
+  export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
+  python3 -m pytest -q /home/yangxuan/ros2_ws/src/agt_navigation_v3/bringup/agt_system_bringup/test/test_launch_ownership_static.py
+  ```
+
+- Rosbag replay/shadow comparison and live ROS graph inspection — NOT_RUN.
+- Real hardware — NOT_RUN; no launch, CAN, base command, camera, or arm action.
 
 ## I. Nav2 cross-platform contract
 
