@@ -76,16 +76,102 @@ No Ackermann bag, live ROS graph, physical chassis, CAN command or robot motion 
 
 | ID | Gate | Evidence required | Result |
 |---|---|---|---|
-| C01 | C++ package builds | clean/isolated colcon build log | NOT_RUN |
-| C02 | velocity clamp parity | old/new test or shadow comparison | NOT_RUN |
-| C03 | slew-limit parity | positive/negative acceleration cases | NOT_RUN |
-| C04 | output refresh | measured ~50 Hz software target under test load | NOT_RUN |
-| C05 | stale command -> zero | deterministic automated test | NOT_RUN |
-| C06 | localization block -> zero | deterministic automated test | NOT_RUN |
-| C07 | health/payload block -> zero | deterministic automated test | NOT_RUN |
-| C08 | recovery state transition | blocked -> ready/active only after valid inputs | NOT_RUN |
-| C09 | exactly one vendor command publisher | ROS graph or static owner test | NOT_RUN |
-| C10 | Python rollback path documented | explicit command/config for rollback during field test | NOT_RUN |
+| C01 | C++ package builds | clean/isolated colcon build log | PASS — `agt_base_runtime` built in `/tmp/agt_runtime_v4_p2_runtime_build` |
+| C02 | velocity clamp parity | old/new test or shadow comparison | PASS — forward, reverse and angular clamps match Python in the isolated shadow trace |
+| C03 | slew-limit parity | positive/negative acceleration cases | PASS — positive/negative slew and separate linear deceleration cases pass in Python baseline and C++ core tests |
+| C04 | output refresh | measured ~50 Hz software target under test load | PASS — C++ shadow output median period 20.01 ms (50 Hz target) |
+| C05 | stale command -> zero | deterministic automated test | PASS — stale output is zero and state is `STALE_COMMAND` |
+| C06 | localization block -> zero | deterministic automated test | PASS — `STATE_LOST` stops immediately and state is `LOCALIZATION_BLOCKED` |
+| C07 | health/payload block -> zero | deterministic automated test | PASS — stale local odom and missing/false/stale payload permission stop output; state is `HEALTH_BLOCKED` |
+| C08 | recovery state transition | blocked -> ready/active only after valid inputs | PASS — localization and payload recovery require a fresh command before output resumes |
+| C09 | exactly one vendor command publisher | ROS graph or static owner test | PASS — launch creates one selected guard action; C++ is default and Python is a mutually exclusive rollback. Runtime graph inspection is NOT_RUN. |
+| C10 | Python rollback path documented | explicit command/config for rollback during field test | PASS — `--motion-guard-backend python` is validated and shown by the field-wrapper dry-run; the navigation launch receives it through `AGT_MOTION_GUARD_BACKEND` and selects the retained `agt_base_control/cmd_vel_guard` action |
+
+P2 freeze and verification evidence (2026-10-02):
+
+The old Python guard semantics were frozen first with deterministic isolated-topic tests. The matrix covered forward/reverse/angular clamp, positive and negative slew, distinct linear deceleration, 50 Hz timer target, startup with no command/status, command reception-time freshness, stale timeout, localization and payload interlocks, health loss, no replay after recovery, fresh-command recovery, zero-command slew behavior and shutdown zero publication. `CmdVelGuard.main()` was inspected for its three shutdown zero publishes; the C++ shadow integration test observed at least three final zero samples on SIGINT.
+
+The Python/C++ shadow test runs both guards in a dedicated `ROS_DOMAIN_ID`, consumes the same synthetic Twist/status/permission stream, and writes only to namespaced shadow topics. Its sample matcher pairs nearest timestamps within 25 ms and allows at most 0.035 m/s linear and 0.035 rad/s angular error. The recorded run aligned 103 samples; maximum errors were 0.009026 m/s and 0.016045 rad/s; C++ steady active-output median period was 20.01 ms. It verified `READY`, `ACTIVE`, `STALE_COMMAND`, `LOCALIZATION_BLOCKED` and `HEALTH_BLOCKED`. No base driver subscribed in that isolated domain.
+
+- `agt_base_control` build — PASS, 1 package, isolated build/install/log directories:
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  colcon --log-base /tmp/agt_runtime_v4_p2_base_control_log build --base-paths /home/yangxuan/ros2_ws/src/agt_navigation_v3 --packages-select agt_base_control --build-base /tmp/agt_runtime_v4_p2_base_control_build --install-base /tmp/agt_runtime_v4_p2_base_control_install --merge-install
+  ```
+
+- Python baseline and payload-interlock tests — PASS, 16 tests:
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  ROS_DOMAIN_ID=208 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH="bringup/agt_base_control:${PYTHONPATH}" python3 -m pytest -q bringup/agt_base_control/test/test_guard_semantics.py bringup/agt_base_control/test/test_guard_payload_interlock.py
+  ```
+
+- Existing in-process guard acceptance — PASS; stop latency 1.6 ms, zero after 80 ms while LOST, no stale replay, fresh recovery and manual mode handoff all passed. It used `ROS_DOMAIN_ID=209`; `/mux/cmd_vel` had no driver subscriber:
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  ROS_DOMAIN_ID=209 PYTHONPATH="bringup/agt_base_control:${PYTHONPATH}" python3 bringup/agt_base_control/test/guard_fail_closed_acceptance.py
+  ```
+
+- `agt_base_runtime` build — PASS, 1 package, using the installed interface underlay:
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  colcon --log-base /tmp/agt_runtime_v4_p2_runtime_log build --base-paths /home/yangxuan/ros2_ws/src/agt_navigation_v3 --packages-select agt_base_runtime --build-base /tmp/agt_runtime_v4_p2_runtime_build --install-base /tmp/agt_runtime_v4_p2_runtime_install --merge-install
+  ```
+
+- `agt_base_runtime` tests — PASS, 9 C++ core tests plus the Python/C++ shadow scenario; `colcon test-result` reported 12 test cases, 0 failures. Shadow used `ROS_DOMAIN_ID=207`:
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  ROS_DOMAIN_ID=207 colcon --log-base /tmp/agt_runtime_v4_p2_runtime_log test --base-paths /home/yangxuan/ros2_ws/src/agt_navigation_v3 --packages-select agt_base_runtime --build-base /tmp/agt_runtime_v4_p2_runtime_build --install-base /tmp/agt_runtime_v4_p2_runtime_install --merge-install --event-handlers console_direct+
+  colcon test-result --test-result-base /tmp/agt_runtime_v4_p2_runtime_build --verbose
+  ```
+
+- Shadow metrics captured with pytest output enabled — PASS, 1 scenario:
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  ROS_DOMAIN_ID=206 MOTION_GUARD_CPP_EXECUTABLE=/tmp/agt_runtime_v4_p2_runtime_build/agt_base_runtime/motion_guard PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH="bringup/agt_base_control:${PYTHONPATH}" python3 -m pytest -s -q platform/agt_base_runtime/test/test_shadow_parity.py
+  ```
+
+- `agt_system_bringup` build — PASS, 1 package; C++ package install overlay supplied `agt_base_runtime`:
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  source /tmp/agt_runtime_v4_p2_runtime_install/setup.bash
+  colcon --log-base /tmp/agt_runtime_v4_p2_system_log build --base-paths /home/yangxuan/ros2_ws/src/agt_navigation_v3 --packages-select agt_system_bringup --build-base /tmp/agt_runtime_v4_p2_system_build --install-base /tmp/agt_runtime_v4_p2_system_install --merge-install --allow-overriding agt_system_bringup
+  ```
+
+- Launch ownership/config and field-wrapper dry-run tests — PASS, 34 tests; no launch process or ROS graph was started:
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  source /tmp/agt_runtime_v4_p2_runtime_install/setup.bash
+  source /tmp/agt_runtime_v4_p2_system_install/setup.bash
+  ROS_DOMAIN_ID=212 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH="bringup/agt_base_control:map_data_manager/agt_map_manager:${PYTHONPATH}" python3 -m pytest -q bringup/agt_system_bringup/test/test_payload_interlock_launch.py bringup/agt_system_bringup/test/test_launch_ownership_static.py bringup/agt_system_bringup/test/test_yhs_nav_config_guard.py bringup/agt_system_bringup/test/test_payload_interlock_resolution.py bringup/agt_system_bringup/test/test_run_field_stack_robot_config.py
+  ```
+
+- Field wrapper syntax and rollback selection — PASS. `bash -n scripts/run_field_stack.sh` passed. Dry-run coverage verified the C++ default, Python selection in inspection mode, and rejection of an unknown backend before stack startup. The wrapper exports the validated choice for nested launch processes. Example rollback command:
+
+  ```bash
+  bash scripts/run_field_stack.sh --mode navigation --motion-guard-backend python --dry-run
+  ```
+
+  The final `agt_system_bringup` rebuild used its isolated P2 build/install/log directories and finished with 1 package. The initial rebuild reported the existing underlay package override; the final command explicitly acknowledged it with `--allow-overriding agt_system_bringup`. The dry-run suite did not start `ros2 launch`, any hardware driver, or a motion command.
+
+Execution notes: initial Python baseline test invocation had 2 fixture failures plus 9 ROS-context setup errors; the tests were changed to shut down the context between cases and set declared parameters before assertions, then all 16 passed. The first C++ build failed on a const ROS-clock accessor and a test namespace brace; both compile errors were corrected. The first C++ core run exposed a slew fixture that stopped refreshing the command after its 0.25 s timeout; the fixture now refreshes each synthetic cycle. Shadow testing also exposed that rclcpp's default SIGINT handler closed the ROS context before exit zeros were published; the node now handles SIGINT/SIGTERM, sends three zeros, then shuts down. The final build, core/shadow suite and system launch tests all passed.
+
+P2 runtime graph and physical base tests — `NOT_RUN`. No real `/mux/cmd_vel` connection, CAN message, chassis command or robot motion was made. Bunker manual/remote/estop priority is unchanged in source and remains a real-hardware `NOT_RUN` gate. The live process graph for either launch backend remains `NOT_RUN`; single-action ownership is supported by launch source and static/dry-run tests.
 
 ## D. Base Runtime adapters
 

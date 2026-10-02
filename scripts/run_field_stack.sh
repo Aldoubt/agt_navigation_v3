@@ -31,6 +31,7 @@ MODE=navigation
 LOCALIZATION_MODE=auto
 LIO_BACKEND=fastlio2
 LIO_CONFIG=""
+MOTION_GUARD_BACKEND=${AGT_MOTION_GUARD_BACKEND:-cpp}
 YHS_LIVOX_CONFIG=""
 YHS_NAV_CONFIG_DIR=""
 ENABLE_RTK=false
@@ -59,6 +60,8 @@ Options:
                     save images and metadata, then continue/return home.
   --lio-backend NAME Local odometry: fastlio2 (default) or batch_lio (explicit opt-in); mutually exclusive.
   --lio-config PATH  Optional runtime YAML for the selected LIO backend.
+  --motion-guard-backend NAME
+                    C++ guard by default; use python as the tested rollback backend.
   --localization-mode MODE
                     auto (V1): two global relocalization attempts; exit on failure.
                     V1 does not accept /initialpose or RTK pose seeds.
@@ -124,6 +127,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --lio-config)
       LIO_CONFIG=${2:?--lio-config requires a path}
+      shift 2
+      ;;
+    --motion-guard-backend)
+      MOTION_GUARD_BACKEND=${2:?--motion-guard-backend requires cpp or python}
       shift 2
       ;;
     --yhs-livox-config)
@@ -228,6 +235,14 @@ case "$LOCALIZATION_MODE" in
   auto) ;;
   *) printf 'Invalid --localization-mode: V1 field startup supports only auto (no /initialpose or RTK seed)\n' >&2; exit 2 ;;
 esac
+
+case "$MOTION_GUARD_BACKEND" in
+  cpp|python) ;;
+  *) printf 'Invalid --motion-guard-backend %s; expected cpp or python\n' "$MOTION_GUARD_BACKEND" >&2; exit 2 ;;
+esac
+# The inspection wrapper may start navigation.launch.py as a nested launch.
+# Export one validated selection so both navigation modes use the same owner.
+export AGT_MOTION_GUARD_BACKEND="$MOTION_GUARD_BACKEND"
 
 case "$LIO_BACKEND" in
   batch_lio)
@@ -427,6 +442,7 @@ done
 if [[ "$DRY_RUN" == true ]]; then
   printf 'mode=%s\n' "$MODE"
   printf 'localization_mode=%s\n' "$LOCALIZATION_MODE"
+  printf 'motion_guard_backend=%s\n' "$MOTION_GUARD_BACKEND"
   printf 'lio_backend=%s\n' "$LIO_BACKEND"
   printf 'lio_config=%s\n' "$LIO_CONFIG"
   if [[ "$ROBOT_CONFIG_ID" == yhs_harvesting ]]; then

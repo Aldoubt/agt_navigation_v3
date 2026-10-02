@@ -30,6 +30,7 @@
   <exec_depend>nav2_lifecycle_manager</exec_depend>
   <exec_depend>nav2_bt_navigator</exec_depend>
   <exec_depend>agt_base_control</exec_depend>
+  <exec_depend>agt_base_runtime</exec_depend>
   <exec_depend>agt_rviz_patrol</exec_depend>
   <exec_depend>agt_robot_bringup</exec_depend>
   <exec_depend>python3-yaml</exec_depend>

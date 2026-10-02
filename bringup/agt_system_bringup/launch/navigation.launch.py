@@ -168,6 +168,24 @@ def resolve_payload_interlock(mode, robot_config_spec, robot_profile):
     raise RuntimeError(f'payload_interlock must be auto|true|false, got {mode!r}')
 
 
+def motion_guard_node_spec(backend):
+    """Select exactly one guard process. ``python`` is the field rollback path."""
+    selected = (backend or 'cpp').strip().lower()
+    if selected == 'cpp':
+        return 'agt_base_runtime', 'motion_guard'
+    if selected == 'python':
+        return 'agt_base_control', 'cmd_vel_guard'
+    raise RuntimeError(f'motion_guard_backend must be cpp|python, got {backend!r}')
+
+
+def _motion_guard_action(backend, params_file, payload_interlock):
+    package, executable = motion_guard_node_spec(backend)
+    return Node(
+        package=package, executable=executable,
+        name='agt_cmd_vel_guard', output='screen', parameters=[
+            params_file, {'require_payload_drive_permission': payload_interlock}])
+
+
 def _launch_runtime(context):
     robot_profile = LaunchConfiguration('robot').perform(context)
     payload_interlock = resolve_payload_interlock(
@@ -189,6 +207,7 @@ def _launch_runtime(context):
         robot_profile, LaunchConfiguration('nav_config_dir').perform(context), share / 'config')
     params_file = _build_runtime_params(
         config_dir, local_obstacle_avoidance=local_obstacle_avoidance)
+    motion_guard_backend = LaunchConfiguration('motion_guard_backend').perform(context)
     use_sim_time = LaunchConfiguration('use_sim_time').perform(context)
 
     observation = {
@@ -263,10 +282,7 @@ def _launch_runtime(context):
                 'use_sim_time': ParameterValue(
                     LaunchConfiguration('use_sim_time'), value_type=bool),
             }]),
-        Node(
-            package='agt_base_control', executable='cmd_vel_guard',
-            name='agt_cmd_vel_guard', output='screen', parameters=[
-                params_file, {'require_payload_drive_permission': payload_interlock}]),
+        _motion_guard_action(motion_guard_backend, params_file, payload_interlock),
         # Always expose map-frame LIO/wheel trails and the validated RViz
         # hand-drawn FollowPath entry point. This is independent of the
         # stop-and-shoot inspection mission queue below.
@@ -293,6 +309,10 @@ def generate_launch_description():
         DeclareLaunchArgument('payload_interlock', default_value='auto',
                               description='auto (from robot_config) | true | false; '
                                           'true = hold chassis unless the arm grants drive permission'),
+        DeclareLaunchArgument(
+            'motion_guard_backend',
+            default_value=EnvironmentVariable('AGT_MOTION_GUARD_BACKEND', default_value='cpp'),
+            description='cpp (default) or python (rollback); starts one command guard'),
         DeclareLaunchArgument('map_registry',
                               default_value=EnvironmentVariable('AGT_MAP_REGISTRY', default_value='')),
         DeclareLaunchArgument('use_sim_time', default_value='false'),

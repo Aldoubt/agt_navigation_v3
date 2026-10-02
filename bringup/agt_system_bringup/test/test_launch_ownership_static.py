@@ -59,6 +59,23 @@ def test_unique_owner_inclusions():
     assert owner_text.count("'bunker_base', 'bunker_base.launch.py'") == 1
 
 
+def test_navigation_starts_one_motion_guard_with_cpp_default_and_python_rollback():
+    launch_text = (ROOT / 'launch' / 'navigation.launch.py').read_text(encoding='utf-8')
+    assert "'motion_guard_backend'," in launch_text
+    assert "EnvironmentVariable('AGT_MOTION_GUARD_BACKEND', default_value='cpp')" in launch_text
+    assert launch_text.count(
+        '_motion_guard_action(motion_guard_backend, params_file, payload_interlock)') == 1
+    assert "return 'agt_base_runtime', 'motion_guard'" in launch_text
+    assert "return 'agt_base_control', 'cmd_vel_guard'" in launch_text
+
+
+def test_field_wrapper_validates_and_exports_motion_guard_backend():
+    wrapper = (ROOT.parents[1] / 'scripts' / 'run_field_stack.sh').read_text(encoding='utf-8')
+    assert '--motion-guard-backend' in wrapper
+    assert 'export AGT_MOTION_GUARD_BACKEND="$MOTION_GUARD_BACKEND"' in wrapper
+    assert "printf 'motion_guard_backend=%s\\n' \"$MOTION_GUARD_BACKEND\"" in wrapper
+
+
 def test_navigation_and_inspection_modes_are_explicit():
     mission = (ROOT.parents[2] / 'agt_mission' / 'agt_mission_bringup' / 'launch' /
                'mission.launch.py').read_text(encoding='utf-8')

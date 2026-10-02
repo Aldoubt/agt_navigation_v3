@@ -39,6 +39,13 @@ def test_navigation_yhs_blocked_never_falls_back():
         NAV.resolve_payload_interlock('auto', 'yhs_harvesting', '')
 
 
+def test_motion_guard_backend_selects_one_process_and_keeps_python_rollback():
+    assert NAV.motion_guard_node_spec('cpp') == ('agt_base_runtime', 'motion_guard')
+    assert NAV.motion_guard_node_spec('python') == ('agt_base_control', 'cmd_vel_guard')
+    with pytest.raises(RuntimeError, match=r'cpp\|python'):
+        NAV.motion_guard_node_spec('both')
+
+
 def _value(**kw):
     defaults = {'payload_interlock': 'auto', 'enable_arm': 'false'}
     defaults.update(kw)

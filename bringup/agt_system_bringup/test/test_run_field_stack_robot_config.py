@@ -66,6 +66,25 @@ def test_default_hardware_is_single_bunker_lidar_model_owner_without_camera():
     assert 'hardware_launch_args=' not in nav.stdout
 
 
+def test_field_stack_exposes_cpp_guard_and_python_rollback(monkeypatch):
+    monkeypatch.delenv('AGT_MOTION_GUARD_BACKEND', raising=False)
+    default = nav_dry_run('--mode', 'navigation')
+    assert default.returncode == 0, default.stderr
+    assert 'motion_guard_backend=cpp' in default.stdout
+
+    rollback = nav_dry_run('--mode', 'inspection', '--motion-guard-backend', 'python')
+    assert rollback.returncode == 0, rollback.stderr
+    assert 'motion_guard_backend=python' in rollback.stdout
+    assert 'hardware_owner=external' in rollback.stdout
+
+
+def test_field_stack_rejects_unknown_motion_guard_before_startup():
+    proc = nav_dry_run('--mode', 'navigation', '--motion-guard-backend', 'bunker')
+    assert proc.returncode == 2
+    assert 'expected cpp or python' in proc.stderr
+    assert 'hardware_owner=external' not in proc.stdout
+
+
 def test_explicit_nav_config_never_enables_camera_driver_itself():
     nav = nav_dry_run('--mode', 'navigation', '--robot-config', 'bunker_inspection')
     assert nav.returncode == 0, nav.stderr

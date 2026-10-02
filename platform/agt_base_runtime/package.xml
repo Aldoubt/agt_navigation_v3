@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>agt_base_runtime</name>
+  <version>0.1.0</version>
+  <description>Platform-neutral C++ motion guard and base runtime core.</description>
+  <maintainer email="dev@agt.local">AGT</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>rclcpp</depend>
+  <depend>geometry_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>agt_robot_interfaces</depend>
+
+  <test_depend>ament_cmake_gtest</test_depend>
+  <test_depend>ament_cmake_pytest</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
