@@ -18,16 +18,17 @@ WS = ROOT.parents[1]
 NAV = ROOT / 'scripts/run_field_stack.sh'
 HARDWARE = ROOT / 'scripts/run_bunker_hardware.sh'
 PLAN = WS / 'install/agt_robot_bringup/lib/agt_robot_bringup/hardware_launch_plan.py'
+ROBOT_CONFIG_TOOL = WS / 'install/agt_robot_bringup/lib/agt_robot_bringup/robot_config.py'
 ROBOTS = WS / 'install/agt_robot_bringup/share/agt_robot_bringup/config/robots'
 
 if not PLAN.is_file() or not Path('/opt/ros/humble/setup.bash').is_file():
     pytest.skip('needs Humble + built agt_robot_bringup', allow_module_level=True)
 
-DESC = 'agt_robot_description/launch/display.launch.py'
-MID = 'livox_ros_driver2/launch_ROS2/msg_MID360_launch.py'
-BUNKER = 'bunker_base/launch/bunker_base.launch.py'
-RTK = 'agt_asensing_driver/launch/asensing.launch.py'
-CAM = 'autolabor_c1_bringup/launch/autolabor_c1.launch.py'
+DESC = 'agt_robot_description/launch/description.launch.py'
+MID = 'agt_robot_bringup/launch/lidar.launch.py'
+BUNKER = 'agt_robot_bringup/launch/base.launch.py'
+RTK = 'agt_robot_bringup/launch/rtk.launch.py'
+CAM = 'agt_robot_bringup/launch/camera.launch.py'
 
 
 def hardware_dry_run(*args):
@@ -51,11 +52,19 @@ def nav_dry_run(*args):
                           capture_output=True, text=True, timeout=30)
 
 
+def resolve_robot_config(robot_config):
+    proc = subprocess.run(['python3', str(ROBOT_CONFIG_TOOL), 'resolve',
+                           '--robot-config', str(robot_config), '--json'],
+                          capture_output=True, text=True, timeout=20)
+    assert proc.returncode == 0, (proc.stdout, proc.stderr)
+    return json.loads(proc.stdout)
+
+
 def test_default_hardware_is_single_bunker_lidar_model_owner_without_camera():
     proc, plan, argv = hardware_dry_run()
     assert proc.returncode == 0, proc.stderr
     assert plan['ok'] and plan['includes'] == [DESC, MID, BUNKER]
-    assert plan['launch_args']['bunker_can_port'] == 'can0'
+    assert resolve_robot_config('bunker_inspection')['launch_args']['bunker_can_port'] == 'can0'
     assert 'enable_camera_gimbal:=false' in argv
     nav = nav_dry_run('--mode', 'navigation')
     assert nav.returncode == 0, nav.stderr
@@ -114,7 +123,7 @@ def test_explicit_external_config_port_is_the_one_resolved(tmp_path):
     (ext / 'devices.yaml').write_text(yaml.safe_dump(dev))
     proc, plan, argv = hardware_dry_run('--robot-config', str(ext / 'robot.yaml'))
     assert proc.returncode == 0 and plan['ok'], (proc.stderr, plan)
-    assert plan['launch_args']['bunker_can_port'] == 'can9'
+    assert resolve_robot_config(ext / 'robot.yaml')['launch_args']['bunker_can_port'] == 'can9'
     assert f'robot_config:={ext / "robot.yaml"}' in argv
     nav = nav_dry_run('--mode', 'navigation', '--robot-config', str(ext / 'robot.yaml'))
     assert nav.returncode == 0 and f'robot_config_dir={ext}' in nav.stdout

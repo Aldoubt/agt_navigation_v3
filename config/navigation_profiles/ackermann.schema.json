@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGT Ackermann Nav2 Profile Contract",
+  "description": "Contract for a measured robot-specific Nav2 config directory. This schema contains no vehicle measurements or runnable profile values.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "profile_id",
+    "robot_profile",
+    "kinematics",
+    "field_verified",
+    "planner",
+    "controller",
+    "recovery",
+    "minimum_turning_radius_source",
+    "footprint_source",
+    "motion_limits_source"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "profile_id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+    "robot_profile": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+    "kinematics": {"const": "ackermann"},
+    "field_verified": {"type": "boolean"},
+    "verified_by": {"type": "string", "minLength": 1},
+    "planner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plugin", "motion_model_for_search"],
+      "properties": {
+        "plugin": {"const": "nav2_smac_planner/SmacPlannerHybrid"},
+        "motion_model_for_search": {"const": "DUBIN"}
+      }
+    },
+    "controller": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plugin", "rotate_to_heading", "allow_reversing"],
+      "properties": {
+        "plugin": {"const": "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"},
+        "rotate_to_heading": {"const": false},
+        "allow_reversing": {"const": false}
+      }
+    },
+    "recovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["spin", "backup"],
+      "properties": {
+        "spin": {"const": false},
+        "backup": {"const": false}
+      }
+    },
+    "minimum_turning_radius_source": {
+      "const": "robot_profile.base.ackermann.minimum_turning_radius_m"
+    },
+    "footprint_source": {"const": "robot_profile.geometry.footprint"},
+    "motion_limits_source": {"const": "safety.yaml"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"field_verified": {"const": true}}, "required": ["field_verified"]},
+      "then": {"required": ["verified_by"]}
+    }
+  ]
+}

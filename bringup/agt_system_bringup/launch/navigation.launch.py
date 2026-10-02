@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from copy import deepcopy
+import math
 import tempfile
 
 import yaml
@@ -19,35 +20,315 @@ CONFIG_FILES = (
 )
 
 
-def select_navigation_config(robot_profile, explicit_dir, default_dir):
-    """Keep Bunker defaults, but never silently load them for the YHS chassis.
+def _read_yaml(path, label):
+    try:
+        value = yaml.safe_load(Path(path).read_text(encoding='utf-8'))
+    except (OSError, yaml.YAMLError) as exc:
+        raise RuntimeError(f'{label} missing or invalid: {path}') from exc
+    if not isinstance(value, dict):
+        raise RuntimeError(f'{label} must contain a YAML mapping: {path}')
+    return value
 
-    The marker records a human field review; its presence is not itself a
-    measurement, safety certification, or permission to release a blocked robot.
+
+def _robot_profile_path(robot_profile, robot_profiles_dir=None):
+    if robot_profiles_dir is None:
+        description_share = Path(get_package_share_directory('agt_robot_description'))
+        robot_profiles_dir = description_share / 'config' / 'robot_profiles'
+    path = Path(robot_profiles_dir) / f'{robot_profile}.yaml'
+    if not path.is_file():
+        raise RuntimeError(f'robot profile does not exist: {path}')
+    profile = _read_yaml(path, 'robot profile')
+    if profile.get('robot_id') != robot_profile:
+        raise RuntimeError(f'robot profile id mismatch in {path}')
+    return profile
+
+
+def _same_numbers(left, right, tolerance=1.0e-8):
+    if isinstance(left, (list, tuple)) and isinstance(right, (list, tuple)):
+        return (len(left) == len(right) and
+                all(_same_numbers(a, b, tolerance) for a, b in zip(left, right)))
+    if isinstance(left, (int, float)) and isinstance(right, (int, float)):
+        return math.isclose(float(left), float(right), rel_tol=0.0, abs_tol=tolerance)
+    return left == right
+
+
+def _positive_finite(value):
+    return (isinstance(value, (int, float)) and math.isfinite(float(value)) and
+            float(value) > 0.0)
+
+
+def _profile_nav_configs(config_dir):
+    return {
+        name: _read_yaml(Path(config_dir) / name, f'Nav2 config {name}')
+        for name in CONFIG_FILES
+    }
+
+
+def _validate_tracked_profile(config_dir, robot_profile, manifest):
+    """Assert that the canonical Bunker files still implement the frozen baseline."""
+    base = robot_profile['base']
+    if (base.get('kinematics') != 'skid_steer' or base.get('rotate_in_place') is not True or
+            base.get('publish_odom_tf') is not False or base.get('control_rate_hz') != 50):
+        raise RuntimeError('bunker_v1 Robot Profile must remain skid_steer with in-place rotation')
+    expected = {
+        'schema_version': 1,
+        'profile_id': 'bunker_tracked',
+        'robot_profile': 'bunker_v1',
+        'kinematics': 'skid_steer',
+        'parameter_files': {
+            'robot': 'robot.yaml',
+            'navigation': 'navigation.yaml',
+            'controller': 'controller.yaml',
+            'costmap': 'costmap.yaml',
+            'perception': 'perception.yaml',
+            'safety': 'safety.yaml',
+        },
+        'planner': {'plugin': 'nav2_smac_planner/SmacPlanner2D'},
+        'controller': {
+            'plugin': 'nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController',
+            'rotate_to_heading': True,
+            'allow_reversing': False,
+        },
+        'recovery': {'spin': True, 'backup': True},
+        'minimum_turning_radius_source': None,
+        'footprint_source': 'robot.yaml',
+        'motion_limits_source': 'safety.yaml',
+    }
+    for key, value in expected.items():
+        if manifest.get(key) != value:
+            raise RuntimeError(f'tracked/skid navigation profile has invalid {key!r}')
+
+    configs = _profile_nav_configs(config_dir)
+    nav = configs['navigation.yaml']
+    controller = configs['controller.yaml']
+    robot_yaml = configs['robot.yaml']
+    safety = configs['safety.yaml']
+    planner_plugin = _params(nav, 'planner_server')['GridBased'].get('plugin')
+    follow = _params(controller, 'controller_server')['FollowPath']
+    behaviors = _params(nav, 'behavior_server').get('behavior_plugins', [])
+    if planner_plugin != manifest['planner']['plugin']:
+        raise RuntimeError('tracked/skid planner no longer matches its profile manifest')
+    if (follow.get('plugin') != manifest['controller']['plugin'] or
+            follow.get('use_rotate_to_heading') is not True or
+            follow.get('allow_reversing') is not False):
+        raise RuntimeError('tracked/skid controller no longer matches its profile manifest')
+    if (('spin' in behaviors) is not manifest['recovery']['spin'] or
+            ('backup' in behaviors) is not manifest['recovery']['backup']):
+        raise RuntimeError('tracked/skid recovery behaviors no longer match their profile manifest')
+
+    robot_params = _params(robot_yaml, 'agt_robot_config')
+    declared_footprint = yaml.safe_load(robot_params['footprint'])
+    if not _same_numbers(declared_footprint, robot_profile['geometry']['footprint']):
+        raise RuntimeError('Bunker Nav2 footprint differs from the Robot Profile footprint')
+    if not math.isclose(float(robot_params['footprint_padding']),
+                        float(robot_profile['geometry']['safety_margin']), abs_tol=1e-8):
+        raise RuntimeError('Bunker Nav2 footprint padding differs from the Robot Profile margin')
+
+    limits = _params(safety, 'agt_motion_limits')
+    if (not math.isclose(float(limits['forward_mps']),
+                         float(robot_profile['motion']['max_linear_velocity']), abs_tol=1e-8) or
+            not math.isclose(float(limits['angular_radps']),
+                             float(robot_profile['motion']['max_angular_velocity']), abs_tol=1e-8)):
+        raise RuntimeError('Bunker Nav2 limits differ from the Robot Profile motion limits')
+    rates = (
+        _params(controller, 'controller_server')['controller_frequency'],
+        _params(safety, 'velocity_smoother')['smoothing_frequency'],
+        _params(safety, 'agt_cmd_vel_guard')['publish_rate_hz'],
+    )
+    if any(not _positive_finite(rate) or float(rate) < 50.0 for rate in rates):
+        raise RuntimeError('Bunker controller, smoother and motion guard must preserve the 50 Hz chain')
+
+
+def _validate_ackermann_nav_semantics(config_dir, robot_profile, manifest):
+    """Validate Ackermann planner/controller contracts against measured profile fields.
+
+    This checks a config bundle only. Selection for a live launch additionally
+    requires ``field_verified: true`` and a non-empty reviewer in its manifest.
     """
+    base = robot_profile.get('base', {})
+    geometry = robot_profile.get('geometry', {})
+    motion = robot_profile.get('motion', {})
+    ack = base.get('ackermann', {})
+    if (base.get('kinematics') != 'ackermann' or base.get('rotate_in_place') is not False or
+            not isinstance(ack, dict)):
+        raise RuntimeError('Ackermann Robot Profile must declare ackermann kinematics and rotate_in_place: false')
+    for key in ('wheelbase_m', 'steering_angle_min_rad', 'steering_angle_max_rad',
+                'max_steering_rate_radps', 'minimum_turning_radius_m'):
+        if not isinstance(ack.get(key), (int, float)) or not math.isfinite(float(ack[key])):
+            raise RuntimeError(f'Ackermann Robot Profile is missing measured {key}')
+    if (ack['wheelbase_m'] <= 0.0 or ack['steering_angle_min_rad'] >= 0.0 or
+            ack['steering_angle_max_rad'] <= 0.0 or ack['max_steering_rate_radps'] <= 0.0 or
+            ack['minimum_turning_radius_m'] <= 0.0 or
+            ack['steering_angle_min_rad'] <= -math.pi / 2.0 or
+            ack['steering_angle_max_rad'] >= math.pi / 2.0):
+        raise RuntimeError('Ackermann Robot Profile contains invalid steering geometry')
+    max_steering_angle = max(abs(float(ack['steering_angle_min_rad'])),
+                             abs(float(ack['steering_angle_max_rad'])))
+    kinematic_radius = float(ack['wheelbase_m']) / math.tan(max_steering_angle)
+    if float(ack['minimum_turning_radius_m']) + 1.0e-8 < kinematic_radius:
+        raise RuntimeError('Ackermann minimum turning radius is tighter than its wheelbase/steering limits')
+    if not _positive_finite(base.get('control_rate_hz')) or float(base['control_rate_hz']) < 50.0:
+        raise RuntimeError('Ackermann Robot Profile must preserve the 50 Hz command chain')
+    for key in ('width', 'length'):
+        if not _positive_finite(geometry.get(key)):
+            raise RuntimeError(f'Ackermann Robot Profile requires positive measured geometry.{key}')
+    margin = geometry.get('safety_margin')
+    if not isinstance(margin, (int, float)) or not math.isfinite(float(margin)) or float(margin) < 0.0:
+        raise RuntimeError('Ackermann Robot Profile requires a finite non-negative geometry.safety_margin')
+
+    required_manifest = {
+        'schema_version': 1,
+        'robot_profile': robot_profile.get('robot_id'),
+        'kinematics': 'ackermann',
+        'planner': {
+            'plugin': 'nav2_smac_planner/SmacPlannerHybrid',
+            'motion_model_for_search': 'DUBIN',
+        },
+        'controller': {
+            'plugin': 'nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController',
+            'rotate_to_heading': False,
+            'allow_reversing': False,
+        },
+        'recovery': {'spin': False, 'backup': False},
+        'minimum_turning_radius_source': 'robot_profile.base.ackermann.minimum_turning_radius_m',
+        'footprint_source': 'robot_profile.geometry.footprint',
+        'motion_limits_source': 'safety.yaml',
+    }
+    for key, value in required_manifest.items():
+        if manifest.get(key) != value:
+            raise RuntimeError(f'Ackermann navigation profile has invalid {key!r}')
+
+    configs = _profile_nav_configs(config_dir)
+    nav = configs['navigation.yaml']
+    controller = configs['controller.yaml']
+    robot_yaml = configs['robot.yaml']
+    costmap = configs['costmap.yaml']
+    safety = configs['safety.yaml']
+    planner = _params(nav, 'planner_server')['GridBased']
+    follow = _params(controller, 'controller_server')['FollowPath']
+    behaviors = _params(nav, 'behavior_server').get('behavior_plugins', [])
+    if planner.get('plugin') != required_manifest['planner']['plugin']:
+        raise RuntimeError('Ackermann requires the Smac Hybrid planner')
+    if planner.get('motion_model_for_search') != 'DUBIN':
+        raise RuntimeError('Ackermann profile with reversing disabled requires the DUBIN motion model')
+    turning_radius = float(ack['minimum_turning_radius_m'])
+    if not math.isclose(float(planner.get('minimum_turning_radius', math.nan)),
+                        turning_radius, rel_tol=0.0, abs_tol=1e-8):
+        raise RuntimeError('Smac Hybrid minimum_turning_radius must equal the Robot Profile value')
+    global_costmap = _params(costmap, 'global_costmap', 'global_costmap')
+    resolution = global_costmap.get('resolution')
+    if not _positive_finite(resolution):
+        raise RuntimeError('Ackermann global costmap resolution must be finite and positive')
+    if turning_radius < float(resolution):
+        raise RuntimeError('Ackermann minimum turning radius must not be below the global costmap resolution')
+
+    if (follow.get('plugin') != required_manifest['controller']['plugin'] or
+            follow.get('use_rotate_to_heading') is not False or
+            follow.get('allow_reversing') is not False):
+        raise RuntimeError('Ackermann RPP must disable rotate_to_heading and reversing')
+    if 'spin' in behaviors or 'backup' in behaviors:
+        raise RuntimeError('Ackermann recovery must not request spin or backup motion')
+    controller_params = _params(controller, 'controller_server')
+    if not controller_params.get('progress_checker_plugin'):
+        raise RuntimeError('Ackermann controller requires an explicit progress checker')
+    progress = controller_params.get('progress_checker', {})
+    if not progress.get('plugin'):
+        raise RuntimeError('Ackermann progress checker requires an explicit plugin')
+    for key in ('required_movement_radius', 'required_movement_angle', 'movement_time_allowance'):
+        value = progress.get(key)
+        if not isinstance(value, (int, float)) or not math.isfinite(float(value)) or float(value) <= 0.0:
+            raise RuntimeError(f'Ackermann progress checker requires positive {key}')
+    for key in ('lookahead_dist', 'min_lookahead_dist', 'max_lookahead_dist',
+                'max_allowed_time_to_collision_up_to_carrot'):
+        value = follow.get(key)
+        if not isinstance(value, (int, float)) or not math.isfinite(float(value)) or float(value) <= 0.0:
+            raise RuntimeError(f'Ackermann RPP requires positive {key}')
+    if (follow.get('use_velocity_scaled_lookahead_dist') is True and
+            float(follow['min_lookahead_dist']) > float(follow['max_lookahead_dist'])):
+        raise RuntimeError('Ackermann RPP minimum lookahead must not exceed maximum lookahead')
+
+    robot_params = _params(robot_yaml, 'agt_robot_config')
+    declared_footprint = yaml.safe_load(robot_params['footprint'])
+    if not isinstance(geometry.get('footprint'), list) or not _same_numbers(
+            declared_footprint, geometry['footprint']):
+        raise RuntimeError('Ackermann Nav2 footprint must match the Robot Profile geometry')
+    if not math.isclose(float(robot_params['footprint_padding']),
+                        float(geometry['safety_margin']), abs_tol=1e-8):
+        raise RuntimeError('Ackermann Nav2 footprint padding must match the Robot Profile safety margin')
+    if (robot_params.get('base_frame') != robot_profile.get('frames', {}).get('base') or
+            robot_params.get('rotation_frame') != robot_profile.get('frames', {}).get('footprint')):
+        raise RuntimeError('Ackermann Nav2 base/footprint frames must match the Robot Profile')
+
+    limits = _params(safety, 'agt_motion_limits')
+    forward = float(limits['forward_mps'])
+    reverse = float(limits['reverse_mps'])
+    angular = float(limits['angular_radps'])
+    profile_linear = float(motion.get('max_linear_velocity', math.nan))
+    profile_angular = float(motion.get('max_angular_velocity', math.nan))
+    if (not all(math.isfinite(value) for value in
+                (forward, reverse, angular, profile_linear, profile_angular)) or
+            forward <= 0.0 or reverse != 0.0 or angular <= 0.0):
+        raise RuntimeError('Ackermann Nav2 limits must be finite, positive, and have reverse disabled')
+    if (forward > profile_linear or angular > profile_angular or
+            angular > forward / turning_radius):
+        raise RuntimeError('Ackermann Nav2 limits exceed the Robot Profile speed/turning envelope')
+    cruise = float(limits['controller_cruise_mps'])
+    approach = float(limits['controller_approach_mps'])
+    regulated_min = float(limits['controller_regulated_min_mps'])
+    if not (0.0 <= approach <= cruise <= forward and 0.0 <= regulated_min <= cruise):
+        raise RuntimeError('Ackermann controller speeds must fit the profile forward-speed limits')
+    for name in ('linear_accel_mps2', 'linear_decel_mps2',
+                 'angular_accel_radps2', 'angular_decel_radps2'):
+        if not _positive_finite(limits.get(name)):
+            raise RuntimeError(f'Ackermann motion limit {name} must be positive')
+    rates = (
+        _params(controller, 'controller_server').get('controller_frequency'),
+        _params(safety, 'velocity_smoother').get('smoothing_frequency'),
+        _params(safety, 'agt_cmd_vel_guard').get('publish_rate_hz'),
+    )
+    if any(not _positive_finite(rate) or float(rate) < 50.0 for rate in rates):
+        raise RuntimeError('Ackermann controller, smoother and motion guard must preserve the 50 Hz command chain')
+
+
+def select_navigation_config(robot_profile, explicit_dir, default_dir, robot_profiles_dir=None):
+    """Select a kinematics-matched Nav2 profile and fail closed before field use."""
     default = Path(default_dir).resolve()
-    if robot_profile != 'yhs_v1':
+    selected_robot = (robot_profile or 'bunker_v1').strip()
+    if selected_robot in ('yhs_v1', 'yhs_tk_mid'):
+        raise RuntimeError('YHS navigation remains BLOCKED pending protocol and kinematics audit')
+    profile = _robot_profile_path(selected_robot, robot_profiles_dir)
+    kinematics = profile.get('base', {}).get('kinematics')
+
+    if selected_robot == 'bunker_v1':
         if explicit_dir:
-            raise RuntimeError('nav_config_dir override is reserved for measured yhs_v1 configuration')
+            raise RuntimeError('nav_config_dir override is reserved for a reviewed non-baseline profile')
+        if kinematics != 'skid_steer':
+            raise RuntimeError('bunker_v1 Robot Profile must remain skid_steer')
+        manifest = _read_yaml(default / 'navigation_profiles' / 'bunker_v1.yaml',
+                              'tracked/skid navigation profile')
+        _validate_tracked_profile(default, profile, manifest)
         return default
+
     if not explicit_dir:
-        raise RuntimeError('YHS navigation requires explicit nav_config_dir with measured YHS footprint, limits and obstacles')
+        raise RuntimeError(f'{selected_robot} requires an explicit measured nav_config_dir')
     selected = Path(explicit_dir).expanduser().resolve()
     if selected == default or not selected.is_dir():
-        raise RuntimeError('YHS navigation may not use the canonical Bunker config directory')
-    marker_path = selected / 'field_profile.yaml'
-    try:
-        marker = yaml.safe_load(marker_path.read_text(encoding='utf-8'))
-    except (OSError, yaml.YAMLError) as exc:
-        raise RuntimeError(f'YHS navigation field review marker missing/invalid: {marker_path}') from exc
-    if (not isinstance(marker, dict) or marker.get('robot_profile') != 'yhs_v1' or
-            marker.get('field_verified') is not True or not marker.get('verified_by')):
-        raise RuntimeError('YHS navigation config requires field_profile.yaml: '
-                           'robot_profile: yhs_v1, field_verified: true, verified_by: <reviewer>')
+        raise RuntimeError(f'{selected_robot} may not use the canonical Bunker config directory')
     missing = [name for name in CONFIG_FILES if not (selected / name).is_file()]
     if missing:
-        raise RuntimeError(f'YHS navigation config missing required YAML files: {missing}')
-    return selected
+        raise RuntimeError(f'Nav2 profile missing required YAML files: {missing}')
+    manifest = _read_yaml(selected / 'navigation_profile.yaml', 'navigation profile manifest')
+    if manifest.get('robot_profile') != selected_robot:
+        raise RuntimeError('navigation profile robot_profile does not match the selected Robot Profile')
+    if manifest.get('kinematics') != kinematics:
+        raise RuntimeError('navigation profile kinematics do not match the selected Robot Profile')
+    if manifest.get('field_verified') is not True or not str(manifest.get('verified_by', '')).strip():
+        raise RuntimeError('non-baseline Nav2 profile requires measured field_verified: true and verified_by')
+    if kinematics == 'ackermann':
+        _validate_ackermann_nav_semantics(selected, profile, manifest)
+        return selected
+    raise RuntimeError(
+        f'Nav2 profile for kinematics {kinematics!r} is not implemented/verified; refusing Bunker fallback')
 
 
 def _deep_merge(target, source):
@@ -106,16 +387,20 @@ def _build_runtime_params(config_dir, local_obstacle_avoidance=True):
         'desired_linear_vel': limits['controller_cruise_mps'],
         'min_approach_linear_velocity': limits['controller_approach_mps'],
         'regulated_linear_scaling_min_speed': limits['controller_regulated_min_mps'],
-        'rotate_to_heading_angular_vel': limits['rotate_to_heading_radps'],
-        'max_angular_accel': limits['controller_bootstrap_angular_accel'],
     })
+    if follow.get('use_rotate_to_heading', False):
+        follow.update({
+            'rotate_to_heading_angular_vel': limits['rotate_to_heading_radps'],
+            'max_angular_accel': limits['controller_bootstrap_angular_accel'],
+        })
 
     behavior = _params(merged, 'behavior_server')
-    behavior.update({
-        'max_rotational_vel': limits['rotate_to_heading_radps'],
-        'min_rotational_vel': limits['controller_regulated_min_mps'],
-        'rotational_acc_lim': limits['angular_accel_radps2'],
-    })
+    if 'spin' in behavior.get('behavior_plugins', []):
+        behavior.update({
+            'max_rotational_vel': limits['rotate_to_heading_radps'],
+            'min_rotational_vel': limits['controller_regulated_min_mps'],
+            'rotational_acc_lim': limits['angular_accel_radps2'],
+        })
     smoother = _params(merged, 'velocity_smoother')
     smoother.update({
         'max_velocity': [limits['forward_mps'], 0.0, limits['angular_radps']],
@@ -291,11 +576,11 @@ def _launch_runtime(context):
 
 def generate_launch_description():
     return LaunchDescription([
-        DeclareLaunchArgument('map', default_value='auto',
-                              description='auto, active, latest, map_id or map_id/version'),
-        DeclareLaunchArgument('robot', default_value='bunker_v1'),
-        DeclareLaunchArgument('nav_config_dir', default_value='',
-                              description='YHS only: dedicated measured Nav2 config directory + field_profile.yaml'),
+    DeclareLaunchArgument('map', default_value='auto',
+                          description='auto, active, latest, map_id or map_id/version'),
+    DeclareLaunchArgument('robot', default_value='bunker_v1'),
+    DeclareLaunchArgument('nav_config_dir', default_value='',
+                          description='Reviewed measured non-baseline Nav2 profile directory; YHS remains blocked'),
         DeclareLaunchArgument('robot_config', default_value='',
                               description='whole-robot config id/dir; decides payload_interlock'),
         DeclareLaunchArgument(

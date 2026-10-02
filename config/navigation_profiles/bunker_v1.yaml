@@ -1,0 +1,26 @@
+# Metadata for the existing canonical Bunker Nav2 files. The six parameter
+# files remain the source of actual values; this manifest freezes how they are
+# interpreted by the tracked/skid navigation profile.
+schema_version: 1
+profile_id: bunker_tracked
+robot_profile: bunker_v1
+kinematics: skid_steer
+parameter_files:
+  robot: robot.yaml
+  navigation: navigation.yaml
+  controller: controller.yaml
+  costmap: costmap.yaml
+  perception: perception.yaml
+  safety: safety.yaml
+planner:
+  plugin: nav2_smac_planner/SmacPlanner2D
+controller:
+  plugin: nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController
+  rotate_to_heading: true
+  allow_reversing: false
+recovery:
+  spin: true
+  backup: true
+minimum_turning_radius_source: null
+footprint_source: robot.yaml
+motion_limits_source: safety.yaml

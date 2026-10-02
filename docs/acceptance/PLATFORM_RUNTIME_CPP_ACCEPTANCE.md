@@ -463,11 +463,72 @@ P5 feasibility/build/test evidence (2026-10-02; unit/mock and static-source only
 
 | ID | Gate | Evidence required | Result |
 |---|---|---|---|
-| I01 | tracked profile preserves Bunker assumptions | config diff/test | NOT_RUN |
-| I02 | Ackermann profile disables spin assumptions | controller/recovery config audit | NOT_RUN |
-| I03 | Ackermann turning radius represented | verified field required before field enable | NOT_RUN |
-| I04 | velocity/smoother limits selected by profile | config resolution test | NOT_RUN |
+| I01 | tracked profile preserves Bunker assumptions | config diff/test | PASS — Bunker selection checks Smac 2D, RPP rotate-to-heading, no reversing, Spin/BackUp/Wait, footprint, safety limits and the 50 Hz chain against current sources |
+| I02 | Ackermann profile disables spin assumptions | controller/recovery config audit | PASS — schema/validator require Hybrid+DUBIN, no rotate-to-heading/reversing/Spin/BackUp, positive progress checking and explicit RPP lookahead settings |
+| I03 | Ackermann turning radius represented | verified field required before field enable | PASS — measured Robot Profile radius is mandatory, checked against wheelbase/steering bounds and used by Smac Hybrid; field readiness remains NOT_RUN because no real Ackermann measurements/profile exist |
+| I04 | velocity/smoother limits selected by profile | config resolution test | PASS — runtime builder fans `safety.yaml` limits into RPP, smoother and guard; test-only Ackermann bundle verifies selection and fan-out but is field-unverified |
 | I05 | YHS navigation profile not marked verified without hardware facts | validator/test | BLOCKED |
+
+P7 profile audit: `docs/upgrade/nav2_profile_contract_audit.md`.
+
+P7 execution evidence (2026-10-02; isolated software/config tests only):
+
+- Build — PASS, one package. Build, install and logs stayed in `/tmp/agt_runtime_v4_p7`; the normal workspace `build/` and `install/` were not written.
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  source /tmp/agt_runtime_v4_p4/install/local_setup.bash
+  colcon --log-base /tmp/agt_runtime_v4_p7/log build --base-paths /home/yangxuan/ros2_ws/src/agt_navigation_v3 --packages-select agt_system_bringup --build-base /tmp/agt_runtime_v4_p7/build --install-base /tmp/agt_runtime_v4_p7/install --merge-install --allow-overriding agt_system_bringup --event-handlers console_direct+
+  ```
+
+- Registered package tests — PASS; 27 test functions passed across static launch ownership (14), Nav2 profile contract (10) and YHS guard (3). `colcon test-result` reported 30 result entries, 0 errors/failures/skips. The tests used `ROS_DOMAIN_ID=246` and did not start a ROS graph or driver.
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  source /tmp/agt_runtime_v4_p4/install/local_setup.bash
+  source /tmp/agt_runtime_v4_p7/install/local_setup.bash
+  export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
+  export PYTHONPATH="/home/yangxuan/ros2_ws/src/agt_navigation_v3/map_data_manager/agt_map_manager:${PYTHONPATH}"
+  ROS_DOMAIN_ID=246 colcon --log-base /tmp/agt_runtime_v4_p7/test-log test --base-paths /home/yangxuan/ros2_ws/src/agt_navigation_v3 --packages-select agt_system_bringup --build-base /tmp/agt_runtime_v4_p7/build --install-base /tmp/agt_runtime_v4_p7/install --merge-install --event-handlers console_direct+
+  colcon test-result --test-result-base /tmp/agt_runtime_v4_p7/build --verbose
+  ```
+
+- Targeted direct profile/YHS rerun — PASS, 13 passed. It included a temporary synthetic Ackermann fixture with `field_verified: false`; the selector refused it.
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  source /tmp/agt_runtime_v4_p4/install/local_setup.bash
+  source /tmp/agt_runtime_v4_p7/install/local_setup.bash
+  export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
+  export PYTHONPATH="/home/yangxuan/ros2_ws/src/agt_navigation_v3/map_data_manager/agt_map_manager:${PYTHONPATH}"
+  ROS_DOMAIN_ID=245 python3 -m pytest -q bringup/agt_system_bringup/test/test_nav_profile_contract.py bringup/agt_system_bringup/test/test_yhs_nav_config_guard.py
+  ```
+
+- Expanded full bringup test directory — PASS, 48 passed. The initial run
+  produced 44 passes and 4 failures because
+  `test_run_field_stack_robot_config.py` still expected pre-P4 direct vendor
+  launches and CAN values extracted from the aggregate plan. Updated the test
+  to assert the current atomic description/LiDAR/base/RTK/camera includes and
+  query `robot_config.py` for `can0`/`can9`; the rerun passed. No shared install
+  was rebuilt or modified.
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  source /tmp/agt_runtime_v4_p4/install/local_setup.bash
+  source /tmp/agt_runtime_v4_p7/install/local_setup.bash
+  export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
+  export PYTHONPATH="/home/yangxuan/ros2_ws/src/agt_navigation_v3/bringup/agt_base_control:/home/yangxuan/ros2_ws/src/agt_navigation_v3/map_data_manager/agt_map_manager:${PYTHONPATH}"
+  ROS_DOMAIN_ID=246 python3 -m pytest -q bringup/agt_system_bringup/test
+  ```
+
+The suite run above returned `50 passed in 19.37s`.
+
+No Nav2 launch, rosbag replay, ROS graph inspection, CAN command, base motion,
+camera action or arm action ran during P7.
 
 ## J. Integration tests without physical motion
 
