@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import json
+import signal
 from collections import deque
 from dataclasses import dataclass
 from enum import Enum
@@ -11,6 +12,7 @@ import rclpy
 from geometry_msgs.msg import PoseWithCovarianceStamped, TransformStamped
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
+from rclpy.signals import SignalHandlerOptions
 from std_msgs.msg import Empty, String
 from std_srvs.srv import Trigger
 from tf2_ros import TransformBroadcaster
@@ -870,15 +872,24 @@ class LocalizationManager(Node):
 
 
 def main(args=None) -> None:
-    rclpy.init(args=args)
-    node = LocalizationManager()
+    def _interrupt(_signum, _frame):
+        raise KeyboardInterrupt
+
+    node = None
     try:
+        signal.signal(signal.SIGINT, _interrupt)
+        signal.signal(signal.SIGTERM, _interrupt)
+        # Unwind the executor before destroying its active subscriptions.
+        rclpy.init(args=args, signal_handler_options=SignalHandlerOptions.NO)
+        node = LocalizationManager()
         rclpy.spin(node)
     except KeyboardInterrupt:
         pass
     finally:
-        node.destroy_node()
-        rclpy.shutdown()
+        if node is not None:
+            node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':

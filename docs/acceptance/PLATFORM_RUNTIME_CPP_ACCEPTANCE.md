@@ -303,7 +303,7 @@ P4 execution evidence (2026-10-02; isolated build and ROS domain; unit/mock + st
 
 - A direct source `pytest` attempt before sourcing the installed workspace failed collection because the package index lacked `agt_system_bringup`; after sourcing the build underlay and running the isolated CTest/targeted pytest commands above, all applicable tests passed.
 
-E12 remains `NOT_RUN`: no launch graph restart/shutdown test was executed. No rosbag replay, real hardware, CAN command, chassis motion, or arm action was run. `J08` compatibility launch availability is `PASS` by isolated build and compatibility `--show-args` results.
+E12 remains `NOT_RUN`: controlled LIO and localization shutdown probes passed, but every atomic layer has not been started/stopped repeatedly with a post-stop orphan and owner-count inspection. No real hardware, CAN command, chassis motion, or arm action was run. `J08` compatibility launch availability is `PASS` by isolated build and compatibility `--show-args` results.
 
 P4 commits: `agt_robot_description` `a0e91268aed0f39cab6e1959b014f74fade2b750`; `agt_robot_platform` `079f8663629f3a11bf5464a68bffc406ff9264da`; one `agt_navigation_v3` commit recorded as the P4 phase commit in the branch history.
 
@@ -534,14 +534,212 @@ camera action or arm action ran during P7.
 
 | ID | Gate | Evidence required | Result |
 |---|---|---|---|
-| J01 | full Bunker software stack starts in isolated/mock/replay mode | launch log + graph | NOT_RUN |
-| J02 | MID360 rosbag -> selected LIO remains functional | replay result, topic rates/latency | NOT_RUN |
-| J03 | localization stack consumes canonical LIO output | replay/mock evidence | NOT_RUN |
-| J04 | Nav2 receives expected TF/odom/map contracts | graph/check scripts | NOT_RUN |
-| J05 | stale-command fault injection stops command output | automated log/test | NOT_RUN |
-| J06 | localization-health loss blocks command output | automated log/test | NOT_RUN |
+| J01 | full Bunker software stack starts in isolated/mock/replay mode | launch log + graph | NOT_RUN — an exploratory graph did not reach READY because automatic relocalization was disabled and no valid `map -> odom` correction was supplied; this was not a complete readiness run. |
+| J02 | MID360 rosbag -> selected LIO remains functional | replay result, topic rates/latency | PASS — complete 265.213 s raw MID360 replay; FAST-LIO2 adapter stayed FRESH at 10 Hz, accepted 2,418 samples with zero rejects in a near-end status snapshot, and `/agt/odometry/local` had one publisher. |
+| J03 | localization stack consumes canonical LIO output | replay/mock evidence | PASS — isolated domain 229 replayed recorded `/agt/odometry/local` and `/agt/livox/points`; each had one bag publisher and the expected Manager/Relocalization subscriptions. Manager reported `local_odom_fresh=true`, map `bunker_mid360/20260924-trav-integration-v1`, `waiting_global_pose`; no relocation request or correction was generated. |
+| J04 | Nav2 receives expected TF/odom/map contracts | graph/check scripts | PASS — isolated domain 229 Nav2-only graph loaded the selected Bunker map; five lifecycle nodes reached active, 41 samples per expected dynamic TF edge were observed, and mock canonical odometry had one publisher. No goal was sent; `/cmd_vel` had no subscriber. |
+| J05 | stale-command fault injection stops command output | automated log/test | PASS — P2 Python/C++ shadow and C++ stale-input tests observed zero output and `STALE_COMMAND`; see C05/C07 evidence. |
+| J06 | localization-health loss blocks command output | automated log/test | PASS — P2 C++ guard tests observed zero output and `LOCALIZATION_BLOCKED`; see C06 evidence. |
 | J07 | atomic restart works | each layer restarted without duplicate owner/orphan | NOT_RUN |
 | J08 | legacy compatibility launch still available | dry-run/build evidence | PASS — compatibility launch files build and all requested wrapper `--show-args` checks return 0 |
+
+P8 execution evidence (2026-10-02; unit/mock, rosbag replay and static; no physical motion):
+
+- `agt_navigation_runtime` isolated build — PASS, 1 package. Outputs stayed in
+  `/tmp/agt_runtime_v4_p8`; the workspace build/install directories were only
+  sourced as underlays:
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  source /tmp/agt_runtime_v4_p4/install/local_setup.bash
+  source /tmp/agt_runtime_v4_p6/install/local_setup.bash
+  source /tmp/agt_runtime_v4_p7/install/local_setup.bash
+  nice -n 19 colcon --log-base /tmp/agt_runtime_v4_p8/log build --base-paths /home/yangxuan/ros2_ws/src/agt_navigation_v3 --packages-select agt_navigation_runtime --build-base /tmp/agt_runtime_v4_p8/build --install-base /tmp/agt_runtime_v4_p8/install --merge-install --event-handlers console_direct+
+  ```
+
+- Direct software regression subset — PASS, 57 passed. This includes
+  correction math, pose-math legacy parity, FAST-LIO/Batch-LIO adapter and
+  calibration checks, LIO selection and supervisor health model. After the
+  P4 atomic launch split, the old LIO test was updated to assert one selector
+  include and exactly one selected child launch; the final run passed all 57:
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  source /tmp/agt_runtime_v4_p4/install/local_setup.bash
+  source /tmp/agt_runtime_v4_p6/install/local_setup.bash
+  source /tmp/agt_runtime_v4_p7/install/local_setup.bash
+  export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
+  export ROS_LOCALHOST_ONLY=1
+  export PYTHONPATH="navigation/localization/agt_localization_manager:navigation/localization/agt_localization_core:navigation/state_estimation/agt_fastlio_adapter:navigation/state_estimation/agt_batch_lio_adapter:navigation/nav2/agt_navigation_runtime:runtime/agt_navigation_supervisor:${PYTHONPATH}"
+  ROS_DOMAIN_ID=225 python3 -m pytest -q navigation/localization/agt_localization_manager/test/test_correction_math.py navigation/localization/agt_localization_core/test/test_pose_math_legacy_parity.py navigation/state_estimation/agt_fastlio_adapter/test/test_frame_conversion.py navigation/state_estimation/agt_batch_lio_adapter/test/test_lio_calibration.py navigation/nav2/agt_navigation_runtime/test/test_lio_modes.py runtime/agt_navigation_supervisor/test/test_health_model.py
+  ```
+
+- Fake Bunker base-only adapter graph — PASS, 1 integration test in
+  `ROS_DOMAIN_ID=226`. It used the isolated P4 adapter binary and fake driver;
+  no physical Bunker driver, CAN interface or command was used:
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  source /tmp/agt_runtime_v4_p4/install/local_setup.bash
+  export ROS_LOCALHOST_ONLY=1 ROS_DOMAIN_ID=226
+  export BUNKER_ADAPTER_EXECUTABLE=/tmp/agt_runtime_v4_p4/install/agt_base_runtime/lib/agt_base_runtime/bunker_adapter
+  export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
+  python3 -m pytest -q platform/agt_base_runtime/test/test_bunker_adapter_integration.py
+  ```
+
+- Synthetic FAST-LIO adapter graph — PASS, 6 accepted odometry samples paired
+  with 6 `odom -> base_footprint` transforms; original stamps were preserved
+  and 12 stale samples were rejected. It ran under isolated domain 227 with
+  all topics remapped beneath `/test/fastlio_adapter`. No FAST-LIO frontend,
+  sensor, base or command publisher started:
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  source /tmp/agt_runtime_v4_p4/install/local_setup.bash
+  source /tmp/agt_runtime_v4_p6/install/local_setup.bash
+  source /tmp/agt_runtime_v4_p7/install/local_setup.bash
+  export ROS_LOCALHOST_ONLY=1 ROS_DOMAIN_ID=227 AGT_RUN_ISOLATED_FASTLIO_TEST=1
+  export PYTHONPATH="/home/yangxuan/ros2_ws/src/agt_navigation_v3/navigation/state_estimation/agt_fastlio_adapter:${PYTHONPATH}"
+  python3 navigation/state_estimation/agt_fastlio_adapter/test/isolated_adapter_smoke.py
+  ```
+
+- MID360 bag -> selected FAST-LIO2 -> adapter replay — PASS, rosbag-replay
+  evidence. The complete 265.213 s `nav_full_baseline_20260917_114327` bag
+  played to completion (exit 0), with only raw `/livox/lidar` CustomMsg and
+  `/livox/imu` selected. `ros2 topic hz` measured about 10.0 Hz canonical
+  odometry in 100-message windows. A near-end adapter status sample reported
+  `state=FRESH`, `publish_rate=10.0`, `accepted_count=2418`, and
+  `rejected_count=0`; the canonical odometry graph had one publisher,
+  `agt_fastlio_adapter`. The graph contained robot_state_publisher, one
+  FAST-LIO2 frontend and its adapter only; no chassis driver, command guard or
+  motion command source was started. This does not exercise localization or
+  Nav2:
+
+  ```bash
+  # All commands use ROS_LOCALHOST_ONLY=1 ROS_DOMAIN_ID=228 and the sourced
+  # Humble/workspace/P4/P6/P7 overlays documented above.
+  nice -n 19 ros2 launch agt_robot_description description.launch.py robot:=bunker_v1
+  nice -n 19 ros2 launch agt_navigation_runtime lio.launch.py lio_backend:=fastlio2 use_sim_time:=true
+  nice -n 19 ros2 bag play /home/yangxuan/ros2_ws/experiments/data/rosbag/nav_full_baseline_20260917_114327 --topics /livox/lidar /livox/imu --clock 50 --read-ahead-queue-size 50
+  ros2 topic hz /agt/odometry/local --window 100
+  ros2 topic echo --once /agt/odometry/adapter_status
+  ros2 topic info -v /agt/odometry/local
+  ```
+
+- Controlled LIO atomic shutdown — PASS for two start/stop cycles. The launch
+  parent received one SIGINT, both FAST-LIO2 and adapter started, each launch
+  returned 0, and neither output contained a traceback, `[ERROR]`, or
+  `KeyboardInterrupt`. This is component evidence only; every atomic layer and
+  orphan inspection were not covered. An earlier interactive terminal
+  interrupt produced an adapter traceback while `destroy_node()` was running;
+  the controlled single-signal repeat did not reproduce it, so E12 and J07
+  remain `NOT_RUN` pending the full repeated graph test. The two-cycle probe
+  used:
+
+  ```bash
+  python3 - <<'PY'
+  import signal, subprocess, time
+  command = ['nice', '-n', '19', 'ros2', 'launch', 'agt_navigation_runtime', 'lio.launch.py', 'lio_backend:=fastlio2']
+  for attempt in range(1, 3):
+      process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+      time.sleep(3)
+      process.send_signal(signal.SIGINT)
+      output, _ = process.communicate(timeout=20)
+      errors = [line for line in output.splitlines() if 'Traceback' in line or '[ERROR]' in line or 'KeyboardInterrupt' in line]
+      print({'attempt': attempt, 'exit': process.returncode, 'started': 'FAST-LIO adapter:' in output and 'LIO Node Started' in output, 'shutdown_errors': errors})
+  PY
+  ```
+
+- `agt_navigation_runtime` `colcon test` returned exit 0 but registered zero
+  tests for this `ament_python` package (`Ran 0 tests`). Treat package test
+  registration as `NOT_RUN`; the direct 57-case pytest command above is the
+  executed test evidence.
+- Localization owner shutdown hardening — PASS. A recorded `PointCloud2`
+  stream exposed an executor error when rclpy's default SIGINT handler shut
+  down the context during subscription processing. Manager and Relocalization
+  now map SIGINT/SIGTERM to `KeyboardInterrupt`, unwind `spin()`, destroy the
+  node, and shut down the context once. The isolated build of
+  `agt_localization_manager` and `agt_global_relocalization` passed (2
+  packages); the final selected regression suite passed 59 tests, including
+  both shutdown tests. After the rebuild, recorded publishers remained active
+  while the Relocalization and Manager launch parents each received SIGINT;
+  both exited 0 without traceback, `[ERROR]`, `KeyboardInterrupt`, or message
+  conversion RuntimeError. The bag and description processes then exited 0.
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  source /tmp/agt_runtime_v4_p4/install/local_setup.bash
+  source /tmp/agt_runtime_v4_p6/install/local_setup.bash
+  source /tmp/agt_runtime_v4_p7/install/local_setup.bash
+  source /tmp/agt_runtime_v4_p8/install/local_setup.bash
+  nice -n 19 colcon --log-base /tmp/agt_runtime_v4_p8/rebuild2-log build --base-paths /home/yangxuan/ros2_ws/src/agt_navigation_v3 --packages-select agt_localization_manager agt_global_relocalization --build-base /tmp/agt_runtime_v4_p8/build --install-base /tmp/agt_runtime_v4_p8/install --merge-install --allow-overriding agt_localization_manager agt_global_relocalization --event-handlers console_direct+
+  ```
+
+  The final direct regression command (59 passed) was:
+
+  ```bash
+  source /opt/ros/humble/setup.bash && source /home/yangxuan/ros2_ws/install/setup.bash && source /tmp/agt_runtime_v4_p4/install/local_setup.bash && source /tmp/agt_runtime_v4_p6/install/local_setup.bash && source /tmp/agt_runtime_v4_p7/install/local_setup.bash && source /tmp/agt_runtime_v4_p8/install/local_setup.bash && export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 ROS_LOCALHOST_ONLY=1 && export PYTHONPATH="navigation/localization/agt_localization_manager:navigation/localization/agt_global_relocalization:navigation/localization/agt_localization_core:navigation/state_estimation/agt_fastlio_adapter:navigation/state_estimation/agt_batch_lio_adapter:navigation/nav2/agt_navigation_runtime:runtime/agt_navigation_supervisor:${PYTHONPATH}" && ROS_DOMAIN_ID=230 python3 -m pytest -q navigation/localization/agt_localization_manager/test/test_correction_math.py navigation/localization/agt_localization_manager/test/test_localization_manager_shutdown.py navigation/localization/agt_global_relocalization/test/test_global_relocalization_shutdown.py navigation/localization/agt_localization_core/test/test_pose_math_legacy_parity.py navigation/state_estimation/agt_fastlio_adapter/test/test_frame_conversion.py navigation/state_estimation/agt_batch_lio_adapter/test/test_lio_calibration.py navigation/nav2/agt_navigation_runtime/test/test_lio_modes.py runtime/agt_navigation_supervisor/test/test_health_model.py
+  ```
+
+- Localization-only recorded-input replay — PASS, unit/mock + rosbag replay.
+  With `ROS_LOCALHOST_ONLY=1 ROS_DOMAIN_ID=229`, launched only Bunker
+  `robot_state_publisher`, `agt_localization_manager` with
+  `map_id:=bunker_mid360 map_version:=20260924-trav-integration-v1`, and
+  `agt_global_relocalization` with `auto_request:=false` and matching map
+  PCD/assets. The replay command was:
+
+  ```bash
+  nice -n 19 ionice -c 3 ros2 bag play /home/yangxuan/ros2_ws/experiments/data/rosbag/nav_full_baseline_20260917_114327 --loop --clock 20 --disable-loan-message --topics /agt/odometry/local /agt/livox/points
+  ```
+
+  `ros2 topic info -v` showed one `rosbag2_player` publisher on each topic,
+  two canonical odometry subscribers (Manager and Relocalization), and one
+  point-cloud subscriber (Relocalization). `ros2 topic hz` measured about
+  10 Hz on both inputs. `/agt/localization/status` reported
+  `local_odom_fresh=true`, `global_correction_valid=false`, the selected map
+  identity, and `waiting_global_pose`. Automatic request was disabled; no
+  relocation service or request was invoked. This validates the input contract,
+  not a global localization result.
+
+- Nav2-only mocked TF/odom — PASS, unit/mock. In isolated domain 229, started
+  Bunker `robot_state_publisher`, a test-only publisher for 20 Hz
+  `map -> odom`, `odom -> base_footprint`, and zero `/agt/odometry/local`, plus
+  `agt_nav2_bringup/nav2.launch.py` with the selected
+  `20260924-trav-integration-v1/navigation/bunker_v1/map.yaml` and resolved
+  Bunker Nav2 parameters. `/map_server`, `/controller_server`,
+  `/planner_server`, `/bt_navigator`, and `/velocity_smoother` all reported
+  lifecycle state `active [3]`; `/navigate_to_pose` was available; a 2 s TF
+  probe saw 41 samples per expected dynamic edge; `/agt/odometry/local` had
+  one mock publisher. Nav2's four internal `/cmd_vel` publishers had zero
+  subscribers. No goal, guard, base driver, CAN, hardware launch or motion
+  command was started. The mocked TF publishers existed only in this isolated
+  Nav2-only graph and do not replace the production TF owner contract.
+
+- Exploratory full graph — NOT_RUN as an acceptance gate. An isolated domain
+  231 graph started description, localization with FAST-LIO2 and selected map
+  assets, Nav2, a fake Bunker driver and raw MID360 bag replay. Automatic
+  relocalization was disabled, so no `map -> odom` correction was available;
+  the supervisor remained `WAIT_SENSORS` and global costmap remained
+  `activating`. The fake driver observed 14,324 `/mux/cmd_vel` samples, all
+  zero. No guessed transform or relocation request was injected. This setup
+  did not complete the full stack readiness gate, so J01 remains `NOT_RUN`.
+  The first active-cloud shutdown attempt exposed the RuntimeError repaired
+  above; the post-fix active-input signal test passed.
+- A local MID360 bag was inspected with `ros2 bag info` and contains raw
+  `/livox/lidar`, `/livox/imu`, secondary `/agt/livox/points`, canonical local
+  odometry and `/tf`. The available full baseline bag is about 3.9 GB / 265 s.
+  Full-stack readiness and full layered restart remain `NOT_RUN`; they are not
+  inferred from the component replay or mock tests.
+- The P2 guard injection evidence supports J05/J06, P3 supports Ackermann
+  software conversion and fake Bunker behavior, P4 E11 supports static
+  singleton launch ownership, and P6 G05 supports sensor-only fake startup.
+  These component results do not satisfy J01 or J07. No physical hardware,
+  CAN, base motion, camera or arm action was run.
 
 ## K. Real hardware acceptance
 

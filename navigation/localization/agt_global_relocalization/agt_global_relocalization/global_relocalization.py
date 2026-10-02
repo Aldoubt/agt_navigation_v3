@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import signal
 import shlex
 import shutil
 import statistics
@@ -24,6 +25,7 @@ from nav_msgs.msg import Odometry
 from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
+from rclpy.signals import SignalHandlerOptions
 from rclpy.time import Time
 from sensor_msgs.msg import PointCloud2, PointField
 from sensor_msgs_py import point_cloud2
@@ -903,13 +905,26 @@ class GlobalRelocalization(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
-    node = GlobalRelocalization()
+    def _interrupt(_signum, _frame):
+        raise KeyboardInterrupt
+
+    node = None
     try:
+        signal.signal(signal.SIGINT, _interrupt)
+        signal.signal(signal.SIGTERM, _interrupt)
+        # Let spin unwind before destroying subscriptions. rclpy's default
+        # handler shuts the context down inside signal delivery, which can
+        # race an in-flight PointCloud2 take/callback.
+        rclpy.init(args=args, signal_handler_options=SignalHandlerOptions.NO)
+        node = GlobalRelocalization()
         rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
     finally:
-        node.destroy_node()
-        rclpy.shutdown()
+        if node is not None:
+            node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':

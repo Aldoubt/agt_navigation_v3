@@ -102,7 +102,8 @@ def test_only_selected_lio_launch_is_constructed(tmp_path, monkeypatch, backend,
     })
     actions = module._localization_nodes(context)
     frontends = [x for x in actions if x[0] == 'agt_navigation_runtime']
-    assert len(frontends) == 1 and frontends[0][1] == expected
+    assert len(frontends) == 1 and frontends[0][1] == 'lio.launch.py'
+    assert frontends[0][2]['lio_backend'] == backend
     assert sum(x[0] == 'agt_localization_manager' for x in actions) == 1
     relocalization = next(x for x in actions if x[0] == 'agt_global_relocalization')
     calibration = relocalization[2]['body_to_base_calibration_file']
@@ -114,6 +115,39 @@ def test_only_selected_lio_launch_is_constructed(tmp_path, monkeypatch, backend,
     for action in actions:
         if action[0] in ('agt_navigation_runtime', 'agt_localization_manager', 'agt_global_relocalization'):
             assert action[2]['use_sim_time'] == 'true'
+
+    # The atomic LIO selector constructs exactly one backend include from the
+    # selected mode. This inspects launch actions only; it starts no node.
+    selector_path = RUNTIME / 'launch' / 'lio.launch.py'
+    spec = importlib.util.spec_from_file_location('tested_atomic_lio_selector', selector_path)
+    selector = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(selector)
+    monkeypatch.setattr(selector, 'get_package_share_directory', lambda _package: str(RUNTIME))
+
+    class CapturedInclude:
+        def __init__(self, source, launch_arguments):
+            self.source = source
+            self.arguments = dict(launch_arguments)
+
+    monkeypatch.setattr(selector, 'IncludeLaunchDescription', CapturedInclude)
+    class CapturedSource:
+        def __init__(self, location):
+            self.location = location
+
+    monkeypatch.setattr(selector, 'PythonLaunchDescriptionSource', CapturedSource)
+    selector_context = LaunchContext()
+    selector_context.launch_configurations.update({
+        'lio_backend': backend,
+        'use_sim_time': 'true',
+        'lidar_topic': '/livox/lidar',
+        'imu_topic': '/livox/imu',
+        'batch_config': str(RUNTIME / 'config/batch_lio_mid360.yaml'),
+        'fastlio_config': str(RUNTIME / 'config/fastlio2_mid360_navigation.yaml'),
+        'body_to_base_calibration_file': 'measured-or-frozen-test-input.yaml',
+    })
+    selected = selector._include(selector_context)
+    assert len(selected) == 1
+    assert selected[0].source.location == str(RUNTIME / 'launch' / expected)
 
 
 def test_fastlio_default_matches_mapping_body_query_calibration():
