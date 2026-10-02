@@ -1,6 +1,11 @@
 # AGT Navigation Runtime V4 变更计划
 
 > 本轮后续目标已统一到 [工作空间改造收敛与部署启动方案](docs/upgrade/WORKSPACE_CONSOLIDATION_PLAN.md)。本文保留原 V4 基线和阶段记录；新增范围与使用流程以统一方案为入口，验收仍沿用 V4 验收矩阵。
+>
+> 2026-10-02 新增 R10 **Platform Runtime C++ / Multi-Chassis** 工作流。该工作流不推翻 R0–R9，也不授权一次性重写现有导航；详细接口、实施顺序和验收门分别见：
+> - [Robot Platform Runtime Contract](docs/architecture/ROBOT_PLATFORM_RUNTIME_CONTRACT.md)
+> - [Platform Runtime C++ Implementation Handoff](docs/upgrade/PLATFORM_RUNTIME_CPP_IMPLEMENTATION_HANDOFF.md)
+> - [Platform Runtime C++ Acceptance Matrix](docs/acceptance/PLATFORM_RUNTIME_CPP_ACCEPTANCE.md)
 
 审计日期：2026-09-23。基线分支为 `refactor/navigation-runtime-v4`，HEAD 为
 `e27abeb3fd63280ee8e48a47966e06588f8eebd8`。本文件先记录现状和实施边界；
@@ -37,6 +42,25 @@
 | R7 | HMI 自有编排 → 与 RViz 共用后端 contract | `agt_robot_hmi`、接口文档 | 现有 HMI 未提交删除；跨仓库兼容 | mock API contract；不碰基线删除文件 |
 | R8 | 两套 benchmark/pointcloud 职责 → 审计后按生产依赖迁移或保留 | `docs/v4_migration/*_audit.md`、V3 `tools/`、Mapping perception | 移走生产代码造成运行时缺包 | 依赖图、引用扫描、parity test、构建 |
 | R9 | 分散验收 → V4 架构、约束、TF、地图、Mission、启动和报告 | `docs/*V4*.md`、`V4_MIGRATION_REPORT.md` | 将未跑实机误写 PASS | 分包 build/test、clean build、PASS/FAIL/NOT_RUN |
+| R10 | Bunker-centric runtime + 大入口 → 平台无关 C++ data plane、Robot Profile/kinematics、Base Adapter、atomic launch；Bunker 保持兼容，Ackermann 先软件验证，YHS 按真实协议分类 | `agt_base_control`/新 `agt_base_runtime`、Robot Profile、`agt_robot_bringup`、system bringup、localization manager（先审计再决定迁移） | 大规模机械翻译 Python、破坏安全互锁、重复驱动/TF、伪造 YHS/Ackermann 物理参数 | P0–P8 分阶段审计与 parity；`PLATFORM_RUNTIME_CPP_ACCEPTANCE.md`；mock/rosbag 与真实硬件证据严格分开 |
+
+## R10 固定实施顺序
+
+R10 的顺序固定为：
+
+```text
+P0 Source/ownership audit
+ → P1 Robot Profile + kinematic contract
+ → P2 C++ Motion Guard parity
+ → P3 Base Runtime adapters (Bunker first, Ackermann software-only, YHS evidence-gated)
+ → P4 Atomic launch ownership
+ → P5 Localization Manager C++ feasibility/parity decision
+ → P6 Sensor-layer ownership cleanup without breaking Livox timing
+ → P7 Cross-platform Nav2 configuration contract
+ → P8 Integration + rollback evidence
+```
+
+不得跳过 P0 直接“把 Python 全改成 C++”。实时命令、安全门、权威状态和高频处理优先 C++；launch 编排、地图/配置解析、离线工具和 UI glue 默认保留 Python/YAML。Ackermann/YHS 的现场可用性必须由真实几何、协议和硬件验收决定，编译和单元测试只能证明软件契约。
 
 ## 顺序和约束
 
