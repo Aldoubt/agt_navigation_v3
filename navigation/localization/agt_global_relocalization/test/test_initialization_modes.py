@@ -116,45 +116,37 @@ def test_unsolicited_seed_after_initialization_is_ignored():
     assert messages[-1][0] == 'MANUAL_SEED_REJECTED'
 
 
-@pytest.mark.parametrize('mode,near_result,auto_result,expected,code', [
-    ('auto', 1, 0, 'AUTO\n', 0), ('auto', 1, 1, 'AUTO\n', 1),
-    ('auto_then_manual', 0, 1, 'NEAR\n', 0),
-    ('auto_then_manual', 1, 0, 'NEAR\nAUTO\n', 0),
-    ('auto_then_manual', 1, 1, 'MANUAL', 0), ('manual', 1, 0, 'MANUAL', 0),
+@pytest.mark.parametrize('mode,auto_result,expected,code', [
+    ('auto', 0, 'AUTO\n', 0), ('auto', 1, 'AUTO\n', 1),
+    ('manual', 0, 'Invalid localization mode', 2),
 ])
-def test_shell_dispatch(mode, near_result, auto_result, expected, code):
+def test_field_shell_dispatch_is_auto_only(mode, auto_result, expected, code):
     helper = ROOT / 'scripts/localization_initialization.sh'
     script = f'''source "{helper}"
 LOCALIZATION_MODE={mode}
-try_reviewed_start_hint() {{ echo NEAR; return {near_result}; }}
 relocalize_until_ready() {{ echo AUTO; return {auto_result}; }}
-wait_for_manual_initialization() {{ echo MANUAL; }}
 initialize_localization
 '''
     result = subprocess.run(['bash', '-c', script], capture_output=True, text=True)
     assert result.returncode == code
-    assert expected in result.stdout
-    if mode == 'manual': assert 'AUTO' not in result.stdout and 'NEAR' not in result.stdout
-    if mode == 'auto' or near_result == 0 and mode == 'auto_then_manual':
-        assert 'MANUAL' not in result.stdout
-    if mode in ('auto', 'manual'): assert 'NEAR' not in result.stdout
-    if mode == 'auto_then_manual' and near_result == 0: assert 'AUTO' not in result.stdout
+    assert expected in result.stdout + result.stderr
+    if mode == 'manual': assert 'AUTO' not in result.stdout
 
 
 def test_staged_start_never_launches_navigation_before_initialization():
     source = (ROOT / 'scripts/run_field_stack.sh').read_text()
-    assert 'LOCALIZATION_MODE=auto_then_manual' in source
+    assert 'LOCALIZATION_MODE=auto' in source
     assert 'start_child hardware' not in source
     assert source.index('if ! initialize_localization; then') < source.index('start_child navigation')
-    assert 'start_hint_file:="$START_HINT_FILE"' in source
     assert source.index('if ! initialize_localization; then') < source.index('start_child navigation')
     helper = (ROOT / 'scripts/localization_initialization.sh').read_text()
-    assert 'wait_for_localization_settle 8' in helper
-    assert 'stop_process_group initialization_view' in helper
-    assert 'wait_for_manual_initialization' in helper
+    assert 'relocalize_until_ready relocalize' in helper
+    assert 'wait_for_manual_initialization' not in helper
+    assert 'Use RViz 2D Pose Estimate on /initialpose' not in source
+    assert '/initialpose' not in helper
 
 
-def test_initialization_view_has_no_navigation_control_or_identity_tf():
+def test_legacy_initialization_view_is_not_reachable_from_v1_field_startup():
     text = (ROOT / 'bringup/agt_system_bringup/launch/initialization_view.launch.py').read_text()
     for forbidden in ('controller_server', 'planner_server', 'static_transform_publisher', 'bt_navigator'):
         assert forbidden not in text
@@ -162,10 +154,11 @@ def test_initialization_view_has_no_navigation_control_or_identity_tf():
     rviz = (ROOT / 'bringup/agt_system_bringup/config/initialization.rviz').read_text()
     assert 'rviz_default_plugins/SetInitialPose' in rviz
     assert '/initialpose' in rviz
+    field = (ROOT / 'scripts/run_field_stack.sh').read_text()
+    assert 'initialization_view.launch.py' not in field
 
 
-@pytest.mark.parametrize('mode,exe', [('auto','global_relocalization'), ('auto_then_manual','initialization_relocalization'), ('manual','initialization_relocalization')])
-def test_one_relocalizer_selected(mode, exe, tmp_path, monkeypatch):
+def test_v1_selects_only_global_relocalizer(tmp_path, monkeypatch):
     from launch import LaunchContext
     path = ROOT / 'bringup/agt_system_bringup/launch/localization.launch.py'
     spec = importlib.util.spec_from_file_location('mode_localization', path)
@@ -177,15 +170,32 @@ def test_one_relocalizer_selected(mode, exe, tmp_path, monkeypatch):
     pcd.write_text('fixture')
     ctx = LaunchContext()
     ctx.launch_configurations.update(dict(global_map=str(pcd), relocalization_assets='', map_id='test', map_version='v1',
-        localization_mode=mode, lio_backend='fastlio2', use_sim_time='false', lidar_topic='/livox/lidar', imu_topic='/livox/imu',
-        fastlio_config='unused', auto_relocalize='true', query_capture_dir='', start_hint_file=''))
+        localization_mode='auto', lio_backend='fastlio2', use_sim_time='false', lidar_topic='/livox/lidar', imu_topic='/livox/imu',
+        fastlio_config='unused', auto_relocalize='true', query_capture_dir=''))
     actions = module._localization_nodes(ctx)
     relocalizers = [a for a in actions if a[0] == 'agt_global_relocalization']
     assert len(relocalizers) == 1
-    assert relocalizers[0][2]['relocalization_executable'] == exe
+    assert relocalizers[0][2]['relocalization_executable'] == 'global_relocalization'
     assert relocalizers[0][2]['selected_map_id'] == 'test'
     assert relocalizers[0][2]['selected_map_version'] == 'v1'
-    if mode != 'auto': assert relocalizers[0][2]['auto_request'] == 'false'
+    assert relocalizers[0][2]['auto_request'] == 'true'
+
+
+@pytest.mark.parametrize('mode', ['auto_then_manual', 'manual'])
+def test_v1_system_localization_rejects_seeded_modes_before_starting_nodes(mode, tmp_path):
+    from launch import LaunchContext
+    path = ROOT / 'bringup/agt_system_bringup/launch/localization.launch.py'
+    spec = importlib.util.spec_from_file_location('mode_localization_reject', path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    pcd = tmp_path / 'map.pcd'
+    pcd.write_text('fixture')
+    ctx = LaunchContext()
+    ctx.launch_configurations.update(dict(
+        global_map=str(pcd), relocalization_assets='', map_id='test', map_version='v1',
+        localization_mode=mode))
+    with pytest.raises(RuntimeError, match='automatic global relocalization'):
+        module._localization_nodes(ctx)
 
 @pytest.mark.parametrize('problem', ['zero_stamp', 'stale_seed', 'future_seed', 'stale_scan', 'moving'])
 def test_manual_callback_rejects_before_native_work(problem):
@@ -207,57 +217,26 @@ def test_manual_callback_rejects_before_native_work(problem):
     assert messages[-1][0] == 'MANUAL_SEED_REJECTED'
 
 
-@pytest.mark.parametrize('accepted', [False, True])
-def test_waiting_helper_does_not_release_nav_gate_on_rejection_and_is_cancellable(tmp_path, accepted):
-    import signal
-    import time
+def test_auto_helper_failure_does_not_release_nav_gate_or_fallback():
     helper = ROOT / 'scripts/localization_initialization.sh'
     script = f'''source "{helper}"
-trap 'exit 130' INT TERM
-RUN_DIR="{tmp_path}"
-NAV_MAP=unused
-ENABLE_RVIZ=false
-CHILD_PIDS=()
-CHILD_LABELS=()
-wait_for_service() {{ return 0; }}
-ros2() {{ echo 'success=True'; }}
-timeout() {{ shift; "$@"; }}
-start_child() {{ CHILD_PIDS+=("$$"); CHILD_LABELS+=("$1"); }}
-wait_for_topic() {{ return 0; }}
-wait_for_localization_settle() {{ sleep .05; return {0 if accepted else 1}; }}
-stop_process_group() {{ echo VIEW_STOPPED; }}
-wait_for_manual_initialization && echo PASS_NAV_GATE
+LOCALIZATION_MODE=auto
+relocalize_until_ready() {{ echo AUTO; return 1; }}
+initialize_localization
 '''
-    process = subprocess.Popen(['bash', '-c', script], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    try:
-        if not accepted:
-            time.sleep(.3)
-            assert process.poll() is None
-            process.send_signal(signal.SIGINT)
-        out, err = process.communicate(timeout=5)
-        assert '[WAIT_MANUAL_INITIAL_POSE]' in out
-        assert ('PASS_NAV_GATE' in out) is accepted
-        if accepted:
-            assert 'VIEW_STOPPED' in out
-            assert process.returncode == 0
-        else:
-            assert process.returncode == 130
-    finally:
-        if process.poll() is None:
-            process.kill()
-            process.communicate()
+    result = subprocess.run(['bash', '-c', script], capture_output=True, text=True)
+    assert result.returncode == 1
+    assert 'AUTO' in result.stdout
+    assert 'MANUAL' not in result.stdout and '/initialpose' not in result.stdout
 
 
-def test_changed_map_or_hint_fails_closed_before_global_search():
+def test_invalid_localization_mode_fails_closed_before_global_search():
     helper = ROOT / 'scripts/localization_initialization.sh'
     script = f'''source "{helper}"
-LOCALIZATION_MODE=auto_then_manual
-try_reviewed_start_hint() {{ echo NEAR_INVALID; return 2; }}
+LOCALIZATION_MODE=manual
 relocalize_until_ready() {{ echo GLOBAL_SHOULD_NOT_RUN; }}
-wait_for_manual_initialization() {{ echo MANUAL_SHOULD_NOT_RUN; }}
 initialize_localization
 '''
     result = subprocess.run(['bash', '-c', script], capture_output=True, text=True)
     assert result.returncode == 2
-    assert 'NEAR_INVALID' in result.stdout
     assert 'SHOULD_NOT_RUN' not in result.stdout

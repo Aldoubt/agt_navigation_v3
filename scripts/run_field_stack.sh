@@ -28,10 +28,7 @@ MAP_REGISTRY=${AGT_MAP_REGISTRY:-"$WS_ROOT/maps/registry.yaml"}
 MAP_ROOT_OVERRIDE=""
 MAP_ID_OVERRIDE=""
 MODE=navigation
-LOCALIZATION_MODE=auto_then_manual
-START_HINT_FILE=${AGT_START_HINT_FILE:-}
-START_HINT_EXPLICIT=false
-[[ -n "$START_HINT_FILE" ]] && START_HINT_EXPLICIT=true
+LOCALIZATION_MODE=auto
 LIO_BACKEND=fastlio2
 LIO_CONFIG=""
 YHS_LIVOX_CONFIG=""
@@ -63,15 +60,9 @@ Options:
   --lio-backend NAME Local odometry: fastlio2 (default) or batch_lio (explicit opt-in); mutually exclusive.
   --lio-config PATH  Optional runtime YAML for the selected LIO backend.
   --localization-mode MODE
-                    auto: two global attempts, then exit on failure.
-                    auto_then_manual (default): reviewed near-start seed if present,
-                    then two global attempts, then wait for RViz /initialpose.
-                    manual: skip global search, wait for operator seed + local GICP.
-                    Waiting keeps sensors/LIO alive but never starts Nav2.
-                    Add --rviz for the map-only initialization window.
+                    auto (V1): two global relocalization attempts; exit on failure.
+                    V1 does not accept /initialpose or RTK pose seeds.
   --map SPEC        auto (default), active, latest, map_id or map_id/version.
-  --start-hint PATH Explicit, human-approved T_map_body hint for this map/PCD.
-                    If absent, near-start is SKIPPED (never use grid origin).
   --robot PROFILE   Legacy robot profile (default: bunker_v1 -> robot config
                     bunker_inspection). Must match --robot-config if both are given.
   --robot-config ID|PATH
@@ -128,7 +119,7 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     --localization-mode)
-      LOCALIZATION_MODE=${2:?--localization-mode requires auto, auto_then_manual or manual}
+      LOCALIZATION_MODE=${2:?--localization-mode requires auto}
       shift 2
       ;;
     --lio-config)
@@ -162,11 +153,6 @@ while [[ $# -gt 0 ]]; do
       ;;
     --robot-config)
       ROBOT_CONFIG=${2:?--robot-config requires an id or robot.yaml path}
-      shift 2
-      ;;
-    --start-hint)
-      START_HINT_FILE=${2:?--start-hint requires a path}
-      START_HINT_EXPLICIT=true
       shift 2
       ;;
     --map-registry)
@@ -239,8 +225,8 @@ if [[ "$ENABLE_INSPECTION" == true && "$LOCAL_OBSTACLE_AVOIDANCE" == false ]]; t
 fi
 
 case "$LOCALIZATION_MODE" in
-  auto|auto_then_manual|manual) ;;
-  *) printf 'Invalid --localization-mode: %s\n' "$LOCALIZATION_MODE" >&2; exit 2 ;;
+  auto) ;;
+  *) printf 'Invalid --localization-mode: V1 field startup supports only auto (no /initialpose or RTK seed)\n' >&2; exit 2 ;;
 esac
 
 case "$LIO_BACKEND" in
@@ -438,32 +424,6 @@ for required in "$GLOBAL_MAP" "$RELOCALIZATION_ASSETS" "$NAV_MAP"; do
   fi
 done
 
-# A reviewed T_map_body hint lives OUTSIDE the immutable Map Package. A missing
-# default hint is normal: skip bounded search rather than invent a map origin.
-if [[ -z "$START_HINT_FILE" ]]; then
-  START_HINT_FILE="$WS_ROOT/map_start_hints/$MAP_ID/$MAP_VERSION.yaml"
-fi
-START_HINT_STATUS=SKIPPED
-if [[ -f "$START_HINT_FILE" ]]; then
-  HINT_VALIDATOR="$REPO_ROOT/navigation/localization/agt_global_relocalization/agt_global_relocalization/start_hint.py"
-  python3 "$HINT_VALIDATOR" --hint "$START_HINT_FILE" --map-id "$MAP_ID" \
-    --map-version "$MAP_VERSION" --map-pcd "$GLOBAL_MAP" || {
-      printf '[FAIL] Near-start hint invalid; refusing to use it\n' >&2
-      exit 2
-    }
-  START_HINT_FILE=$(realpath -- "$START_HINT_FILE")
-  START_HINT_STATUS=VALIDATED
-elif [[ "$START_HINT_EXPLICIT" == true ]]; then
-  printf '[FAIL] Explicit --start-hint not found: %s\n' "$START_HINT_FILE" >&2
-  exit 2
-else
-  START_HINT_FILE=""
-fi
-if [[ "$LOCALIZATION_MODE" != auto_then_manual && "$START_HINT_STATUS" == VALIDATED ]]; then
-  START_HINT_STATUS=SKIPPED_MODE
-  START_HINT_FILE=""
-fi
-
 if [[ "$DRY_RUN" == true ]]; then
   printf 'mode=%s\n' "$MODE"
   printf 'localization_mode=%s\n' "$LOCALIZATION_MODE"
@@ -474,8 +434,7 @@ if [[ "$DRY_RUN" == true ]]; then
   fi
   printf 'lio_raw_odometry=%s\n' "$LIO_RAW_ODOM"
   printf 'initialization_mode=%s\n' "$LOCALIZATION_MODE"
-  printf 'external_hardware_owner=true\nstart_hint_status=%s\nstart_hint_file=%s\n' \
-    "$START_HINT_STATUS" "$START_HINT_FILE"
+  printf 'external_hardware_owner=true\ninitialization_source=automatic_global_relocalization\n'
   printf 'rear_pointcloud_mask=%s\n' "$REAR_POINTCLOUD_MASK"
   printf 'local_obstacle_avoidance=%s\n' "$LOCAL_OBSTACLE_AVOIDANCE"
   if [[ "$REAR_POINTCLOUD_MASK" == true ]]; then
@@ -797,8 +756,8 @@ fi
 
 # The root install may still point at pre-refactor Python/launch build copies.
 # Fail closed before starting LIO if the selected overlay lacks this contract.
-if ! python3 -B -c 'from agt_global_relocalization.start_hint import load_start_hint; from agt_navigation_runtime.camera_health import camera_ready'; then
-  printf '[FAIL] Installed relocalization/runtime is stale; build the three changed packages or set AGT_FIELD_OVERLAY_SETUP\n' >&2
+if ! python3 -B -c 'from agt_global_relocalization.global_relocalization import GlobalRelocalization; from agt_navigation_runtime.camera_health import camera_ready'; then
+  printf '[FAIL] Installed relocalization/runtime is stale; build agt_system_bringup and agt_global_relocalization or set AGT_FIELD_OVERLAY_SETUP\n' >&2
   exit 2
 fi
 INSTALLED_GLOBAL_LAUNCH="$(ros2 pkg prefix agt_global_relocalization)/share/agt_global_relocalization/launch/global_relocalization.launch.py"
@@ -812,8 +771,7 @@ cp -- "$LIO_CONFIG" "$RUN_DIR/lio_config_input.yaml"
   printf 'mode=%s\nlio_backend=%s\nlio_config_source=%s\n' "$MODE" "$LIO_BACKEND" "$LIO_CONFIG"
   printf 'lio_raw_odometry=%s\n' "$LIO_RAW_ODOM"
   printf 'initialization_mode=%s\n' "$LOCALIZATION_MODE"
-  printf 'external_hardware_owner=true\nstart_hint_status=%s\nstart_hint_file=%s\n' \
-    "$START_HINT_STATUS" "$START_HINT_FILE"
+  printf 'external_hardware_owner=true\ninitialization_source=automatic_global_relocalization\n'
   printf 'rear_pointcloud_mask=%s\n' "$REAR_POINTCLOUD_MASK"
   printf 'local_obstacle_avoidance=%s\n' "$LOCAL_OBSTACLE_AVOIDANCE"
   if [[ "$REAR_POINTCLOUD_MASK" == true ]]; then
@@ -845,7 +803,6 @@ start_child localization \
   relocalization_assets:="$RELOCALIZATION_ASSETS" \
   query_capture_dir:="$RUN_DIR/relocalization_queries" \
   auto_relocalize:=false localization_mode:="$LOCALIZATION_MODE" \
-  start_hint_file:="$START_HINT_FILE" \
   "${LIO_LAUNCH_ARGS[@]}"
 wait_for_service /agt/localization/relocalize 45 || { tail_failure localization; exit 1; }
 wait_for_adapter 60 || { tail_failure localization; exit 1; }

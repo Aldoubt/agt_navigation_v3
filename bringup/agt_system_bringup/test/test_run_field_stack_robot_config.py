@@ -47,7 +47,7 @@ def hardware_dry_run(*args):
 
 def nav_dry_run(*args):
     return subprocess.run(['bash', str(NAV), '--dry-run', '--map', 'auto', *args],
-                          env=dict(os.environ, AGT_START_HINT_FILE=''),
+                          env=dict(os.environ),
                           capture_output=True, text=True, timeout=30)
 
 
@@ -60,8 +60,8 @@ def test_default_hardware_is_single_bunker_lidar_model_owner_without_camera():
     nav = nav_dry_run('--mode', 'navigation')
     assert nav.returncode == 0, nav.stderr
     assert 'hardware_owner=external' in nav.stdout
-    assert 'start_hint_status=SKIPPED' in nav.stdout
-    assert 'localization_mode=auto_then_manual' in nav.stdout
+    assert 'initialization_source=automatic_global_relocalization' in nav.stdout
+    assert 'localization_mode=auto' in nav.stdout
     assert 'camera_gimbal=false' in nav.stdout
     assert 'hardware_launch_args=' not in nav.stdout
 
@@ -115,10 +115,13 @@ def test_wrong_robot_hardware_config_is_blocked():
     assert 'BLOCKED' in proc.stderr
 
 
-def test_unapproved_hint_rejected_before_any_ros_graph_or_driver(tmp_path):
-    hint = tmp_path / 'unapproved.yaml'
-    hint.write_text('schema_version: 1\napproved_for_near_search: false\n')
-    proc = nav_dry_run('--mode', 'navigation', '--start-hint', str(hint))
+def test_v1_field_stack_rejects_manual_seed_modes_before_any_ros_graph_or_driver():
+    proc = nav_dry_run('--mode', 'navigation', '--localization-mode', 'manual')
     assert proc.returncode == 2
-    assert 'Near-start hint invalid' in proc.stderr
+    assert 'only auto' in proc.stderr
     assert 'hardware_owner=external' not in proc.stdout
+
+    hint = nav_dry_run('--mode', 'navigation', '--start-hint', '/tmp/not-used.yaml')
+    assert hint.returncode == 2
+    assert 'Unknown option: --start-hint' in hint.stderr
+    assert 'hardware_owner=external' not in hint.stdout

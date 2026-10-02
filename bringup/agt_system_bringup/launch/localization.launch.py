@@ -33,8 +33,10 @@ def _localization_nodes(context):
     if assets and not Path(assets).expanduser().is_dir():
         raise RuntimeError(f'relocalization_assets must be a directory: {assets!r}')
     initialization_mode = value('localization_mode')
-    if initialization_mode not in ('auto', 'auto_then_manual', 'manual'):
-        raise RuntimeError(f'Invalid localization_mode: {initialization_mode}')
+    if initialization_mode != 'auto':
+        raise RuntimeError(
+            'V1 localization only supports automatic global relocalization; '
+            'manual /initialpose and RTK seeds are disabled')
     backend = validate_backend(value('lio_backend'))
     use_sim_time = value('use_sim_time')
     common = {'use_sim_time': use_sim_time,
@@ -62,7 +64,6 @@ def _localization_nodes(context):
             'global_map': global_map,
             'relocalization_assets': assets,
             'query_capture_dir': value('query_capture_dir'),
-            'start_hint_file': value('start_hint_file'),
             'selected_map_id': map_id,
             'selected_map_version': map_version,
             'body_to_base_calibration_file': calibration,
@@ -70,10 +71,9 @@ def _localization_nodes(context):
             'batch_lio_config_file': calibration if backend == 'batch_lio' else '',
             'follow_map_manager': 'false',
             'scan_topic': '/agt/livox/points',
-            'auto_request': value('auto_relocalize') if initialization_mode == 'auto' else 'false',
+            'auto_request': value('auto_relocalize'),
             'initialization_mode': initialization_mode,
-            'relocalization_executable': ('global_relocalization' if initialization_mode == 'auto'
-                                          else 'initialization_relocalization'),
+            'relocalization_executable': 'global_relocalization',
             'use_sim_time': use_sim_time,
         }),
         _include('agt_localization_manager', 'localization_manager.launch.py', {
@@ -99,8 +99,6 @@ def generate_launch_description():
         DeclareLaunchArgument('map_version', description='Selected map version'),
         DeclareLaunchArgument('relocalization_assets', default_value=''),
         DeclareLaunchArgument('query_capture_dir', default_value=''),
-        DeclareLaunchArgument('start_hint_file', default_value='',
-                              description='Optional approved T_map_body hint bound to the selected PCD'),
         DeclareLaunchArgument('use_sim_time', default_value='false'),
         DeclareLaunchArgument('lidar_topic', default_value='/livox/lidar'),
         DeclareLaunchArgument('imu_topic', default_value='/livox/imu'),
@@ -112,8 +110,8 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'fastlio_config',
             default_value=str(runtime_share / 'config' / 'fastlio2_mid360_navigation.yaml')),
-        DeclareLaunchArgument('localization_mode', default_value='auto_then_manual',
-                              choices=['auto', 'auto_then_manual', 'manual']),
+        DeclareLaunchArgument('localization_mode', default_value='auto',
+                              choices=['auto']),
         DeclareLaunchArgument('auto_relocalize', default_value='true'),
         DeclareLaunchArgument('enable_map_tracking', default_value='false'),
         OpaqueFunction(function=_localization_nodes),

@@ -8,10 +8,22 @@ This matrix defines the evidence required before the platform-runtime refactor c
 
 | ID | Gate | Evidence required | Result |
 |---|---|---|---|
-| A01 | Runtime node inventory | `platform_runtime_cpp_audit.md` lists production nodes, language, interfaces and migration class | NOT_RUN |
-| A02 | Singleton ownership inventory | unique intended owners for robot_state_publisher, MID360, base driver, LIO, localization manager, motion guard, Nav2 | NOT_RUN |
-| A03 | No unreviewed Python mass rewrite | migration matrix contains rationale per node | NOT_RUN |
-| A04 | Baseline command/TF contract frozen | documented current Bunker command chain and TF ownership | NOT_RUN |
+| A01 | Runtime node inventory | `platform_runtime_cpp_audit.md` lists production nodes, language, interfaces and migration class | PASS — `docs/upgrade/platform_runtime_cpp_audit.md`; source inventory check below |
+| A02 | Singleton ownership inventory | unique intended owners for robot_state_publisher, MID360, base driver, LIO, localization manager, motion guard, Nav2 | PASS — intended owners and alternate launch paths documented; `test_unique_owner_inclusions` passed. Runtime graph inspection remains NOT_RUN. |
+| A03 | No unreviewed Python mass rewrite | migration matrix contains rationale per node | PASS — per-node dispositions and P5 deferral are documented in the audit |
+| A04 | Baseline command/TF contract frozen | documented current Bunker command chain and TF ownership | PASS — Bunker command, odom, and TF contract table is in the audit; no runtime/hardware claim is made |
+| A05 | V1 field initialization excludes `/initialpose` and RTK seeding | field entry point selects automatic global relocalization only | PASS — `run_field_stack.sh` accepts only `auto`; system localization selects only `global_relocalization`; manual seed tools are outside the field launch. Targeted tests below passed. |
+
+P0 static evidence actually executed:
+
+- `python3 scripts/check_v4_source_ownership.py --source-root .` — PASS; 35 ROS packages, one Git root, all manifests tracked.
+- `source /opt/ros/humble/setup.bash && PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH="map_data_manager/agt_map_manager:${PYTHONPATH}" python3 -m pytest -q bringup/agt_system_bringup/test/test_launch_ownership_static.py bringup/agt_system_bringup/test/test_yhs_nav_config_guard.py` — PASS; 10 passed.
+- `source /opt/ros/humble/setup.bash && source /home/yangxuan/ros2_ws/install/setup.bash && colcon --log-base /tmp/agt_nav_runtime_v4_p0_log build --base-paths . --packages-select agt_system_bringup agt_global_relocalization --build-base /tmp/agt_nav_runtime_v4_p0_build --install-base /tmp/agt_nav_runtime_v4_p0_install --merge-install` — PASS; 2 packages built into isolated `/tmp` directories, leaving workspace build/install untouched.
+- `source /opt/ros/humble/setup.bash && source /home/yangxuan/ros2_ws/install/setup.bash && PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH="navigation/localization/agt_global_relocalization:map_data_manager/agt_map_manager:${PYTHONPATH}" python3 -m pytest -q navigation/localization/agt_global_relocalization/test/test_initialization_modes.py bringup/agt_system_bringup/test/test_run_field_stack_robot_config.py bringup/agt_system_bringup/test/test_launch_ownership_static.py bringup/agt_system_bringup/test/test_yhs_nav_config_guard.py` — PASS; 61 passed. Includes dry-run configuration checks only; no ROS graph or device launch.
+- `bash -n scripts/run_field_stack.sh scripts/localization_initialization.sh && git diff --check` — PASS.
+- Runtime graph and real hardware checks — NOT_RUN.
+
+Execution notes: two earlier pytest invocations were collection/import environment failures before the sourced static-test command; the first let ROS `launch_testing` auto-collect an uninstalled package, and the second omitted ROS/workspace Python paths. The combined P0 test command initially had 60 passes and one overbroad assertion failure because its static check treated the help text's negative `/initialpose` warning as an active runtime path. The assertion was narrowed to check executable fallback wiring, then the full 61-test command above passed. The first isolated colcon attempt put `--log-base` after the `build` subcommand and was rejected by colcon argument parsing; the corrected command above built both selected packages successfully.
 
 ## B. Robot Profile and kinematics
 
