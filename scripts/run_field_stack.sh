@@ -341,6 +341,7 @@ while IFS='=' read -r key value; do
     payload_interlock) ROBOT_PAYLOAD_INTERLOCK=$value ;;
   esac
 done <<< "$ROBOT_CONFIG_SELECTION"
+export AGT_BASE_ADAPTER="$ROBOT_BASE_ADAPTER"
 
 # Navigation must use the same independently measured YHS MID360 network
 # configuration as YHS mapping. Never silently inherit the vendor/Bunker JSON.

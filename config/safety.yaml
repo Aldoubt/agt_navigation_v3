@@ -34,7 +34,7 @@ agt_cmd_vel_guard:
     manual_input_topic: /agt/hmi/cmd_vel
     control_mode_topic: /agt/control/mode
     default_control_mode: navigation
-    output_topic: /mux/cmd_vel
+    output_topic: /agt/base/cmd_vel
     publish_rate_hz: 50.0
     command_timeout_sec: 0.25
     localization_status_topic: /agt/localization/status

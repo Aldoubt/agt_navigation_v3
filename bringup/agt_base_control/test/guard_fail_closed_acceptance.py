@@ -107,7 +107,7 @@ def main():
     lost_peak_after_settle = max((abs_motion(s) for s in settled), default=0.0)
     if lost_peak_after_settle > EPS:
         raise RuntimeError(
-            f'non-zero /mux/cmd_vel persisted while LOST: peak={lost_peak_after_settle:.6f}')
+            f'non-zero guarded output persisted while LOST: peak={lost_peak_after_settle:.6f}')
 
     # Reopen localization without sending any new velocity command. This is the
     # stale-replay check: output must remain exactly zero beyond command timeout.

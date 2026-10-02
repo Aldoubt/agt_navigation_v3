@@ -84,7 +84,7 @@ No Ackermann bag, live ROS graph, physical chassis, CAN command or robot motion 
 | C06 | localization block -> zero | deterministic automated test | PASS — `STATE_LOST` stops immediately and state is `LOCALIZATION_BLOCKED` |
 | C07 | health/payload block -> zero | deterministic automated test | PASS — stale local odom and missing/false/stale payload permission stop output; state is `HEALTH_BLOCKED` |
 | C08 | recovery state transition | blocked -> ready/active only after valid inputs | PASS — localization and payload recovery require a fresh command before output resumes |
-| C09 | exactly one vendor command publisher | ROS graph or static owner test | PASS — launch creates one selected guard action; C++ is default and Python is a mutually exclusive rollback. Runtime graph inspection is NOT_RUN. |
+| C09 | exactly one vendor command publisher | ROS graph or static owner test | PASS — system launch has one selected guard writing `/agt/base/cmd_vel` and one Bunker adapter writing `/mux/cmd_vel`; isolated fake-driver graph saw one `/mux` publisher. Real field graph inspection is NOT_RUN. |
 | C10 | Python rollback path documented | explicit command/config for rollback during field test | PASS — `--motion-guard-backend python` is validated and shown by the field-wrapper dry-run; the navigation launch receives it through `AGT_MOTION_GUARD_BACKEND` and selects the retained `agt_base_control/cmd_vel_guard` action |
 
 P2 freeze and verification evidence (2026-10-02):
@@ -177,15 +177,56 @@ P2 runtime graph and physical base tests — `NOT_RUN`. No real `/mux/cmd_vel` c
 
 | ID | Gate | Evidence required | Result |
 |---|---|---|---|
-| D01 | Common adapter API contains no vendor packet types | code review/static inspection | NOT_RUN |
-| D02 | Bunker command parity | fake/replay test maps canonical Twist to current `/mux/cmd_vel` behavior | NOT_RUN |
-| D03 | Bunker odom preserved | `/wheel/odom` remains available and no competing odom TF appears | NOT_RUN |
-| D04 | Remote/manual priority untouched | architecture/code evidence; real validation separately | NOT_RUN |
-| D05 | Ackermann straight/turn/reverse tests | unit tests with synthetic verified-in-test geometry | NOT_RUN |
-| D06 | Ackermann saturation/rate tests | steering angle and rate boundaries | NOT_RUN |
-| D07 | Ackermann low-speed singularity handled | zero/near-zero speed test | NOT_RUN |
-| D08 | Ackermann in-place request handled safely | no infinite/invalid steering output | NOT_RUN |
-| D09 | YHS adapter only if protocol verified | otherwise explicit BLOCKED | BLOCKED |
+| D01 | Common adapter API contains no vendor packet types | code review/static inspection | PASS — `base_adapter.hpp` exposes standard Twist/Odometry and vendor-neutral profile/command types; Bunker messages are consumed only inside `bunker_adapter_node.cpp`. |
+| D02 | Bunker command parity | fake/replay test maps canonical Twist to current `/mux/cmd_vel` behavior | PASS — isolated fake-driver graph verifies planar Twist passthrough, single `/mux` publisher, 50 Hz output, stale-command zero and shutdown zeros. Real CAN/driver behavior is NOT_RUN. |
+| D03 | Bunker odom preserved | `/wheel/odom` remains available and no competing odom TF appears | PASS — fake `/wheel/odom` fields are preserved on `/agt/base/odom`; adapter graph has no `/tf` or `/tf_static` publisher. Physical graph inspection is NOT_RUN. |
+| D04 | Remote/manual priority untouched | architecture/code evidence; real validation separately | PASS — adapter reports raw Bunker/remote feedback for diagnostics and does not gate or rewrite arbitration. Physical remote/estop priority remains NOT_RUN. |
+| D05 | Ackermann straight/turn/reverse tests | unit tests with synthetic verified-in-test geometry | PASS — software unit tests cover forward/reverse, straight, left and right turns with a test-only profile. |
+| D06 | Ackermann saturation/rate tests | steering angle and rate boundaries | PASS — minimum turn radius, steering bounds and steering-rate limiting are tested. |
+| D07 | Ackermann low-speed singularity handled | zero/near-zero speed test | PASS — minimum effective speed bounds curvature and behavior stays continuous across the synthetic low-speed threshold. |
+| D08 | Ackermann in-place request handled safely | no infinite/invalid steering output | PASS — zero-speed rotation stays stopped, finite and explicitly flagged as rejected. |
+| D09 | YHS adapter only if protocol verified | otherwise explicit BLOCKED | BLOCKED — protocol and steering semantics still conflict; see `docs/upgrade/YHS_BASE_PROTOCOL_AUDIT.md`. |
+
+P3 execution evidence (2026-10-02; isolated software/fake-driver tests only):
+
+- `agt_base_runtime` build — PASS, 1 package; compiled the common adapter core, Bunker adapter node, Ackermann conversion library, C++ Motion Guard and tests. The first compile attempt found that this Humble `rclcpp::Time` has no `to_msg()` method; the diagnostic timestamp now uses Humble's supported conversion and the isolated rebuild passed.
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  colcon --log-base /tmp/agt_runtime_v4_p3_base_log build --base-paths /home/yangxuan/ros2_ws/src/agt_navigation_v3 --packages-select agt_base_runtime --build-base /tmp/agt_runtime_v4_p3_base_build --install-base /tmp/agt_runtime_v4_p3_base_install --merge-install --event-handlers console_direct+
+  ```
+
+- Runtime tests — PASS; 4/4 CTest targets and `colcon test-result` reported 22 tests, 0 errors/failures/skips. That includes 9 Motion Guard unit cases, 7 adapter unit cases, Python/C++ shadow parity and a fake Bunker driver ROS test. CTest assigns `ROS_DOMAIN_ID=217` to guard shadow and `ROS_DOMAIN_ID=216` to the fake base graph; the enclosing test command used domain 215. No vendor driver or hardware topic was launched.
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  ROS_DOMAIN_ID=215 colcon --log-base /tmp/agt_runtime_v4_p3_base_log test --base-paths /home/yangxuan/ros2_ws/src/agt_navigation_v3 --packages-select agt_base_runtime --build-base /tmp/agt_runtime_v4_p3_base_build --install-base /tmp/agt_runtime_v4_p3_base_install --merge-install --event-handlers console_direct+
+  colcon test-result --test-result-base /tmp/agt_runtime_v4_p3_base_build --verbose
+  ```
+
+- System launch build and static/dry-run tests — PASS, 1 package built and 35 tests passed. `bash -n scripts/run_field_stack.sh` passed. The field wrapper exports the whole-robot resolver's `base_adapter`; navigation defaults to Bunker only for `bunker_v1`, puts the chosen guard output on `/agt/base/cmd_vel`, and starts exactly one Bunker adapter. Both guard implementations and the installed safety config now default to `/agt/base/cmd_vel`. Ackermann and YHS live adapters fail closed.
+
+  ```bash
+  bash -n scripts/run_field_stack.sh
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  source /tmp/agt_runtime_v4_p3_base_install/setup.bash
+  colcon --log-base /tmp/agt_runtime_v4_p3_system_log build --base-paths /home/yangxuan/ros2_ws/src/agt_navigation_v3 --packages-select agt_system_bringup --build-base /tmp/agt_runtime_v4_p3_system_build --install-base /tmp/agt_runtime_v4_p3_system_install --merge-install --allow-overriding agt_system_bringup
+  source /tmp/agt_runtime_v4_p3_system_install/setup.bash
+  ROS_DOMAIN_ID=218 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH="bringup/agt_base_control:map_data_manager/agt_map_manager:${PYTHONPATH}" python3 -m pytest -q bringup/agt_system_bringup/test/test_payload_interlock_launch.py bringup/agt_system_bringup/test/test_launch_ownership_static.py bringup/agt_system_bringup/test/test_yhs_nav_config_guard.py bringup/agt_system_bringup/test/test_payload_interlock_resolution.py bringup/agt_system_bringup/test/test_run_field_stack_robot_config.py
+  ```
+
+The Ackermann test-only profile uses explicit synthetic values (`wheelbase=1.0 m`, steering bounds `±0.6 rad`, steering rate `10 rad/s`, minimum turning radius `2.0 m`, minimum speed `0.1 m/s`). It is compiled only into the unit test and is not installed as a Robot Profile. The fake-driver integration initially exposed that graph endpoint names are unavailable in this DDS setup and that startup zero samples can precede a test command; the test now asserts one publisher and waits for the nonzero translated sample. Final runs passed. No `ros2 launch`, real `/mux/cmd_vel`, CAN packet, chassis movement, or remote/E-stop test was run. The Bunker driver remains the sole physical CAN owner; `publish_odom_tf=false` and the existing Bunker remote/manual policy are unchanged.
+
+- Python guard fail-closed regression after its default output moved to the canonical base topic — PASS. Under isolated `ROS_DOMAIN_ID=219`, LOST still stopped within 6.5 ms; steady lost output, stale replay, and source-switch replay all remained zero. The synthetic manual path also passed. This did not launch an adapter or hardware driver.
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  ROS_DOMAIN_ID=219 PYTHONPATH="bringup/agt_base_control:${PYTHONPATH}" python3 bringup/agt_base_control/test/guard_fail_closed_acceptance.py
+  ```
 
 ## E. Atomic launch ownership
 

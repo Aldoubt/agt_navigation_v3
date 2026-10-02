@@ -183,7 +183,28 @@ def _motion_guard_action(backend, params_file, payload_interlock):
     return Node(
         package=package, executable=executable,
         name='agt_cmd_vel_guard', output='screen', parameters=[
-            params_file, {'require_payload_drive_permission': payload_interlock}])
+            params_file, {
+                'output_topic': '/agt/base/cmd_vel',
+                'require_payload_drive_permission': payload_interlock,
+            }])
+
+
+def base_adapter_node_spec(adapter):
+    """Resolve the currently implemented hardware boundary, failing closed otherwise."""
+    selected = (adapter or '').strip().lower()
+    if selected == 'bunker':
+        return 'agt_base_runtime', 'bunker_adapter'
+    if selected == 'ackermann':
+        raise RuntimeError('Ackermann conversion is software-only; no real driver adapter is enabled')
+    if selected in ('yhs', 'yhs_tk_mid'):
+        raise RuntimeError('YHS base adapter is BLOCKED pending vehicle protocol/kinematics audit')
+    raise RuntimeError(f'unsupported base adapter {adapter!r}; expected bunker')
+
+
+def _base_adapter_action(adapter):
+    package, executable = base_adapter_node_spec(adapter)
+    return Node(package=package, executable=executable,
+                name='agt_bunker_base_adapter', output='screen')
 
 
 def _launch_runtime(context):
@@ -191,6 +212,10 @@ def _launch_runtime(context):
     payload_interlock = resolve_payload_interlock(
         LaunchConfiguration('payload_interlock').perform(context),
         LaunchConfiguration('robot_config').perform(context), robot_profile)
+    base_adapter = LaunchConfiguration('base_adapter').perform(context)
+    if base_adapter == 'bunker' and robot_profile != 'bunker_v1':
+        raise RuntimeError(
+            f'Bunker adapter cannot serve robot profile {robot_profile!r}; refusing mismatched base')
     map_spec = LaunchConfiguration('map').perform(context)
     try:
         selected_map = resolve_map(map_spec, robot_profile, Path(
@@ -283,6 +308,7 @@ def _launch_runtime(context):
                     LaunchConfiguration('use_sim_time'), value_type=bool),
             }]),
         _motion_guard_action(motion_guard_backend, params_file, payload_interlock),
+        _base_adapter_action(base_adapter),
         # Always expose map-frame LIO/wheel trails and the validated RViz
         # hand-drawn FollowPath entry point. This is independent of the
         # stop-and-shoot inspection mission queue below.
@@ -306,6 +332,10 @@ def generate_launch_description():
                               description='YHS only: dedicated measured Nav2 config directory + field_profile.yaml'),
         DeclareLaunchArgument('robot_config', default_value='',
                               description='whole-robot config id/dir; decides payload_interlock'),
+        DeclareLaunchArgument(
+            'base_adapter',
+            default_value=EnvironmentVariable('AGT_BASE_ADAPTER', default_value='bunker'),
+            description='bunker only; selected from the validated whole-robot config'),
         DeclareLaunchArgument('payload_interlock', default_value='auto',
                               description='auto (from robot_config) | true | false; '
                                           'true = hold chassis unless the arm grants drive permission'),

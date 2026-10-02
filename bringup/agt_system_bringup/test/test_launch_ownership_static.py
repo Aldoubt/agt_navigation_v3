@@ -65,12 +65,25 @@ def test_navigation_starts_one_motion_guard_with_cpp_default_and_python_rollback
     assert "EnvironmentVariable('AGT_MOTION_GUARD_BACKEND', default_value='cpp')" in launch_text
     assert launch_text.count(
         '_motion_guard_action(motion_guard_backend, params_file, payload_interlock)') == 1
+    assert "'output_topic': '/agt/base/cmd_vel'" in launch_text
+    assert launch_text.count('_base_adapter_action(base_adapter)') == 1
+    assert "return 'agt_base_runtime', 'bunker_adapter'" in launch_text
     assert "return 'agt_base_runtime', 'motion_guard'" in launch_text
     assert "return 'agt_base_control', 'cmd_vel_guard'" in launch_text
+
+    python_guard = (ROOT.parents[1] / 'bringup/agt_base_control/agt_base_control/'
+                    'cmd_vel_guard.py').read_text(encoding='utf-8')
+    cpp_guard = (ROOT.parents[1] / 'platform/agt_base_runtime/src/motion_guard_node.cpp').read_text(
+        encoding='utf-8')
+    safety = yaml.safe_load((ROOT.parents[1] / 'config/safety.yaml').read_text(encoding='utf-8'))
+    assert "'output_topic', '/agt/base/cmd_vel'" in python_guard
+    assert '"output_topic", "/agt/base/cmd_vel"' in cpp_guard
+    assert safety['agt_cmd_vel_guard']['ros__parameters']['output_topic'] == '/agt/base/cmd_vel'
 
 
 def test_field_wrapper_validates_and_exports_motion_guard_backend():
     wrapper = (ROOT.parents[1] / 'scripts' / 'run_field_stack.sh').read_text(encoding='utf-8')
+    assert 'export AGT_BASE_ADAPTER="$ROBOT_BASE_ADAPTER"' in wrapper
     assert '--motion-guard-backend' in wrapper
     assert 'export AGT_MOTION_GUARD_BACKEND="$MOTION_GUARD_BACKEND"' in wrapper
     assert "printf 'motion_guard_backend=%s\\n' \"$MOTION_GUARD_BACKEND\"" in wrapper

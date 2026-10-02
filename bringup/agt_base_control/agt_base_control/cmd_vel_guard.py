@@ -12,9 +12,10 @@ from std_msgs.msg import Bool, String
 class CmdVelGuard(Node):
     """Clamp, slew-limit and refresh velocity commands at a fixed rate.
 
-    Nav2's velocity smoother publishes /cmd_vel_smoothed. This guard is the
-    only software path expected to publish /mux/cmd_vel to the Bunker driver.
-    It does not publish odometry or TF.
+    Nav2's velocity smoother publishes /cmd_vel_smoothed. This guard defaults
+    to the canonical /agt/base/cmd_vel topic; the selected base adapter is the
+    sole publisher on a vendor command topic. This node never publishes
+    odometry or TF.
     """
 
     def __init__(self) -> None:
@@ -23,7 +24,7 @@ class CmdVelGuard(Node):
         self.declare_parameter('manual_input_topic', '/agt/hmi/cmd_vel')
         self.declare_parameter('control_mode_topic', '/agt/control/mode')
         self.declare_parameter('default_control_mode', 'navigation')
-        self.declare_parameter('output_topic', '/mux/cmd_vel')
+        self.declare_parameter('output_topic', '/agt/base/cmd_vel')
         self.declare_parameter('publish_rate_hz', 50.0)
         self.declare_parameter('command_timeout_sec', 0.25)
         self.declare_parameter('localization_status_topic', '/agt/localization/status')

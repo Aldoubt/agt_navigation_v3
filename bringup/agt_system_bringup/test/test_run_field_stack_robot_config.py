@@ -60,6 +60,7 @@ def test_default_hardware_is_single_bunker_lidar_model_owner_without_camera():
     nav = nav_dry_run('--mode', 'navigation')
     assert nav.returncode == 0, nav.stderr
     assert 'hardware_owner=external' in nav.stdout
+    assert 'base_adapter=bunker' in nav.stdout
     assert 'initialization_source=automatic_global_relocalization' in nav.stdout
     assert 'localization_mode=auto' in nav.stdout
     assert 'camera_gimbal=false' in nav.stdout

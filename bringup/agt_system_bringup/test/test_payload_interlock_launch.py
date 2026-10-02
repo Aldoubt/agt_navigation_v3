@@ -46,6 +46,16 @@ def test_motion_guard_backend_selects_one_process_and_keeps_python_rollback():
         NAV.motion_guard_node_spec('both')
 
 
+def test_bunker_is_the_only_live_base_adapter_and_other_bases_fail_closed():
+    assert NAV.base_adapter_node_spec('bunker') == ('agt_base_runtime', 'bunker_adapter')
+    with pytest.raises(RuntimeError, match='software-only'):
+        NAV.base_adapter_node_spec('ackermann')
+    with pytest.raises(RuntimeError, match='BLOCKED'):
+        NAV.base_adapter_node_spec('yhs')
+    with pytest.raises(RuntimeError, match='unsupported base adapter'):
+        NAV.base_adapter_node_spec('unknown')
+
+
 def _value(**kw):
     defaults = {'payload_interlock': 'auto', 'enable_arm': 'false'}
     defaults.update(kw)

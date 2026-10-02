@@ -10,7 +10,10 @@ add_compile_options(-Wall -Wextra -Wpedantic)
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(diagnostic_msgs REQUIRED)
+find_package(bunker_msgs REQUIRED)
 find_package(agt_robot_interfaces REQUIRED)
 
 add_library(motion_guard_core src/motion_guard_core.cpp)
@@ -23,7 +26,21 @@ target_include_directories(motion_guard PRIVATE include)
 target_link_libraries(motion_guard motion_guard_core)
 ament_target_dependencies(motion_guard rclcpp geometry_msgs std_msgs agt_robot_interfaces)
 
-install(TARGETS motion_guard_core motion_guard
+add_library(base_adapter_core
+  src/bunker_adapter.cpp
+  src/ackermann_adapter.cpp)
+target_include_directories(base_adapter_core PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+ament_target_dependencies(base_adapter_core geometry_msgs nav_msgs)
+
+add_executable(bunker_adapter src/bunker_adapter_node.cpp)
+target_include_directories(bunker_adapter PRIVATE include)
+target_link_libraries(bunker_adapter base_adapter_core)
+ament_target_dependencies(
+  bunker_adapter rclcpp geometry_msgs nav_msgs diagnostic_msgs bunker_msgs)
+
+install(TARGETS motion_guard_core motion_guard base_adapter_core bunker_adapter
   EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
@@ -37,12 +54,23 @@ if(BUILD_TESTING)
   target_link_libraries(test_motion_guard_core motion_guard_core)
   target_include_directories(test_motion_guard_core PRIVATE include)
 
+  ament_add_gtest(test_base_adapter_core test/test_base_adapter_core.cpp)
+  target_link_libraries(test_base_adapter_core base_adapter_core)
+  target_include_directories(test_base_adapter_core PRIVATE include)
+  ament_target_dependencies(test_base_adapter_core geometry_msgs nav_msgs)
+
   ament_add_pytest_test(test_shadow_parity test/test_shadow_parity.py TIMEOUT 90)
   set_tests_properties(test_shadow_parity PROPERTIES
-    ENVIRONMENT "MOTION_GUARD_CPP_EXECUTABLE=$<TARGET_FILE:motion_guard>")
+    ENVIRONMENT "MOTION_GUARD_CPP_EXECUTABLE=$<TARGET_FILE:motion_guard>;ROS_DOMAIN_ID=217")
+
+  ament_add_pytest_test(
+    test_bunker_adapter_integration test/test_bunker_adapter_integration.py TIMEOUT 60)
+  set_tests_properties(test_bunker_adapter_integration PROPERTIES
+    ENVIRONMENT "BUNKER_ADAPTER_EXECUTABLE=$<TARGET_FILE:bunker_adapter>;ROS_DOMAIN_ID=216")
 endif()
 
 ament_export_include_directories(include)
-ament_export_libraries(motion_guard_core)
-ament_export_dependencies(rclcpp geometry_msgs std_msgs agt_robot_interfaces)
+ament_export_libraries(motion_guard_core base_adapter_core)
+ament_export_dependencies(
+  rclcpp geometry_msgs nav_msgs std_msgs diagnostic_msgs agt_robot_interfaces)
 ament_package()

@@ -31,7 +31,8 @@ public:
     const std::string mode_topic = declare_parameter<std::string>("control_mode_topic", "/agt/control/mode");
     const std::string default_mode = normalize_mode(
       declare_parameter<std::string>("default_control_mode", "navigation"));
-    const std::string output_topic = declare_parameter<std::string>("output_topic", "/mux/cmd_vel");
+    const std::string output_topic = declare_parameter<std::string>(
+      "output_topic", "/agt/base/cmd_vel");
     const std::string localization_topic = declare_parameter<std::string>(
       "localization_status_topic", "/agt/localization/status");
     const std::string permission_topic = declare_parameter<std::string>(
