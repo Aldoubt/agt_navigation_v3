@@ -8,12 +8,14 @@ import json
 
 import rclpy
 from rclpy.parameter import Parameter
+from geometry_msgs.msg import PoseWithCovarianceStamped
 from std_msgs.msg import String
 from std_srvs.srv import Trigger
 from agt_robot_interfaces.msg import LocalizationStatus
 
 from .manual_seed_relocalization import ManualSeedRelocalization
 from .initialization_policy import validate_mode, validate_seed, validate_refinement
+from .start_hint import load_start_hint, StartHintError
 
 
 class InitializationRelocalization(ManualSeedRelocalization):
@@ -24,6 +26,9 @@ class InitializationRelocalization(ManualSeedRelocalization):
         self.declare_parameter('manual_scan_max_age_sec', 0.50)
         self.declare_parameter('manual_seed_max_translation_m', 2.0)
         self.declare_parameter('manual_seed_max_yaw_deg', 30.0)
+        self.declare_parameter('start_hint_file', '')
+        self.declare_parameter('selected_map_id', '')
+        self.declare_parameter('selected_map_version', '')
         self.mode = validate_mode(str(self.get_parameter('initialization_mode').value))
         # Only explicit requests from the orchestrator may start automatic work.
         self.set_parameters([Parameter('auto_request', value=False)])
@@ -31,9 +36,12 @@ class InitializationRelocalization(ManualSeedRelocalization):
         self.initialized = False
         self.awaiting_ack = False
         self.ack_deadline_ns = 0
+        self._near_hint_attempted = False
         self.phase = 'WAIT_MANUAL_INITIAL_POSE' if self.manual_enabled else 'WAIT_AUTO_REQUEST'
         self.init_pub = self.create_publisher(String, '/agt/localization/initialization_status', 10)
         self.create_service(Trigger, '/agt/relocalization/enter_manual', self.enter_manual)
+        self.create_service(Trigger, '/agt/localization/relocalize_near_start',
+                            self.relocalize_near_start)
         self.create_subscription(LocalizationStatus, '/agt/localization/status', self.on_localization, 10)
         self.create_timer(0.5, self.publish_phase)
 
@@ -78,6 +86,83 @@ class InitializationRelocalization(ManualSeedRelocalization):
             self.status(self.phase, 'automatic search disabled; waiting for /initialpose')
         return response
 
+    def relocalize_near_start(self, request, response):
+        """Try one bounded GICP seed; never claim localization before manager ACK.
+
+        A service call is intentionally synchronous in the single-threaded
+        executor: it cannot race a simultaneous full-map or manual attempt.
+        The shell retries only QUERY_NOT_READY while a fresh stationary scan
+        is collected, then proceeds to the existing global BBS if rejected.
+        """
+        del request
+        hint_path = str(self.get_parameter('start_hint_file').value).strip()
+        if not hint_path:
+            response.success, response.message = False, 'SKIPPED: no approved start hint'
+            return response
+        if self.manual_enabled or self.mode != 'auto_then_manual':
+            response.success, response.message = False, 'SKIPPED: non-automatic mode'
+            return response
+        if self.busy or self.pending_request or self.awaiting_ack or self.initialized:
+            response.success, response.message = False, 'BUSY: another localization is active'
+            return response
+        if self._near_hint_attempted:
+            response.success, response.message = False, 'NEAR_START_FAILED: already attempted'
+            return response
+        selected_id = str(self.get_parameter('selected_map_id').value).strip()
+        selected_version = str(self.get_parameter('selected_map_version').value).strip()
+        global_map, _assets, live_id, live_version, _generation = self.resolve_map_inputs()
+        if (live_id or live_version) and (live_id, live_version) != (selected_id, selected_version):
+            response.success, response.message = False, 'CONFIG_ERROR: active map changed'
+            return response
+        try:
+            # Re-read SHA at the point of use: a map/hint changed since shell
+            # preflight must not seed an unrelated map.
+            pose = load_start_hint(hint_path, map_id=selected_id,
+                                   map_version=selected_version, map_pcd=global_map)
+        except (StartHintError, OSError) as exc:
+            response.success, response.message = False, f'CONFIG_ERROR: {exc}'
+            return response
+        ready, _state, detail = self._request_readiness()
+        if not ready:
+            response.success, response.message = False, f'QUERY_NOT_READY: {detail}'
+            return response
+        stamp = self.clouds[-1].header.stamp
+        now = self.get_clock().now().nanoseconds / 1e9
+        scan_time = stamp.sec + stamp.nanosec / 1e9
+        if not -0.10 <= now - scan_time <= float(self.get_parameter('manual_scan_max_age_sec').value):
+            self.clouds.clear()
+            response.success, response.message = False, 'QUERY_NOT_READY: stationary scan stale'
+            return response
+
+        # The reviewed source coordinate is T_map_body. The existing local
+        # GICP API takes T_map_base; do not silently treat body as base_link.
+        try:
+            initial_base = self._query_pose_to_base_pose(pose, 'mapping_body')
+            seed = PoseWithCovarianceStamped()
+            seed.header.frame_id = str(self.get_parameter('map_frame').value)
+            seed.header.stamp = stamp
+            for key, axis in (('x', 'x'), ('y', 'y'), ('z', 'z')):
+                setattr(seed.pose.pose.position, axis, initial_base[key])
+            for key, axis in (('qx', 'x'), ('qy', 'y'), ('qz', 'z'), ('qw', 'w')):
+                setattr(seed.pose.pose.orientation, axis, initial_base[key])
+            self._near_hint_attempted = True
+            self.busy = True
+            self.phase = 'NEAR_START_GICP'
+            self.status(self.phase, 'reviewed map-version/PCD-bound T_map_body seed')
+            self.run_seeded_once(seed)
+        except Exception as exc:
+            self.awaiting_ack = False
+            self.phase = 'WAIT_AUTO_REQUEST'
+            self.status('NEAR_START_REJECTED', str(exc))
+            self.clouds.clear()  # Force a new stationary query for full-map search.
+            response.success, response.message = False, f'NEAR_START_FAILED: {exc}'
+        else:
+            # Proposed, NOT localized: only Localization Manager can ACK it.
+            response.success, response.message = True, 'POSE_PROPOSED: awaiting manager LOCALIZED ACK'
+        finally:
+            self.busy = False
+        return response
+
     def on_request(self, msg):
         if self.manual_enabled:
             # Manager invalidates the anchor before publishing this request.
@@ -91,6 +176,9 @@ class InitializationRelocalization(ManualSeedRelocalization):
         self.initialized = False
         self.awaiting_ack = False
         self.phase = 'AUTO_SEARCH'
+        if self._near_hint_attempted:
+            # Do not re-use an unsuccessfully accepted near-start query.
+            self.clouds.clear()
         super().on_request(msg)
 
     def run_once(self):

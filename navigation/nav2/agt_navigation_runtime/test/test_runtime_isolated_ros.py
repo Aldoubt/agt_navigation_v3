@@ -32,6 +32,7 @@ from tf2_ros import StaticTransformBroadcaster
 from agt_robot_interfaces.action import ExecuteInspectionMission
 from agt_robot_interfaces.msg import MissionStatus
 from camera_gimbal_interfaces.action import AcquireView
+from camera_gimbal_interfaces.msg import CapabilityHealth
 from agt_navigation_runtime.mission_runtime import MissionRuntime
 
 pytestmark = pytest.mark.skipif(
@@ -61,6 +62,9 @@ class FakePeers(Node):
         self.map_frame, self.base_frame = map_frame, base_frame
         self.nav_mode = 'success'
         self.camera_mode = 'success'
+        self.camera_health_ok = True
+        self.camera_health_enabled = True
+        self.drop_health_after_capture_at = None
         self.camera_accept_delay = 0.0
         self.nav_accept_delay = 0.0
         self.fail_camera_tag = None
@@ -84,7 +88,9 @@ class FakePeers(Node):
             goal_callback=self.camera_goal, cancel_callback=self.cancel_goal,
             callback_group=self.group)
         self.odom = self.create_publisher(Odometry, prefix + '/odom', 20)
+        self.health = self.create_publisher(CapabilityHealth, prefix + '/camera_health', 20)
         self.create_timer(0.02, self.publish_odom, callback_group=self.group)
+        self.create_timer(0.04, self.publish_camera_health, callback_group=self.group)
         self.tf = StaticTransformBroadcaster(self)
         transform = TransformStamped()
         transform.header.stamp = self.get_clock().now().to_msg()
@@ -125,6 +131,22 @@ class FakePeers(Node):
         msg.twist.twist.linear.x = 0.15 if moving else 0.0
         self.odom.publish(msg)
 
+    def publish_camera_health(self):
+        if not self.camera_health_enabled:
+            return
+        msg = CapabilityHealth()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.state = (CapabilityHealth.STATE_READY if self.camera_health_ok
+                     else CapabilityHealth.STATE_ERROR)
+        msg.camera_alive = self.camera_health_ok
+        msg.gimbal_serial_connected = self.camera_health_ok
+        msg.gimbal_feedback_alive = self.camera_health_ok
+        msg.move_action_ready = self.camera_health_ok
+        msg.busy = False
+        msg.camera_age = 0.01 if self.camera_health_ok else 5.0
+        msg.last_error = '' if self.camera_health_ok else 'SYNTHETIC_CAMERA_HEALTH_FAILURE'
+        self.health.publish(msg)
+
     def _execute(self, handle, result, mode, success_seconds=0.05):
         started = time.monotonic()
         while not self.closed.is_set() and time.monotonic() - started < 5.0:
@@ -157,6 +179,9 @@ class FakePeers(Node):
 
     def camera_execute(self, handle):
         self.camera_goals.append(handle)
+        if self.drop_health_after_capture_at == len(self.camera_goals):
+            # Exercise the gate before the next view/point, using only a fake.
+            self.camera_health_ok = False
         result = AcquireView.Result()
         fail = self.camera_mode == 'fail' or handle.request.tag == self.fail_camera_tag
         if fail:
@@ -208,6 +233,9 @@ class Rig:
             'acquire_view_action': self.prefix + '/camera',
             'local_odom_topic': self.prefix + '/odom',
             'navsat_topic': self.prefix + '/gnss',
+            'camera_health_topic': self.prefix + '/camera_health',
+            'camera_health_timeout_sec': 0.3,
+            'camera_health_max_age_sec': 0.15,
             'hmi_task_request_topic': self.prefix + '/request',
             'hmi_task_status_topic': self.prefix + '/hmi_status',
             'global_frame': self.map_frame, 'base_frame': self.base_frame,
@@ -247,6 +275,7 @@ class Rig:
         wait(lambda: self.client.server_is_ready() and self.runtime.nav_client.server_is_ready()
              and self.runtime.camera_client.server_is_ready(), timeout=5, label='isolated fake Actions')
         wait(lambda: self.runtime.latest_pose_linear_mps is not None, label='fake odometry')
+        wait(lambda: self.runtime.camera_health is not None, label='fake C1 health')
         self.handles = []
 
     def parameter(self, name, value):
@@ -567,3 +596,34 @@ def test_ros_return_home_failure_cannot_be_validated_as_photo_success(rig):
     errors=validate(directory,expected_points=1,views_per_point=3,require_rtk=False)
     assert any('mission status=failed' in x for x in errors)
     assert 'NOT a certified complete mission' in build_report(directory)
+
+
+def test_ros_unhealthy_c1_blocks_mission_before_first_nav(rig):
+    rig.peers.camera_health_ok = False
+    wait(lambda: rig.runtime.camera_health is not None
+         and rig.runtime.camera_health.state == CapabilityHealth.STATE_ERROR,
+         label='unhealthy fake C1')
+    name, path = rig.mission(views=2, points=2)
+    result = rig.result(rig.submit(path))
+    assert result.status == GoalStatus.STATUS_ABORTED and result.result.error_code == 1403
+    assert not rig.peers.nav_goals and not rig.peers.camera_goals
+    assert rig.record(name)[1]['status'] == 'failed'
+
+
+def test_ros_camera_health_drop_at_capture_stops_next_view_and_waypoint(rig):
+    rig.peers.drop_health_after_capture_at = 1
+    name, path = rig.mission(views=3, points=2)
+    result = rig.result(rig.submit(path))
+    assert result.status == GoalStatus.STATUS_ABORTED and result.result.error_code == 1403
+    assert len(rig.peers.nav_goals) == 1 and len(rig.peers.camera_goals) == 1
+    assert rig.record(name)[1]['status'] == 'failed'
+
+
+def test_ros_stale_c1_health_blocks_mission_before_nav(rig):
+    rig.peers.camera_health_enabled = False
+    time.sleep(0.22)  # > configured 0.15s max receive age
+    name, path = rig.mission()
+    result = rig.result(rig.submit(path))
+    assert result.status == GoalStatus.STATUS_ABORTED and result.result.error_code == 1403
+    assert not rig.peers.nav_goals
+    assert rig.record(name)[1]['status'] == 'failed'

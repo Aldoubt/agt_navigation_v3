@@ -10,16 +10,23 @@ def test_field_script_preserves_navigation_and_inspection_modes():
     assert 'MODE=navigation' in text
     assert 'navigation)\n    ENABLE_INSPECTION=false' in text
     assert 'inspection)\n    ENABLE_INSPECTION=true' in text
-    # R3: the camera default comes from the whole-robot config; inspection
-    # forces it on and legacy navigation (no robot_config) forces it off.
-    assert 'if [[ "$ENABLE_INSPECTION" == true ]]; then\n  HW_OVERRIDES+=(--set enable_camera_gimbal=true)\n  HW_LAUNCH_ARGS+=(enable_camera_gimbal:=true)' in text
-    assert 'HW_LAUNCH_ARGS+=(enable_camera_gimbal:=false)' in text
+    # The navigation process cannot own a physical device lifecycle.
+    assert 'HW_OVERRIDES+=(--set enable_camera_gimbal=true)' in text
+    assert 'HW_OVERRIDES+=(--set enable_camera_gimbal=false)' in text
+    assert 'start_child hardware' not in text
+    assert 'hardware_owner=external' in text
+    assert 'for owner in /robot_state_publisher /bunker /livox_lidar_publisher' in text
+    assert 'wait_for_topic C1-health /camera_gimbal/health 15' in text
     assert 'NAV_LAUNCH=navigation.launch.py' in text
     assert 'NAV_PACKAGE=agt_mission_bringup' in text
     assert 'NAV_LAUNCH=mission.launch.py' in text
     assert 'MISSION_ARGS+=("enable_legacy_inspection:=true")' in text
     assert 'ros2 launch "$NAV_PACKAGE" "$NAV_LAUNCH"' in text
     assert '-p require_camera:="$ENABLE_INSPECTION"' in text
+    hardware = (ROOT/'scripts/run_bunker_hardware.sh').read_text()
+    assert 'exec "${LAUNCH[@]}"' in hardware
+    assert 'robot_hardware.launch.py' in hardware
+    assert 'enable_camera_gimbal:=$CAMERA' in hardware
 
 
 def test_field_script_stops_complete_launch_process_groups():
@@ -96,6 +103,9 @@ def test_production_runtime_no_longer_uses_asyncio_sleep():
     assert 'asyncio.sleep' not in source
     assert 'wait_until_stationary' in source
     assert 'self._waiter.sleep' in source
+    assert source.index('healthy, reason = await self.wait_for_camera_ready(goal_handle)') < source.index('nav = await self.navigate(point)')
+    assert source.index("self.publish_status(MissionStatus.STABILIZING, mission.mission_id, point.id, index,") < source.index('capture = await self.capture(view)')
+    assert 'CapabilityHealth' in source and 'camera_ready(' in source
 
 
 def test_camera_view_and_stop_gate_defaults_are_unchanged():
@@ -108,3 +118,12 @@ def test_camera_view_and_stop_gate_defaults_are_unchanged():
     preset=yaml.safe_load((ROOT/'navigation/nav2/agt_rviz_patrol/config/front_sky_three_views.yaml').read_text())
     assert len(preset['views'])==3
     assert all(v['required'] and v['save_image'] for v in preset['views'])
+
+
+def test_inspection_preflight_checks_fresh_c1_capability_not_just_action_discovery():
+    source = (ROOT / 'navigation/nav2/agt_navigation_runtime/agt_navigation_runtime/demo_preflight.py').read_text()
+    assert 'CapabilityHealth' in source
+    assert "'camera_health_topic': '/camera_gimbal/health'" in source
+    assert 'self.camera_health_rx = time.monotonic()' in source
+    assert 'camera_ready(' in source
+    assert "checks.append(('C1 fresh capability health', health_ok, health_detail))" in source

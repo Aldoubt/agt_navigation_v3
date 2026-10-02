@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-# One-terminal field orchestrator. It preserves the four top-level launch
-# architecture and adds only readiness gates plus ordered shutdown.
+# Navigation/inspection orchestrator. Physical hardware has an independent
+# owner: run_bunker_hardware.sh. Cleanup here NEVER stops external drivers.
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd -- "$SCRIPT_DIR/.." && pwd)
@@ -9,6 +9,15 @@ WS_ROOT=$(cd -- "$REPO_ROOT/../.." && pwd)
 
 source /opt/ros/humble/setup.bash
 source "$WS_ROOT/install/setup.bash"
+# Isolated offline builds may be selected without altering the production
+# install tree; re-source this overlay AFTER the workspace's ordinary install.
+if [[ -n "${AGT_FIELD_OVERLAY_SETUP:-}" ]]; then
+  if [[ ! -f "$AGT_FIELD_OVERLAY_SETUP" ]]; then
+    printf 'Missing AGT_FIELD_OVERLAY_SETUP: %s\n' "$AGT_FIELD_OVERLAY_SETUP" >&2
+    exit 2
+  fi
+  source "$AGT_FIELD_OVERLAY_SETUP"
+fi
 set -euo pipefail
 
 MAP_SPEC=auto
@@ -19,7 +28,10 @@ MAP_REGISTRY=${AGT_MAP_REGISTRY:-"$WS_ROOT/maps/registry.yaml"}
 MAP_ROOT_OVERRIDE=""
 MAP_ID_OVERRIDE=""
 MODE=navigation
-LOCALIZATION_MODE=auto
+LOCALIZATION_MODE=auto_then_manual
+START_HINT_FILE=${AGT_START_HINT_FILE:-}
+START_HINT_EXPLICIT=false
+[[ -n "$START_HINT_FILE" ]] && START_HINT_EXPLICIT=true
 LIO_BACKEND=fastlio2
 LIO_CONFIG=""
 YHS_LIVOX_CONFIG=""
@@ -51,12 +63,15 @@ Options:
   --lio-backend NAME Local odometry: fastlio2 (default) or batch_lio (explicit opt-in); mutually exclusive.
   --lio-config PATH  Optional runtime YAML for the selected LIO backend.
   --localization-mode MODE
-                    auto (default): two automatic attempts, then exit on failure.
-                    auto_then_manual: two attempts, then wait for RViz /initialpose.
+                    auto: two global attempts, then exit on failure.
+                    auto_then_manual (default): reviewed near-start seed if present,
+                    then two global attempts, then wait for RViz /initialpose.
                     manual: skip global search, wait for operator seed + local GICP.
                     Waiting keeps sensors/LIO alive but never starts Nav2.
                     Add --rviz for the map-only initialization window.
   --map SPEC        auto (default), active, latest, map_id or map_id/version.
+  --start-hint PATH Explicit, human-approved T_map_body hint for this map/PCD.
+                    If absent, near-start is SKIPPED (never use grid origin).
   --robot PROFILE   Legacy robot profile (default: bunker_v1 -> robot config
                     bunker_inspection). Must match --robot-config if both are given.
   --robot-config ID|PATH
@@ -78,7 +93,7 @@ Options:
   --rviz-config PATH
                     RViz config for --rviz (absolute path; use the diagnostics config
                     from the source tree when the package has not been rebuilt).
-  --rtk             Enable RTK hardware input (metadata only).
+  --rtk             Require external RTK data (hardware --rtk starts it).
   --dry-run         Validate mode/map inputs and print the resolved stack only.
   --obstacle-stats PATH
                     Write cumulative obstacle-filter statistics to PATH on clean exit.
@@ -94,8 +109,10 @@ Options:
                     without live LiDAR obstacle marking or clearing.
   -h, --help        Show this help.
 
-The script starts the staged runtime in dependency order.
-Press Ctrl+C once for ordered shutdown. Rosbag recording remains a separate
+Start scripts/run_bunker_hardware.sh in its own terminal FIRST (add --camera
+for inspection). This command checks that external owner; it never launches or
+stops physical drivers. Ctrl+C here only stops localization/Nav2 and RViz.
+Rosbag recording remains a separate
 acceptance action so it can be stopped and finalized before powering off.
 EOF
 }
@@ -145,6 +162,11 @@ while [[ $# -gt 0 ]]; do
       ;;
     --robot-config)
       ROBOT_CONFIG=${2:?--robot-config requires an id or robot.yaml path}
+      shift 2
+      ;;
+    --start-hint)
+      START_HINT_FILE=${2:?--start-hint requires a path}
+      START_HINT_EXPLICIT=true
       shift 2
       ;;
     --map-registry)
@@ -281,30 +303,23 @@ if [[ ! -f "$ROBOT_CONFIG_RESOLVER" ]]; then
   printf 'Rebuild: colcon build --packages-select agt_robot_bringup --symlink-install\n' >&2
   exit 2
 fi
-# Device policy (single place):
-#  * The whole-robot YAML decides which devices start.
-#  * --mode inspection REQUIRES the camera: forced on, rejected if not installed.
-#  * --mode navigation with an explicit --robot-config: YAML decides the camera.
-#  * --mode navigation without --robot-config (legacy commands): camera off,
-#    exactly as before the robot config existed.
-#  * --rtk forces RTK on (metadata only); otherwise YAML decides.
-# The same override set is used for the preflight resolution and the launch.
+# Expected device policy: external hardware already owns the drivers.
+# Inspection requires C1, navigation does not. The resolver checks whether the
+# selected whole-robot configuration COULD satisfy the mode; graph/topic and C1
+# health checks below determine whether the running owner ACTUALLY does.
+# --rtk means require externally started metadata, never launch it here.
 declare -a HW_OVERRIDES=()
-declare -a HW_LAUNCH_ARGS=()
 if [[ "$ENABLE_INSPECTION" == true ]]; then
   HW_OVERRIDES+=(--set enable_camera_gimbal=true)
-  HW_LAUNCH_ARGS+=(enable_camera_gimbal:=true)
   CAMERA_POLICY=inspection_requires_camera
 elif [[ -z "$ROBOT_CONFIG" ]]; then
   HW_OVERRIDES+=(--set enable_camera_gimbal=false)
-  HW_LAUNCH_ARGS+=(enable_camera_gimbal:=false)
   CAMERA_POLICY=legacy_navigation_camera_off
 else
   CAMERA_POLICY=robot_config
 fi
 if [[ "$ENABLE_RTK" == true ]]; then
   HW_OVERRIDES+=(--set enable_rtk=true)
-  HW_LAUNCH_ARGS+=(enable_rtk:=true)
 fi
 if ! ROBOT_CONFIG_SELECTION=$(python3 "$ROBOT_CONFIG_RESOLVER" resolve \
     --robot-config "$ROBOT_CONFIG" --robot "$ROBOT_PROFILE_EXPLICIT" "${HW_OVERRIDES[@]}"); then
@@ -319,6 +334,7 @@ while IFS='=' read -r key value; do
     enable_rtk) RESOLVED_RTK=$value ;;
     robot_profile) ROBOT_PROFILE=$value ;;
     base_adapter) ROBOT_BASE_ADAPTER=$value ;;
+    bunker_can_port) RESOLVED_BUNKER_CAN_PORT=$value ;;
     mid360_driver_mode) RESOLVED_MID360_DRIVER_MODE=$value ;;
     reserved_payloads) ROBOT_RESERVED_PAYLOADS=$value ;;
     payload_interlock) ROBOT_PAYLOAD_INTERLOCK=$value ;;
@@ -422,6 +438,32 @@ for required in "$GLOBAL_MAP" "$RELOCALIZATION_ASSETS" "$NAV_MAP"; do
   fi
 done
 
+# A reviewed T_map_body hint lives OUTSIDE the immutable Map Package. A missing
+# default hint is normal: skip bounded search rather than invent a map origin.
+if [[ -z "$START_HINT_FILE" ]]; then
+  START_HINT_FILE="$WS_ROOT/map_start_hints/$MAP_ID/$MAP_VERSION.yaml"
+fi
+START_HINT_STATUS=SKIPPED
+if [[ -f "$START_HINT_FILE" ]]; then
+  HINT_VALIDATOR="$REPO_ROOT/navigation/localization/agt_global_relocalization/agt_global_relocalization/start_hint.py"
+  python3 "$HINT_VALIDATOR" --hint "$START_HINT_FILE" --map-id "$MAP_ID" \
+    --map-version "$MAP_VERSION" --map-pcd "$GLOBAL_MAP" || {
+      printf '[FAIL] Near-start hint invalid; refusing to use it\n' >&2
+      exit 2
+    }
+  START_HINT_FILE=$(realpath -- "$START_HINT_FILE")
+  START_HINT_STATUS=VALIDATED
+elif [[ "$START_HINT_EXPLICIT" == true ]]; then
+  printf '[FAIL] Explicit --start-hint not found: %s\n' "$START_HINT_FILE" >&2
+  exit 2
+else
+  START_HINT_FILE=""
+fi
+if [[ "$LOCALIZATION_MODE" != auto_then_manual && "$START_HINT_STATUS" == VALIDATED ]]; then
+  START_HINT_STATUS=SKIPPED_MODE
+  START_HINT_FILE=""
+fi
+
 if [[ "$DRY_RUN" == true ]]; then
   printf 'mode=%s\n' "$MODE"
   printf 'localization_mode=%s\n' "$LOCALIZATION_MODE"
@@ -432,6 +474,8 @@ if [[ "$DRY_RUN" == true ]]; then
   fi
   printf 'lio_raw_odometry=%s\n' "$LIO_RAW_ODOM"
   printf 'initialization_mode=%s\n' "$LOCALIZATION_MODE"
+  printf 'external_hardware_owner=true\nstart_hint_status=%s\nstart_hint_file=%s\n' \
+    "$START_HINT_STATUS" "$START_HINT_FILE"
   printf 'rear_pointcloud_mask=%s\n' "$REAR_POINTCLOUD_MASK"
   printf 'local_obstacle_avoidance=%s\n' "$LOCAL_OBSTACLE_AVOIDANCE"
   if [[ "$REAR_POINTCLOUD_MASK" == true ]]; then
@@ -450,20 +494,11 @@ if [[ "$DRY_RUN" == true ]]; then
   printf 'relocalization_assets=%s\n' "$RELOCALIZATION_ASSETS"
   printf 'camera_gimbal=%s\n' "$RESOLVED_CAMERA"
   printf 'camera_policy=%s\nrtk=%s\nrobot_config_dir=%s\n' "$CAMERA_POLICY" "$RESOLVED_RTK" "$ROBOT_CONFIG_DIR"
-  printf 'hardware_launch_args=%s\n' "${HW_LAUNCH_ARGS[*]}"
+  printf 'hardware_owner=external\n'
   printf 'inspection_runtime=%s\n' "$ENABLE_INSPECTION"
   printf 'payload_interlock=%s\n' "${ROBOT_PAYLOAD_INTERLOCK:-false}"
   printf 'rviz_config=%s\n' "$RVIZ_CONFIG"
   exit 0
-fi
-
-# After moving the hardware package to agt_robot_platform, an old symlink in
-# install/ can still make the package discoverable while its launch file is gone.
-ROBOT_HARDWARE_LAUNCH="$WS_ROOT/install/agt_robot_bringup/share/agt_robot_bringup/launch/robot_hardware.launch.py"
-if [[ ! -f "$ROBOT_HARDWARE_LAUNCH" ]]; then
-  printf 'Missing robot hardware launch: %s\n' "$ROBOT_HARDWARE_LAUNCH" >&2
-  printf 'Rebuild the moved package: cd %s && source /opt/ros/humble/setup.bash && colcon build --packages-select agt_robot_bringup --symlink-install --cmake-clean-cache\n' "$WS_ROOT" >&2
-  exit 2
 fi
 
 mkdir -p -- "$RUN_DIR"
@@ -482,8 +517,8 @@ start_child() {
   local logfile="$RUN_DIR/$label.log"
   printf '[START] %-12s log=%s\n' "$label" "$logfile"
   # Give every top-level launch its own process group. A ros2 launch wrapper
-  # can exit before all of its nodes; cleanup must still be able to signal the
-  # complete group instead of leaving hardware/localization owners behind.
+  # can exit before its nodes; cleanup signals ONLY local navigation/
+  # localization children. The separately owned hardware is never a child.
   setsid "$@" >"$logfile" 2>&1 &
   CHILD_PIDS+=("$!")
   CHILD_LABELS+=("$label")
@@ -713,6 +748,7 @@ cleanup() {
     stop_process_group "$label" "$pid"
     wait "$pid" 2>/dev/null || true
   done
+  printf '[STOP] navigation stopped; external hardware remains running in its own terminal\n'
   printf '[STOP] complete; logs=%s\n' "$RUN_DIR"
   exit "$original_status"
 }
@@ -720,21 +756,64 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT TERM
 
-existing_nodes=$(ros2 node list --no-daemon --spin-time 2 2>/dev/null || true)
-for owner in /robot_state_publisher /agt_localization_manager /agt_pointcloud_preprocessor \
-    /agt_batch_lio_adapter /agt_fastlio_adapter /laserMapping /batch_lio /fastlio2/lio_node; do
-  if grep -Fxq "$owner" <<<"$existing_nodes"; then
-    printf 'Refusing to create duplicate owner; node already exists: %s\n' "$owner" >&2
+existing_nodes=$(timeout 8 ros2 node list --no-daemon --spin-time 2) || {
+  printf '[FAIL] Cannot inspect ROS graph; hardware owner not verified\n' >&2
+  exit 1
+}
+# Exactly one external robot model, Bunker and MID360 driver; never duplicate.
+for owner in /robot_state_publisher /bunker /livox_lidar_publisher; do
+  count=$(grep -Fxc "$owner" <<<"$existing_nodes" || true)
+  if [[ "$count" != 1 ]]; then
+    printf '[FAIL] External hardware owner %s count=%s (expected 1); run run_bunker_hardware.sh first\n' "$owner" "$count" >&2
     exit 1
   fi
 done
+for owner in /agt_localization_manager /agt_pointcloud_preprocessor \
+    /agt_batch_lio_adapter /agt_fastlio_adapter /laserMapping /batch_lio /fastlio2/lio_node; do
+  if grep -Fxq "$owner" <<<"$existing_nodes"; then
+    printf 'Refusing to create duplicate localization owner; node already exists: %s\n' "$owner" >&2
+    exit 1
+  fi
+done
+# A Bunker driver may exist without working CAN: the topic/field gates below
+# still must pass. It may NEVER publish a competing odom TF.
+if ! timeout 6 ros2 param get /bunker publish_odom_tf | grep -Eiq 'false$'; then
+  printf '[FAIL] Bunker publish_odom_tf must be false; do not create duplicate odom->base_link TF\n' >&2
+  exit 1
+fi
+if ! timeout 6 ros2 param get /bunker port_name | grep -Fxq "String value is: ${RESOLVED_BUNKER_CAN_PORT}"; then
+  printf '[FAIL] Bunker port differs from selected robot config: %s\n' "$RESOLVED_BUNKER_CAN_PORT" >&2
+  exit 1
+fi
+if [[ "$ENABLE_INSPECTION" == true ]]; then
+  for owner in /camera_gimbal/capability /cv_camera0/camera /pantilt_camera_serial0/driver; do
+    count=$(grep -Fxc "$owner" <<<"$existing_nodes" || true)
+    if [[ "$count" != 1 ]]; then
+      printf '[FAIL] Inspection C1 owner %s count=%s (expected 1)\n' "$owner" "$count" >&2
+      exit 1
+    fi
+  done
+fi
 
+# The root install may still point at pre-refactor Python/launch build copies.
+# Fail closed before starting LIO if the selected overlay lacks this contract.
+if ! python3 -B -c 'from agt_global_relocalization.start_hint import load_start_hint; from agt_navigation_runtime.camera_health import camera_ready'; then
+  printf '[FAIL] Installed relocalization/runtime is stale; build the three changed packages or set AGT_FIELD_OVERLAY_SETUP\n' >&2
+  exit 2
+fi
+INSTALLED_GLOBAL_LAUNCH="$(ros2 pkg prefix agt_global_relocalization)/share/agt_global_relocalization/launch/global_relocalization.launch.py"
+if [[ ! -f "$INSTALLED_GLOBAL_LAUNCH" ]] || ! grep -Fq "selected_map_id" "$INSTALLED_GLOBAL_LAUNCH"; then
+  printf '[FAIL] Installed relocalization launch is stale: %s\n' "$INSTALLED_GLOBAL_LAUNCH" >&2
+  exit 2
+fi
 # Preserve the exact LIO input for later A/B analysis; both backend paths use it.
 cp -- "$LIO_CONFIG" "$RUN_DIR/lio_config_input.yaml"
 {
   printf 'mode=%s\nlio_backend=%s\nlio_config_source=%s\n' "$MODE" "$LIO_BACKEND" "$LIO_CONFIG"
   printf 'lio_raw_odometry=%s\n' "$LIO_RAW_ODOM"
   printf 'initialization_mode=%s\n' "$LOCALIZATION_MODE"
+  printf 'external_hardware_owner=true\nstart_hint_status=%s\nstart_hint_file=%s\n' \
+    "$START_HINT_STATUS" "$START_HINT_FILE"
   printf 'rear_pointcloud_mask=%s\n' "$REAR_POINTCLOUD_MASK"
   printf 'local_obstacle_avoidance=%s\n' "$LOCAL_OBSTACLE_AVOIDANCE"
   if [[ "$REAR_POINTCLOUD_MASK" == true ]]; then
@@ -747,13 +826,17 @@ declare -a LIO_LAUNCH_ARGS=(
   "$LIO_CONFIG_ARGUMENT:=$RUN_DIR/lio_config_input.yaml"
 )
 
-start_child hardware \
-  ros2 launch agt_system_bringup hardware.launch.py \
-  robot_config:="$ROBOT_CONFIG_SNAPSHOT" robot:="$ROBOT_PROFILE" \
-  "${HW_LAUNCH_ARGS[@]}"
-wait_for_topic MID360 /livox/lidar 45 hardware || { tail_failure hardware; exit 1; }
-wait_for_topic MID360-IMU /livox/imu 30 hardware || { tail_failure hardware; exit 1; }
-# Wheel odometry is recorded for diagnostics; LIO is the navigation authority.
+# External hardware was checked by ROS node identity above. Verify live,
+# correctly typed sensor streams; a listed node alone does not imply a device.
+wait_for_topic MID360 /livox/lidar 45 || exit 1
+wait_for_topic MID360-IMU /livox/imu 30 || exit 1
+if [[ "$ENABLE_INSPECTION" == true ]]; then
+  wait_for_topic C1-health /camera_gimbal/health 15 || exit 1
+fi
+if [[ "$ENABLE_RTK" == true ]]; then
+  wait_for_topic RTK /ins/navsatfix 15 || exit 1
+fi
+# /wheel/odom is diagnostic; LIO still gates stationary initialization.
 
 start_child localization \
   ros2 launch agt_system_bringup localization.launch.py \
@@ -762,6 +845,7 @@ start_child localization \
   relocalization_assets:="$RELOCALIZATION_ASSETS" \
   query_capture_dir:="$RUN_DIR/relocalization_queries" \
   auto_relocalize:=false localization_mode:="$LOCALIZATION_MODE" \
+  start_hint_file:="$START_HINT_FILE" \
   "${LIO_LAUNCH_ARGS[@]}"
 wait_for_service /agt/localization/relocalize 45 || { tail_failure localization; exit 1; }
 wait_for_adapter 60 || { tail_failure localization; exit 1; }
@@ -851,11 +935,12 @@ ensure_localization_ready after_startup_checks || { tail_failure localization; e
 ensure_localization_ready after_tf_check || { tail_failure localization; exit 1; }
 ros2 run agt_navigation_runtime demo_preflight --ros-args \
   -p require_camera:="$ENABLE_INSPECTION" \
+  -p require_rtk:="$ENABLE_RTK" \
   | tee "$RUN_DIR/demo_preflight.txt"
 ros2 run agt_navigation_supervisor wait_navigation_ready --timeout 45 --samples 3 \
   | tee "$RUN_DIR/navigation_health_gate.txt"
 
-printf '\n[READY] Hardware, localization and Nav2 passed preflight.\n'
+printf '\n[READY] External hardware, localization and Nav2 passed preflight.\n'
 printf '[READY] Mode: %s; initialization: %s\n' "$MODE" "$LOCALIZATION_MODE"
 printf '[READY] LIO backend: %s (raw odometry: %s)\n' "$LIO_BACKEND" "$LIO_RAW_ODOM"
 if [[ "$LOCAL_OBSTACLE_AVOIDANCE" == false ]]; then

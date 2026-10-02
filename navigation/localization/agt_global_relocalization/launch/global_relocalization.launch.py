@@ -45,6 +45,9 @@ def generate_launch_description():
         DeclareLaunchArgument('sdk_timeout_sec', default_value='18.0'),
         DeclareLaunchArgument('query_capture_dir', default_value='',
                               description='Optional directory for replayable relocalization queries.'),
+        DeclareLaunchArgument('start_hint_file', default_value=''),
+        DeclareLaunchArgument('selected_map_id', default_value=''),
+        DeclareLaunchArgument('selected_map_version', default_value=''),
         DeclareLaunchArgument(
             'gicp_constraint_mode', default_value='full_se3',
             description='Manual-seed experiment: full_se3, gravity_constrained, or gravity_prior.'),
@@ -78,6 +81,9 @@ def generate_launch_description():
                     'sdk_timeout_sec': ParameterValue(
                         LaunchConfiguration('sdk_timeout_sec'), value_type=float),
                     'query_capture_dir': LaunchConfiguration('query_capture_dir'),
+                    'start_hint_file': LaunchConfiguration('start_hint_file'),
+                    'selected_map_id': LaunchConfiguration('selected_map_id'),
+                    'selected_map_version': LaunchConfiguration('selected_map_version'),
                     'backend_local_map_radius_xy': ParameterValue(
                         LaunchConfiguration('local_map_radius_xy'), value_type=float),
                     'backend_local_map_half_height': ParameterValue(

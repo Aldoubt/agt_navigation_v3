@@ -98,7 +98,7 @@ def test_only_selected_lio_launch_is_constructed(tmp_path, monkeypatch, backend,
         'fastlio_config': str(RUNTIME / 'config/fastlio2_mid360_navigation.yaml'),
         'lidar_topic': '/livox/lidar', 'imu_topic': '/livox/imu',
         'auto_relocalize': 'false', 'enable_map_tracking': 'false',
-        'query_capture_dir': '',
+        'query_capture_dir': '', 'start_hint_file': '',
     })
     actions = module._localization_nodes(context)
     frontends = [x for x in actions if x[0] == 'agt_navigation_runtime']
@@ -250,8 +250,9 @@ def test_runtime_check_waits_for_partial_discovery(tmp_path):
 
 def test_existing_stack_is_rejected_before_overwriting_its_lio_snapshot():
     source = (ROOT / 'scripts/run_field_stack.sh').read_text()
-    assert source.index('Refusing to create duplicate owner') < source.index('cp -- "$LIO_CONFIG"')
-    assert source.index('cp -- "$LIO_CONFIG"') < source.index('start_child hardware')
+    assert source.index('Refusing to create duplicate localization owner') < source.index('cp -- "$LIO_CONFIG"')
+    assert 'start_child hardware' not in source
+    assert source.index('cp -- "$LIO_CONFIG"') < source.index('start_child localization')
 
 
 def test_top_level_localization_defaults_to_fastlio2():

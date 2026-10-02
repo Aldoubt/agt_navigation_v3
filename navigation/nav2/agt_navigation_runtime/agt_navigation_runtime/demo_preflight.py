@@ -15,6 +15,9 @@ from tf2_ros import Buffer, TransformException, TransformListener
 
 from agt_robot_interfaces.msg import LocalizationStatus
 from camera_gimbal_interfaces.action import AcquireView
+from camera_gimbal_interfaces.msg import CapabilityHealth
+
+from .camera_health import camera_ready
 
 
 class DemoPreflight(Node):
@@ -31,6 +34,8 @@ class DemoPreflight(Node):
             'navsat_topic': '/ins/navsatfix',
             'require_localized': True,
             'require_camera': True,
+            'camera_health_topic': '/camera_gimbal/health',
+            'camera_health_max_age_sec': 2.0,
             'require_rtk': False,
         }
         for name, value in params.items():
@@ -40,6 +45,8 @@ class DemoPreflight(Node):
         self.cloud = None
         self.rtk = None
         self.localization = None
+        self.camera_health = None
+        self.camera_health_rx = None
         self.nav_client = ActionClient(self, NavigateToPose, '/navigate_to_pose')
         self.camera_client = ActionClient(self, AcquireView, '/camera_gimbal/acquire_view')
         self.tf_buffer = Buffer(cache_time=Duration(seconds=5.0))
@@ -56,6 +63,9 @@ class DemoPreflight(Node):
             qos_profile_sensor_data)
         self.create_subscription(
             NavSatFix, self.get_parameter('navsat_topic').value, self._rtk_cb, 10)
+        self.create_subscription(
+            CapabilityHealth, self.get_parameter('camera_health_topic').value,
+            self._camera_health_cb, 10)
 
     def _odom_cb(self, msg):
         self.odom = msg
@@ -68,6 +78,10 @@ class DemoPreflight(Node):
 
     def _rtk_cb(self, msg):
         self.rtk = msg
+
+    def _camera_health_cb(self, msg):
+        self.camera_health = msg
+        self.camera_health_rx = time.monotonic()
 
     def run(self) -> bool:
         timeout = float(self.get_parameter('timeout_sec').value)
@@ -93,6 +107,17 @@ class DemoPreflight(Node):
         if bool(self.get_parameter('require_camera').value):
             camera_ok = self.camera_client.wait_for_server(timeout_sec=action_timeout)
             checks.append(('C1 /camera_gimbal/acquire_view', camera_ok, 'action server'))
+            # Action discovery alone does NOT prove an open camera, serial or
+            # fresh gimbal feedback. Spin after the blocking server wait too.
+            health_deadline = time.monotonic() + timeout
+            max_age = float(self.get_parameter('camera_health_max_age_sec').value)
+            health_ok, health_detail = camera_ready(
+                self.camera_health, self.camera_health_rx, time.monotonic(), max_age_sec=max_age)
+            while rclpy.ok() and not health_ok and time.monotonic() < health_deadline:
+                rclpy.spin_once(self, timeout_sec=0.05)
+                health_ok, health_detail = camera_ready(
+                    self.camera_health, self.camera_health_rx, time.monotonic(), max_age_sec=max_age)
+            checks.append(('C1 fresh capability health', health_ok, health_detail))
         checks.append(('local odometry', self.odom is not None, self.get_parameter('local_odom_topic').value))
         checks.append(('obstacle cloud', self.cloud is not None, self.get_parameter('obstacle_cloud_topic').value))
 

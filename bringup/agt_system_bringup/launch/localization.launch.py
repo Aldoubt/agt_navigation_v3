@@ -62,6 +62,9 @@ def _localization_nodes(context):
             'global_map': global_map,
             'relocalization_assets': assets,
             'query_capture_dir': value('query_capture_dir'),
+            'start_hint_file': value('start_hint_file'),
+            'selected_map_id': map_id,
+            'selected_map_version': map_version,
             'body_to_base_calibration_file': calibration,
             # Retained compatibility argument for the existing Batch mode.
             'batch_lio_config_file': calibration if backend == 'batch_lio' else '',
@@ -96,6 +99,8 @@ def generate_launch_description():
         DeclareLaunchArgument('map_version', description='Selected map version'),
         DeclareLaunchArgument('relocalization_assets', default_value=''),
         DeclareLaunchArgument('query_capture_dir', default_value=''),
+        DeclareLaunchArgument('start_hint_file', default_value='',
+                              description='Optional approved T_map_body hint bound to the selected PCD'),
         DeclareLaunchArgument('use_sim_time', default_value='false'),
         DeclareLaunchArgument('lidar_topic', default_value='/livox/lidar'),
         DeclareLaunchArgument('imu_topic', default_value='/livox/imu'),
@@ -107,7 +112,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'fastlio_config',
             default_value=str(runtime_share / 'config' / 'fastlio2_mid360_navigation.yaml')),
-        DeclareLaunchArgument('localization_mode', default_value='auto',
+        DeclareLaunchArgument('localization_mode', default_value='auto_then_manual',
                               choices=['auto', 'auto_then_manual', 'manual']),
         DeclareLaunchArgument('auto_relocalize', default_value='true'),
         DeclareLaunchArgument('enable_map_tracking', default_value='false'),

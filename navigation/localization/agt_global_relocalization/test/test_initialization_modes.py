@@ -71,6 +71,7 @@ def fake_controller(**kwargs):
     messages = []
     values = dict(mode='auto_then_manual', busy=False, awaiting_ack=False, initialized=False,
                   pending_request=True, auto_timer=None, manual_enabled=False, clouds=[1, 2],
+                  _near_hint_attempted=False,
                   phase='AUTO_SEARCH', status=lambda *a: messages.append(a))
     values.update(kwargs)
     return SimpleNamespace(**values), messages
@@ -115,15 +116,17 @@ def test_unsolicited_seed_after_initialization_is_ignored():
     assert messages[-1][0] == 'MANUAL_SEED_REJECTED'
 
 
-@pytest.mark.parametrize('mode,auto_result,expected,code', [
-    ('auto', 0, 'AUTO\n', 0), ('auto', 1, 'AUTO\n', 1),
-    ('auto_then_manual', 0, 'AUTO\n', 0),
-    ('auto_then_manual', 1, 'MANUAL', 0), ('manual', 0, 'MANUAL', 0),
+@pytest.mark.parametrize('mode,near_result,auto_result,expected,code', [
+    ('auto', 1, 0, 'AUTO\n', 0), ('auto', 1, 1, 'AUTO\n', 1),
+    ('auto_then_manual', 0, 1, 'NEAR\n', 0),
+    ('auto_then_manual', 1, 0, 'NEAR\nAUTO\n', 0),
+    ('auto_then_manual', 1, 1, 'MANUAL', 0), ('manual', 1, 0, 'MANUAL', 0),
 ])
-def test_shell_dispatch(mode, auto_result, expected, code):
+def test_shell_dispatch(mode, near_result, auto_result, expected, code):
     helper = ROOT / 'scripts/localization_initialization.sh'
     script = f'''source "{helper}"
 LOCALIZATION_MODE={mode}
+try_reviewed_start_hint() {{ echo NEAR; return {near_result}; }}
 relocalize_until_ready() {{ echo AUTO; return {auto_result}; }}
 wait_for_manual_initialization() {{ echo MANUAL; }}
 initialize_localization
@@ -131,13 +134,19 @@ initialize_localization
     result = subprocess.run(['bash', '-c', script], capture_output=True, text=True)
     assert result.returncode == code
     assert expected in result.stdout
-    if mode == 'manual': assert 'AUTO' not in result.stdout
-    if mode == 'auto' or auto_result == 0 and mode != 'manual': assert 'MANUAL' not in result.stdout
+    if mode == 'manual': assert 'AUTO' not in result.stdout and 'NEAR' not in result.stdout
+    if mode == 'auto' or near_result == 0 and mode == 'auto_then_manual':
+        assert 'MANUAL' not in result.stdout
+    if mode in ('auto', 'manual'): assert 'NEAR' not in result.stdout
+    if mode == 'auto_then_manual' and near_result == 0: assert 'AUTO' not in result.stdout
 
 
 def test_staged_start_never_launches_navigation_before_initialization():
     source = (ROOT / 'scripts/run_field_stack.sh').read_text()
-    assert 'LOCALIZATION_MODE=auto' in source
+    assert 'LOCALIZATION_MODE=auto_then_manual' in source
+    assert 'start_child hardware' not in source
+    assert source.index('if ! initialize_localization; then') < source.index('start_child navigation')
+    assert 'start_hint_file:="$START_HINT_FILE"' in source
     assert source.index('if ! initialize_localization; then') < source.index('start_child navigation')
     helper = (ROOT / 'scripts/localization_initialization.sh').read_text()
     assert 'wait_for_localization_settle 8' in helper
@@ -169,11 +178,13 @@ def test_one_relocalizer_selected(mode, exe, tmp_path, monkeypatch):
     ctx = LaunchContext()
     ctx.launch_configurations.update(dict(global_map=str(pcd), relocalization_assets='', map_id='test', map_version='v1',
         localization_mode=mode, lio_backend='fastlio2', use_sim_time='false', lidar_topic='/livox/lidar', imu_topic='/livox/imu',
-        fastlio_config='unused', auto_relocalize='true', query_capture_dir=''))
+        fastlio_config='unused', auto_relocalize='true', query_capture_dir='', start_hint_file=''))
     actions = module._localization_nodes(ctx)
     relocalizers = [a for a in actions if a[0] == 'agt_global_relocalization']
     assert len(relocalizers) == 1
     assert relocalizers[0][2]['relocalization_executable'] == exe
+    assert relocalizers[0][2]['selected_map_id'] == 'test'
+    assert relocalizers[0][2]['selected_map_version'] == 'v1'
     if mode != 'auto': assert relocalizers[0][2]['auto_request'] == 'false'
 
 @pytest.mark.parametrize('problem', ['zero_stamp', 'stale_seed', 'future_seed', 'stale_scan', 'moving'])
@@ -235,3 +246,18 @@ wait_for_manual_initialization && echo PASS_NAV_GATE
         if process.poll() is None:
             process.kill()
             process.communicate()
+
+
+def test_changed_map_or_hint_fails_closed_before_global_search():
+    helper = ROOT / 'scripts/localization_initialization.sh'
+    script = f'''source "{helper}"
+LOCALIZATION_MODE=auto_then_manual
+try_reviewed_start_hint() {{ echo NEAR_INVALID; return 2; }}
+relocalize_until_ready() {{ echo GLOBAL_SHOULD_NOT_RUN; }}
+wait_for_manual_initialization() {{ echo MANUAL_SHOULD_NOT_RUN; }}
+initialize_localization
+'''
+    result = subprocess.run(['bash', '-c', script], capture_output=True, text=True)
+    assert result.returncode == 2
+    assert 'NEAR_INVALID' in result.stdout
+    assert 'SHOULD_NOT_RUN' not in result.stdout

@@ -27,11 +27,13 @@ from tf2_ros import Buffer, TransformException, TransformListener
 from agt_robot_interfaces.action import ExecuteInspectionMission
 from agt_robot_interfaces.msg import MissionStatus
 from camera_gimbal_interfaces.action import AcquireView
+from camera_gimbal_interfaces.msg import CapabilityHealth
 
 from .mission_schema import load_mission
 from .record_writer import RecordWriter
 from .ros_wait import RosWaiter
 from .action_execution import PendingAction, execute_action, cancel_and_confirm
+from .camera_health import camera_ready
 
 
 def yaw_to_quaternion(yaw: float):
@@ -93,6 +95,9 @@ class MissionRuntime(Node):
             'stationary_hold_sec': 0.8,
             'stationary_timeout_sec': 8.0,
             'odom_freshness_sec': 0.5,
+            'camera_health_topic': '/camera_gimbal/health',
+            'camera_health_max_age_sec': 2.0,
+            'camera_health_timeout_sec': 3.0,
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -101,7 +106,8 @@ class MissionRuntime(Node):
                      'goal_response_timeout_sec', 'cancel_confirm_timeout_sec',
                      'runtime_poll_interval_sec', 'nav_server_timeout_sec',
                      'camera_server_timeout_sec', 'stationary_timeout_sec',
-                     'stationary_hold_sec', 'odom_freshness_sec'):
+                     'stationary_hold_sec', 'odom_freshness_sec',
+                     'camera_health_max_age_sec', 'camera_health_timeout_sec'):
             value = float(self.get_parameter(name).value)
             if not math.isfinite(value) or value <= 0:
                 raise ValueError(f'{name} must be finite and positive')
@@ -132,6 +138,8 @@ class MissionRuntime(Node):
         self.rtk_samples = deque(maxlen=300)
         self.latest_local_odom = None
         self.latest_local_odom_rx_ns = 0
+        self.camera_health = None
+        self.camera_health_rx = None
         self.previous_motion_odom = None
         self.latest_pose_linear_mps = None
         self.latest_pose_angular_rps = None
@@ -160,6 +168,8 @@ class MissionRuntime(Node):
         self.create_subscription(String, self.get_parameter('hmi_task_request_topic').value, self.on_hmi_task_request, 10)
         self.create_subscription(NavSatFix, self.get_parameter('navsat_topic').value, self.on_navsat, 20)
         self.create_subscription(Odometry, self.get_parameter('local_odom_topic').value, self.on_local_odom, 50)
+        self.create_subscription(CapabilityHealth, self.get_parameter('camera_health_topic').value,
+                                 self.on_camera_health, 10, callback_group=self._control_group)
         self.create_service(Trigger, '/agt/task/start', self.on_hmi_start, callback_group=self._control_group)
         self.create_service(Trigger, '/agt/task/pause', self.on_hmi_pause, callback_group=self._control_group)
         self.create_service(Trigger, '/agt/task/cancel', self.on_hmi_cancel, callback_group=self._control_group)
@@ -174,6 +184,7 @@ class MissionRuntime(Node):
             'runtime_poll_interval_sec', 'nav_server_timeout_sec', 'camera_server_timeout_sec',
             'stationary_timeout_sec', 'stationary_hold_sec', 'odom_freshness_sec',
             'stationary_pose_max_dt_sec', 'tf_lookup_timeout_sec', 'rtk_max_age_sec',
+            'camera_health_max_age_sec', 'camera_health_timeout_sec',
         }
         nonnegative = {
             'stationary_linear_threshold_mps', 'stationary_angular_threshold_rps',
@@ -264,6 +275,29 @@ class MissionRuntime(Node):
 
     def on_navsat(self, msg):
         self.rtk_samples.append((Time.from_msg(msg.header.stamp).nanoseconds, msg))
+
+    def on_camera_health(self, msg):
+        self.camera_health = msg
+        self.camera_health_rx = time.monotonic()
+
+    async def wait_for_camera_ready(self, goal_handle=None):
+        """Wait for a FRESH READY status; BUSY after a view may be transient.
+
+        Never treat a discovered Action endpoint or a previously seen READY as
+        permission to take another photograph or move to another patrol point.
+        """
+        deadline = time.monotonic() + float(self.get_parameter('camera_health_timeout_sec').value)
+        max_age = float(self.get_parameter('camera_health_max_age_sec').value)
+        detail = 'no C1 capability health message'
+        while self.context.ok() and not self._shutdown_requested and time.monotonic() < deadline:
+            if self._interrupted(goal_handle):
+                return False, 'mission canceled before C1 health check'
+            ready, detail = camera_ready(self.camera_health, self.camera_health_rx,
+                                         time.monotonic(), max_age_sec=max_age)
+            if ready:
+                return True, detail
+            await self._waiter.sleep(0.05)
+        return False, f'C1 health not READY: {detail}'
 
     def on_local_odom(self, msg):
         with self._odom_lock:
@@ -367,10 +401,24 @@ class MissionRuntime(Node):
             mission = load_mission(goal_handle.request.mission_file)
             self._writer = RecordWriter(self.record_root, mission)
             self.pending_hmi_mission = mission.source_file
+            if any(point.views for point in mission.points):
+                healthy, reason = await self.wait_for_camera_ready(goal_handle)
+                if self._interrupted(goal_handle):
+                    return await self.finish_canceled(goal_handle, mission)
+                if not healthy:
+                    return await self._finish_with_stop(goal_handle, mission, 'failed', 1403,
+                                                        'inspection cannot start: ' + reason)
             for index, point in enumerate(mission.points):
                 self._current_point_id, self._current_view_tag = point.id, ''
                 if not await self.wait_while_paused(goal_handle, mission, point, index):
                     return await self.finish_canceled(goal_handle, mission)
+                if point.views:
+                    healthy, reason = await self.wait_for_camera_ready(goal_handle)
+                    if self._interrupted(goal_handle):
+                        return await self.finish_canceled(goal_handle, mission)
+                    if not healthy:
+                        return await self._finish_with_stop(goal_handle, mission, 'failed', 1403,
+                                                            f'point {point.id}: {reason}')
                 self.publish_status(MissionStatus.NAVIGATING, mission.mission_id, point.id, index,
                                     len(mission.points), 'sending bounded Nav2 goal', goal_handle=goal_handle)
                 nav = await self.navigate(point)
@@ -400,6 +448,14 @@ class MissionRuntime(Node):
                     self._current_view_tag = view.tag
                     if not await self.wait_while_paused(goal_handle, mission, point, index):
                         return await self.finish_canceled(goal_handle, mission)
+                    healthy, reason = await self.wait_for_camera_ready(goal_handle)
+                    if self._interrupted(goal_handle):
+                        return await self.finish_canceled(goal_handle, mission)
+                    if not healthy:
+                        self._writer.event('camera_health_failed', point_id=point.id,
+                                           view_tag=view.tag, message=reason)
+                        return await self._finish_with_stop(goal_handle, mission, 'failed', 1403,
+                                                            f'view {view.tag}: {reason}')
                     self.publish_status(MissionStatus.CAPTURING, mission.mission_id, point.id, index,
                                         len(mission.points), view.tag, goal_handle=goal_handle)
                     capture = await self.capture(view)

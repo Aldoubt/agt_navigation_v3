@@ -1,16 +1,11 @@
-"""run_field_stack.sh robot-config regression through the REAL script.
+"""No-device contracts for the independent hardware and navigation commands.
 
-The script is executed with exported bash functions that replace `setsid`
-(used by start_child for every ros2 launch) and `ros2 topic/node`. Every launch
-is intercepted: argv is recorded and, for hardware.launch.py, the launch plan is
-computed with agt_robot_bringup/hardware_launch_plan.py (no process spawned).
-The script then fails its first topic wait and shuts down. No driver, motion
-command or navigation goal can be started by this test.
-Requires a sourced Humble workspace with agt_robot_bringup built.
+Both commands are executed ONLY with --dry-run. The launch plan is computed
+in pure Python; no ros2 launch/driver/goal is ever invoked by these tests.
 """
-
 import json
 import os
+import shlex
 import shutil
 import subprocess
 from pathlib import Path
@@ -18,37 +13,15 @@ from pathlib import Path
 import pytest
 import yaml
 
-SCRIPT = Path(__file__).resolve().parents[3] / 'scripts' / 'run_field_stack.sh'
-WS = SCRIPT.parents[3]
+ROOT = Path(__file__).resolve().parents[3]
+WS = ROOT.parents[1]
+NAV = ROOT / 'scripts/run_field_stack.sh'
+HARDWARE = ROOT / 'scripts/run_bunker_hardware.sh'
 PLAN = WS / 'install/agt_robot_bringup/lib/agt_robot_bringup/hardware_launch_plan.py'
 ROBOTS = WS / 'install/agt_robot_bringup/share/agt_robot_bringup/config/robots'
 
 if not PLAN.is_file() or not Path('/opt/ros/humble/setup.bash').is_file():
     pytest.skip('needs Humble + built agt_robot_bringup', allow_module_level=True)
-
-SHIM = r'''
-setsid() {
-  if [[ "$1" == ros2 && "$2" == launch ]]; then
-    printf '%s\n' "$@" > "$AGT_TEST_OUT/$3__$4.argv"
-    if [[ "$4" == hardware.launch.py ]]; then
-      shift 4
-      python3 "$AGT_TEST_PLAN" "$@" > "$AGT_TEST_OUT/hardware_plan.json" 2>&1
-    fi
-    exit 0
-  fi
-  echo "test shim refused setsid $*" >&2
-  exit 99
-}
-ros2() {
-  case "$1" in
-    topic) return 1 ;;
-    node) return 0 ;;
-  esac
-  command ros2 "$@"
-}
-export -f setsid ros2
-exec bash "$AGT_TEST_SCRIPT" "$@"
-'''
 
 DESC = 'agt_robot_description/launch/display.launch.py'
 MID = 'livox_ros_driver2/launch_ROS2/msg_MID360_launch.py'
@@ -57,103 +30,95 @@ RTK = 'agt_asensing_driver/launch/asensing.launch.py'
 CAM = 'autolabor_c1_bringup/launch/autolabor_c1.launch.py'
 
 
-def run_stack(tmp_path, *args):
-    out = tmp_path / 'out'
-    out.mkdir()
-    env = dict(os.environ, AGT_TEST_OUT=str(out), AGT_TEST_PLAN=str(PLAN),
-               AGT_TEST_SCRIPT=str(SCRIPT), AGT_FIELD_LOG_DIR=str(tmp_path / 'run'))
-    proc = subprocess.run(['bash', '-c', SHIM, 'shim', '--map', 'auto', *args],
-                          env=env, capture_output=True, text=True, timeout=180)
-    plan_file = out / 'hardware_plan.json'
-    plan = json.loads(plan_file.read_text()) if plan_file.is_file() else None
-    launches = sorted(p.name for p in out.glob('*.argv'))
-    hw_argv = (out / 'agt_system_bringup__hardware.launch.py.argv')
-    argv = hw_argv.read_text().split('\n') if hw_argv.is_file() else []
-    return proc, plan, launches, argv
+def hardware_dry_run(*args):
+    proc = subprocess.run(['bash', str(HARDWARE), '--dry-run', *args],
+                          capture_output=True, text=True, timeout=30)
+    if proc.returncode:
+        return proc, None, []
+    command = next(line.partition('DRY_RUN: ')[2] for line in proc.stdout.splitlines()
+                   if line.startswith('DRY_RUN: '))
+    argv = shlex.split(command)
+    assert argv[:4] == ['ros2', 'launch', 'agt_robot_bringup', 'robot_hardware.launch.py']
+    plan_proc = subprocess.run(['python3', str(PLAN), *argv[4:]],
+                               capture_output=True, text=True, timeout=20)
+    assert plan_proc.returncode == 0, (plan_proc.stdout, plan_proc.stderr)
+    return proc, json.loads(plan_proc.stdout), argv
 
 
-def test_legacy_navigation_camera_off(tmp_path):
-    proc, plan, launches, argv = run_stack(tmp_path, '--mode', 'navigation')
-    assert launches == ['agt_system_bringup__hardware.launch.py.argv'], proc.stderr
-    assert plan['ok'], plan
-    assert plan['includes'] == [DESC, MID, BUNKER]
-    snapshot = tmp_path / 'run' / 'robot_config' / 'bunker_inspection'
-    assert f'robot_config:={snapshot}' in argv
-    assert (snapshot / 'robot.yaml').is_file()
+def nav_dry_run(*args):
+    return subprocess.run(['bash', str(NAV), '--dry-run', '--map', 'auto', *args],
+                          env=dict(os.environ, AGT_START_HINT_FILE=''),
+                          capture_output=True, text=True, timeout=30)
+
+
+def test_default_hardware_is_single_bunker_lidar_model_owner_without_camera():
+    proc, plan, argv = hardware_dry_run()
+    assert proc.returncode == 0, proc.stderr
+    assert plan['ok'] and plan['includes'] == [DESC, MID, BUNKER]
     assert plan['launch_args']['bunker_can_port'] == 'can0'
+    assert 'enable_camera_gimbal:=false' in argv
+    nav = nav_dry_run('--mode', 'navigation')
+    assert nav.returncode == 0, nav.stderr
+    assert 'hardware_owner=external' in nav.stdout
+    assert 'start_hint_status=SKIPPED' in nav.stdout
+    assert 'localization_mode=auto_then_manual' in nav.stdout
+    assert 'camera_gimbal=false' in nav.stdout
+    assert 'hardware_launch_args=' not in nav.stdout
 
 
-def test_explicit_config_navigation_follows_yaml(tmp_path):
-    proc, plan, _, argv = run_stack(tmp_path, '--mode', 'navigation',
-                                    '--robot-config', 'bunker_inspection')
-    assert plan['ok'], (plan, proc.stderr)
-    assert plan['includes'] == [DESC, MID, BUNKER, CAM]   # YAML: camera enabled
-    assert not any(a.startswith('enable_camera_gimbal') for a in argv)
+def test_explicit_nav_config_never_enables_camera_driver_itself():
+    nav = nav_dry_run('--mode', 'navigation', '--robot-config', 'bunker_inspection')
+    assert nav.returncode == 0, nav.stderr
+    assert 'camera_gimbal=true' in nav.stdout  # config expectation, not a new launch
+    assert 'hardware_owner=external' in nav.stdout
+    proc, plan, _ = hardware_dry_run('--robot-config', 'bunker_inspection')
+    assert proc.returncode == 0 and plan['includes'] == [DESC, MID, BUNKER]
 
 
-def test_inspection_rtk(tmp_path):
-    proc, plan, _, argv = run_stack(tmp_path, '--mode', 'inspection', '--rtk')
-    assert plan['ok'], (plan, proc.stderr)
-    assert plan['includes'] == [DESC, MID, BUNKER, RTK, CAM]
+def test_inspection_c1_and_rtk_belong_only_to_hardware_command():
+    proc, plan, argv = hardware_dry_run('--camera', '--rtk')
+    assert proc.returncode == 0, proc.stderr
+    assert plan['ok'] and plan['includes'] == [DESC, MID, BUNKER, RTK, CAM]
     assert 'enable_camera_gimbal:=true' in argv and 'enable_rtk:=true' in argv
+    nav = nav_dry_run('--mode', 'inspection', '--rtk')
+    assert nav.returncode == 0, nav.stderr
+    assert 'inspection_runtime=true' in nav.stdout and 'camera_gimbal=true' in nav.stdout
+    assert 'hardware_owner=external' in nav.stdout
 
 
-def test_external_config_path_is_the_one_launched(tmp_path):
-    # Review P1: preflight and launch must use the same validated config.
-    ext = tmp_path / 'ext' / 'bunker_inspection'
+def test_explicit_external_config_port_is_the_one_resolved(tmp_path):
+    ext = tmp_path / 'bunker_inspection'
     shutil.copytree(ROBOTS / 'bunker_inspection', ext)
     dev = yaml.safe_load((ext / 'devices.yaml').read_text())
     dev['base']['can_port'] = 'can9'
     (ext / 'devices.yaml').write_text(yaml.safe_dump(dev))
-    proc, plan, _, _ = run_stack(tmp_path, '--mode', 'navigation',
-                                 '--robot-config', str(ext / 'robot.yaml'))
-    assert plan['ok'], (plan, proc.stderr)
+    proc, plan, argv = hardware_dry_run('--robot-config', str(ext / 'robot.yaml'))
+    assert proc.returncode == 0 and plan['ok'], (proc.stderr, plan)
     assert plan['launch_args']['bunker_can_port'] == 'can9'
+    assert f'robot_config:={ext / "robot.yaml"}' in argv
+    nav = nav_dry_run('--mode', 'navigation', '--robot-config', str(ext / 'robot.yaml'))
+    assert nav.returncode == 0 and f'robot_config_dir={ext}' in nav.stdout
 
 
-def test_external_config_new_id_launches(tmp_path):
-    ext = tmp_path / 'ext' / 'bunker_lab'
-    shutil.copytree(ROBOTS / 'bunker_inspection', ext)
-    for name in ('robot.yaml', 'devices.yaml'):
-        data = yaml.safe_load((ext / name).read_text())
-        data['robot_id'] = 'bunker_lab'
-        (ext / name).write_text(yaml.safe_dump(data))
-    proc, plan, _, _ = run_stack(tmp_path, '--mode', 'navigation', '--robot-config', str(ext))
-    assert plan and plan['ok'], (plan, proc.stderr)
-
-
-@pytest.mark.parametrize('args', [
-    ('--mode', 'navigation', '--robot-config', 'yhs_harvesting'),
-    ('--mode', 'navigation', '--robot', 'yhs_v1', '--robot-config', 'bunker_inspection'),
+@pytest.mark.parametrize('bad', [
+    ('--robot-config', 'yhs_harvesting'),
+    ('--robot-config', 'bunker_inspection', '--robot', 'yhs_v1'),
 ])
-def test_rejected_configs_start_nothing(tmp_path, args):
-    proc, plan, launches, _ = run_stack(tmp_path, *args)
-    assert proc.returncode == 2
-    assert launches == [] and plan is None
-    assert 'nothing was started' in proc.stderr
+def test_rejected_nav_configs_never_start_hardware(bad):
+    proc = nav_dry_run('--mode', 'navigation', *bad)
+    assert proc.returncode == 2 and 'nothing was started' in proc.stderr
 
 
-def test_yhs_network_and_nav_flags_cannot_be_applied_to_bunker(tmp_path):
-    # Wrong-robot flags fail before any hardware launch, even if files exist.
-    cfg = tmp_path / 'yhs.json'
-    cfg.write_text('{}')
-    proc, plan, launches, _ = run_stack(tmp_path, '--mode', 'navigation',
-                                        '--robot-config', 'bunker_inspection',
-                                        '--yhs-livox-config', str(cfg),
-                                        '--yhs-nav-config-dir', str(tmp_path))
-    assert proc.returncode == 2
-    assert plan is None and launches == []
-    assert 'only valid for robot_config yhs_harvesting' in proc.stderr
-
-
-def test_yhs_stays_blocked_with_explicit_livox_json(tmp_path):
-    # The network path is never a bypass for missing gear, YHS map and geometry.
-    cfg = tmp_path / 'yhs.json'
-    cfg.write_text('{}')
-    proc, plan, launches, _ = run_stack(tmp_path, '--mode', 'navigation',
-                                        '--robot-config', 'yhs_harvesting', '--robot', 'yhs_v1',
-                                        '--map', 'yhs_mid360/field-v1',
-                                        '--yhs-livox-config', str(cfg))
-    assert proc.returncode == 2
-    assert plan is None and launches == []
+def test_wrong_robot_hardware_config_is_blocked():
+    proc, plan, argv = hardware_dry_run('--robot-config', 'yhs_harvesting')
+    assert proc.returncode != 0 and plan is None and not argv
     assert 'BLOCKED' in proc.stderr
+
+
+def test_unapproved_hint_rejected_before_any_ros_graph_or_driver(tmp_path):
+    hint = tmp_path / 'unapproved.yaml'
+    hint.write_text('schema_version: 1\napproved_for_near_search: false\n')
+    proc = nav_dry_run('--mode', 'navigation', '--start-hint', str(hint))
+    assert proc.returncode == 2
+    assert 'Near-start hint invalid' in proc.stderr
+    assert 'hardware_owner=external' not in proc.stdout

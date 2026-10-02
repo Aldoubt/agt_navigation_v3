@@ -29,11 +29,11 @@ MID360 / IMU
 - Nav2 使用外部定位，刻意不启动 AMCL。
 - 原始 Livox 时序直接进入 LIO；PointCloud2 转换是独立的重定位/障碍物支路。
 
-Navigation 顶层入口为 `hardware.launch.py`、`localization.launch.py`、
-`navigation.launch.py` 和 `debug.launch.py`；Mission 入口属于外部
-`agt_mission_bringup/mission.launch.py`。现场后台由
-`run_field_stack.sh` 编排，RViz 用于调试，HMI 在后台就绪后单独启动；
-以 [导航启动文档](导航启动文档.md) 为准。
+物理驱动和机器人模型由独立的 `scripts/run_bunker_hardware.sh` 单一进程拥有；
+`scripts/run_field_stack.sh` 只检查外部硬件，再依次启动单一 LIO／定位／Nav2，
+可选 RViz 调试。Mission 入口属于外部 `agt_mission_bringup/mission.launch.py`，
+HMI 在后台就绪后单独启动。以 [Bunker 双入口说明](docs/BUNKER_SPLIT_STARTUP.md)
+和 [导航启动文档](导航启动文档.md) 为准。
 
 MID360 + Bunker 实机阶段使用只读验收工具链；TF authority、topic 频率、运动中心、
 导航录包和报告流程见
@@ -55,13 +55,19 @@ colcon build --symlink-install
 source install/setup.bash
 ```
 
-启动全部传感器并连接底盘，终端会每8s查询一次连接情况，rtk默认可以开启也可以不开启
+硬件与导航分成两个终端；以下仅为**取得现场授权以后**的硬件命令，离线先加 `--dry-run`：
+
 ```bash
 cd ~/ros2_ws
 source /opt/ros/humble/setup.bash
 source install/setup.bash
-ros2 launch agt_system_bringup hardware.launch.py
+bash src/agt_navigation_v3/scripts/run_bunker_hardware.sh --dry-run
+bash src/agt_navigation_v3/scripts/run_bunker_hardware.sh  # 单一 Bunker/MID360/URDF owner
+# 巡检时改用上面命令的 --camera 版本；不要同时运行两套驱动。
 ```
+
+软件离线改造不依赖当下插入设备；`--dry-run` 不证明任何真实连接。
+详见 [双入口操作与验收边界](docs/BUNKER_SPLIT_STARTUP.md)。
 
 在目标机执行构建与选定软件 smoke 检查：
 
@@ -179,7 +185,7 @@ ros2 run agt_map_manager validate_active_map \
 Polar Context 和 BBS 重定位资源作为一个运行包，二维导航范围约为
 `124.5 m × 95.2 m`。不要在启动参数中混用其他版本的二维图或重定位资产。
 
-推荐使用单终端受控入口，并显式选择模式。纯导航模式不启动相机或巡检任务：
+先在独立硬件终端启动**一套**驱动，导航终端只检查它。纯导航模式不启动相机或巡检任务：
 
 ```bash
 cd /home/yangxuan/ros2_ws
@@ -188,7 +194,8 @@ source install/setup.bash
 src/agt_navigation_v3/scripts/run_field_stack.sh --mode navigation --rviz
 ```
 
-到点拍照保存模式会启动 C1 和巡检任务链：
+到点拍照保存模式必须先在硬件终端以 `run_bunker_hardware.sh --camera` 启动 C1；
+下面的导航命令**只检查 C1 健康状态、启动巡检任务链，不重复启动驱动**：
 
 ```bash
 src/agt_navigation_v3/scripts/run_field_stack.sh --mode inspection --rviz
@@ -332,8 +339,9 @@ P3 运行时验收进行中。不得依据 build、回放、Gazebo 或单次重�
 
 ### 初始化定位保底（2026-09-24）
 
-新增 `--localization-mode auto|auto_then_manual|manual`。默认 `auto` 不变；
-`auto_then_manual` 两次自动失败后保持后台等待 RViz 初始位姿，经局部 GICP 和 Manager 校验成功才启动 Nav2。
+`--localization-mode auto|auto_then_manual|manual` 默认已改为 `auto_then_manual`：
+已核准并绑定地图版本／PCD SHA-256 的起点先验才尝试近场局部 GICP；缺先验明确 `SKIPPED`，
+随后两次全图候选＋3D-BBS＋GICP，自动失败才等待 RViz 人工初始位姿，经 Manager 校验成功才启动 Nav2。
 不发布虚假定位、不同时运行两个重定位节点。使用步骤和测试边界见
 [人工定位保底说明](docs/mcp-manual-initialization-fallback.md)。
 原四个主阶段入口不变，新增 `initialization_view.launch.py` 仅作人工初始化地图显示辅助。
