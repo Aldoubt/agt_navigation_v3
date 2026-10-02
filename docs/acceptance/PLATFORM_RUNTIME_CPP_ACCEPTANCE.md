@@ -29,12 +29,48 @@ Execution notes: two earlier pytest invocations were collection/import environme
 
 | ID | Gate | Evidence required | Result |
 |---|---|---|---|
-| B01 | `bunker_v1` validates | existing verified Bunker fields preserved | NOT_RUN |
-| B02 | Bunker is classified skid-steer | explicit kinematic type, not inferred by vendor branch at runtime | NOT_RUN |
-| B03 | Ackermann required fields enforced | invalid/missing wheelbase or steering limits rejected | NOT_RUN |
-| B04 | Ackermann rotate-in-place disabled | schema and navigation profile reject impossible spin assumption | NOT_RUN |
-| B05 | YHS classification evidence-based | protocol/geometry audit or explicit BLOCKED state | BLOCKED |
-| B06 | No guessed safety-critical defaults | tests demonstrate missing physical values fail closed | NOT_RUN |
+| B01 | `bunker_v1` validates | existing verified Bunker fields preserved | PASS — profile schema test and whole-robot resolver preserve the existing 0.55 m/s and 0.65 rad/s limits and launch argument set |
+| B02 | Bunker is classified skid-steer | explicit kinematic type, not inferred by vendor branch at runtime | PASS — `bunker_v1.base.kinematics=skid_steer`; resolver returns the profile unchanged |
+| B03 | Ackermann required fields enforced | invalid/missing wheelbase or steering limits rejected | PASS — schema rejects missing wheelbase, steering bounds/rate and minimum turning radius; test-only geometry is not installed as a profile |
+| B04 | Ackermann rotate-in-place disabled | schema and navigation profile reject impossible spin assumption | PASS — Ackermann schema requires `rotate_in_place=false` and tests reject `true` |
+| B05 | YHS classification evidence-based | protocol/geometry audit or explicit BLOCKED state | BLOCKED — `yhs_harvesting` remains blocked, no `yhs_v1.yaml` or kinematic class exists, and the resolver test verifies no fallback. See `docs/upgrade/YHS_BASE_PROTOCOL_AUDIT.md`. |
+| B06 | No guessed safety-critical defaults | tests demonstrate missing physical values fail closed | PASS — Ackermann requires wheelbase, steering bounds/rate, turning radius, footprint dimensions, safety margin and positive motion limits |
+
+P1 execution evidence (2026-10-02; unit/mock only, no ROS graph or hardware launch):
+
+- `agt_robot_description` build — PASS, 1 package:
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  colcon --log-base /tmp/agt_runtime_v4_p1_description_log build --base-paths /home/yangxuan/ros2_ws/src/agt_robot_description --packages-select agt_robot_description --build-base /tmp/agt_runtime_v4_p1_description_build --install-base /tmp/agt_runtime_v4_p1_description_install --merge-install
+  ```
+
+- `agt_robot_description` tests — PASS, 22 tests, 0 failures:
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  colcon --log-base /tmp/agt_runtime_v4_p1_description_log test --base-paths /home/yangxuan/ros2_ws/src/agt_robot_description --packages-select agt_robot_description --build-base /tmp/agt_runtime_v4_p1_description_build --install-base /tmp/agt_runtime_v4_p1_description_install --merge-install --event-handlers console_direct+
+  colcon test-result --test-result-base /tmp/agt_runtime_v4_p1_description_build --verbose
+  ```
+
+- `agt_robot_bringup` build — PASS, 1 package. The existing workspace underlay supplied its dependencies; build/install/log outputs went to `/tmp`:
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  colcon --log-base /tmp/agt_runtime_v4_p1_platform_log build --base-paths /home/yangxuan/ros2_ws/src/agt_robot_platform --packages-select agt_robot_bringup --build-base /tmp/agt_runtime_v4_p1_platform_build --install-base /tmp/agt_runtime_v4_p1_platform_install --merge-install
+  ```
+
+- `agt_robot_bringup` tests — PASS, 38 tests, 0 failures:
+
+  ```bash
+  source /opt/ros/humble/setup.bash
+  source /home/yangxuan/ros2_ws/install/setup.bash
+  colcon --log-base /tmp/agt_runtime_v4_p1_platform_log test --base-paths /home/yangxuan/ros2_ws/src/agt_robot_platform --packages-select agt_robot_bringup --build-base /tmp/agt_runtime_v4_p1_platform_build --install-base /tmp/agt_runtime_v4_p1_platform_install --merge-install --event-handlers console_direct+
+  colcon test-result --test-result-base /tmp/agt_runtime_v4_p1_platform_build --verbose
+  ```
+
+No Ackermann bag, live ROS graph, physical chassis, CAN command or robot motion test was run in P1. Real Bunker remote/E-stop acceptance remains `NOT_RUN`; YHS remains `BLOCKED`.
 
 ## C. C++ Motion Guard
 
