@@ -8,6 +8,9 @@ import os
 import shutil
 import subprocess
 import tempfile
+import threading
+import uuid
+from concurrent.futures import ThreadPoolExecutor
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,15 +22,21 @@ from geometry_msgs.msg import PoseWithCovarianceStamped
 from nav_msgs.msg import Odometry
 from rclpy.duration import Duration
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs_py import point_cloud2
 from std_msgs.msg import String
 from tf2_ros import Buffer, TransformException, TransformListener
 from agt_robot_interfaces.msg import LocalizationStatus
+from agt_navigation_interfaces.msg import GlobalQuality, OdomQuality
+from agt_global_relocalization.query_job import CloudSnapshot, file_identity, hash_file, run_command
 
 
 def quat_matrix(q):
-    x, y, z, w = q
+    norm = math.sqrt(sum(v*v for v in q))
+    if not all(math.isfinite(v) for v in q) or norm <= 1.0e-12:
+        raise ValueError('invalid quaternion')
+    x, y, z, w = (v / norm for v in q)
     return np.array([
         [1 - 2 * (y*y + z*z), 2 * (x*y - z*w), 2 * (x*z + y*w)],
         [2 * (x*y + z*w), 1 - 2 * (x*x + z*z), 2 * (y*z - x*w)],
@@ -63,13 +72,13 @@ def matrix_pose(m):
     return m[:3, 3], (qx, qy, qz, qw)
 
 
-@dataclass
+@dataclass(frozen=True)
 class OdomSample:
     stamp_ns: int
     pose: np.ndarray
 
 
-@dataclass
+@dataclass(frozen=True)
 class CloudSample:
     stamp_ns: int
     points_base: np.ndarray
@@ -89,7 +98,7 @@ class MapTracker(Node):
         self.declare_parameter('base_frame', 'base_link')
         self.declare_parameter('global_map', '')
         for name, default in {
-            'tracking_rate_hz': 0.5, 'local_map_radius_xy_m': 20.0,
+            'tracking_rate_hz': 0.5, 'backend_threads': 2, 'local_map_radius_xy_m': 20.0,
             'local_map_half_height_m': 5.0, 'query_accumulate_clouds': 3,
             'query_voxel_leaf_m': 0.25, 'max_points': 150000,
             'min_query_points': 1500, 'min_local_map_points': 1000,
@@ -101,11 +110,29 @@ class MapTracker(Node):
             'reject_degenerate_hessian': False,
             'max_hessian_condition_number': 1.0e10,
             'apply_correction': True,
+            'shadow_mode': False, 'quality_calibrated': False,
+            'quality_topic': '/agt/localization/global_observation',
+            'odom_quality_topic': '/agt/odometry/quality',
+            'map_id': '', 'map_version': '', 'map_hash': '',
+            'max_result_age_sec': 2.0, 'deskew_max_odom_gap_sec': 0.05,
+            'max_point_offset_sec': 0.20, 'max_normalized_hessian_condition': 1.0e10,
             'save_debug_cloud': False,
             'debug_directory': '~/.ros/agt_map_tracker_debug',
             'max_debug_failure_samples': 20,
         }.items():
             self.declare_parameter(name, default)
+        self._worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix='agt_map_tracker')
+        self._preprocessor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='agt_tracker_deskew')
+        self._cloud_future = None
+        self._cloud_context = None
+        self._future = None
+        self._context = None
+        self._cancel = threading.Event()
+        self._odom_epoch = 1
+        self._odom_quality = None
+        self._odom_quality_rx_ns = 0
+        self._raw_clouds = deque(maxlen=20)
+        self._map_hash_verified = False
         self._odom = deque(maxlen=6000)
         self._clouds = deque(maxlen=20)
         self._localized = False
@@ -121,10 +148,17 @@ class MapTracker(Node):
         self._debug_failure_count = 0
         self._tf = Buffer()
         self._listener = TransformListener(self._tf, self)
-        self._pose_pub = self.create_publisher(PoseWithCovarianceStamped, self.get_parameter('output_pose_topic').value, 10)
-        self._status_pub = self.create_publisher(String, self.get_parameter('status_topic').value, 10)
+        shadow = bool(self.get_parameter('shadow_mode').value)
+        pose_topic = '/agt/map_tracking/shadow/pose' if shadow else self.get_parameter('output_pose_topic').value
+        status_topic = '/agt/map_tracking/shadow/status' if shadow else self.get_parameter('status_topic').value
+        self._pose_pub = self.create_publisher(PoseWithCovarianceStamped, pose_topic, 10)
+        self._quality_pub = self.create_publisher(GlobalQuality, self.get_parameter('quality_topic').value, 10)
+        self.create_subscription(OdomQuality, self.get_parameter('odom_quality_topic').value, self._on_odom_quality, 10)
+        self.create_timer(0.05, self._poll_tracking)
+        self.create_timer(0.05, self._process_pending_clouds)
+        self._status_pub = self.create_publisher(String, status_topic, 10)
         self.create_subscription(Odometry, self.get_parameter('local_odom_topic').value, self._on_odom, 100)
-        self.create_subscription(PointCloud2, self.get_parameter('scan_topic').value, self._on_cloud, 10)
+        self.create_subscription(PointCloud2, self.get_parameter('scan_topic').value, self._on_cloud, qos_profile_sensor_data)
         self.create_subscription(LocalizationStatus, self.get_parameter('localization_status_topic').value, self._on_status, 10)
         hz = max(0.05, float(self.get_parameter('tracking_rate_hz').value))
         self.create_timer(1.0 / hz, self._track)
@@ -133,13 +167,39 @@ class MapTracker(Node):
     def _stamp(msg):
         return int(msg.header.stamp.sec) * 1_000_000_000 + int(msg.header.stamp.nanosec)
 
+    def _on_odom_quality(self, msg):
+        now = self.get_clock().now().nanoseconds
+        if int(msg.odom_epoch) == 0 or not 0 <= (now - self._stamp(msg)) / 1e9 <= 0.30:
+            return
+        if self._odom_quality is not None and self._stamp(msg) <= self._stamp(self._odom_quality):
+            return
+        if int(msg.odom_epoch) != self._odom_epoch:
+            self._cancel.set()
+            self._odom.clear()
+            self._clouds.clear()
+            self._raw_clouds.clear()
+            self._odom_epoch = int(msg.odom_epoch)
+        self._odom_quality = msg
+        self._odom_quality_rx_ns = self.get_clock().now().nanoseconds
+
     def _on_odom(self, msg):
         if msg.header.frame_id != self.get_parameter('odom_frame').value or msg.child_frame_id != self.get_parameter('base_frame').value:
             return
         p = msg.pose.pose.position
         q = msg.pose.pose.orientation
+        if self._stamp(msg) <= 0 or not all(math.isfinite(v) for v in (p.x,p.y,p.z,q.x,q.y,q.z,q.w)):
+            return
+        if self._odom and self._stamp(msg) == self._odom[-1].stamp_ns:
+            return
+        if self._odom and self._stamp(msg) < self._odom[-1].stamp_ns:
+            self._cancel.set()
+            self._odom.clear(); self._clouds.clear(); self._raw_clouds.clear()
+            self._odom_quality = None
         m = np.eye(4)
-        m[:3, :3] = quat_matrix((q.x, q.y, q.z, q.w))
+        try:
+            m[:3, :3] = quat_matrix((q.x, q.y, q.z, q.w))
+        except ValueError:
+            return
         m[:3, 3] = (p.x, p.y, p.z)
         self._odom.append(OdomSample(self._stamp(msg), m))
 
@@ -155,8 +215,76 @@ class MapTracker(Node):
         self._localized = msg.state in (LocalizationStatus.STATE_LOCALIZED,
                                         LocalizationStatus.STATE_DEGRADED)
         self._correction_valid = bool(msg.global_correction_valid)
+        if bool(self.get_parameter('shadow_mode').value):
+            self._localized = bool(msg.local_odom_fresh)
+            self._correction_valid = True  # TF lookup still requires a retained anchor.
 
     def _on_cloud(self, msg):
+        if bool(self.get_parameter('shadow_mode').value):
+            if self._stamp(msg) <= 0 or (self._raw_clouds and self._stamp(msg) <= self._stamp(self._raw_clouds[-1])):
+                return
+            self._raw_clouds.append(msg)
+            return
+        self._consume_cloud(msg, deskew=False)
+
+    def _process_pending_clouds(self):
+        if self._cloud_future is not None:
+            if not self._cloud_future.done():
+                return
+            future, (epoch, stamp) = self._cloud_future, self._cloud_context
+            self._cloud_future = self._cloud_context = None
+            try:
+                prepared = future.result()
+                if epoch == self._odom_epoch and 0 <= (self.get_clock().now().nanoseconds - stamp)/1e9 <= float(self.get_parameter('max_result_age_sec').value):
+                    self._clouds.append(prepared)
+            except (ValueError, RuntimeError, TypeError) as exc:
+                self._publish_status('WAIT_QUERY', reason='deskew:' + str(exc))
+        if not self._raw_clouds or not self._odom:
+            return
+        while self._raw_clouds:
+            msg = self._raw_clouds[0]
+            bound = int(float(self.get_parameter('max_point_offset_sec').value) * 1e9)
+            if self._stamp(msg) + bound > self._odom[-1].stamp_ns:
+                break
+            self._raw_clouds.popleft()
+            if self._stamp(msg) < self._odom[0].stamp_ns:
+                continue
+            try:
+                tf = self._tf.lookup_transform(self.get_parameter('base_frame').value, msg.header.frame_id,
+                    rclpy.time.Time.from_msg(msg.header.stamp), timeout=Duration(seconds=float(self.get_parameter('tf_timeout_sec').value)))
+                transform = transform_matrix(tf.transform)
+            except (TransformException, ValueError):
+                self._cloud_tf_errors += 1
+                continue
+            samples = tuple(OdomSample(item.stamp_ns, item.pose.copy()) for item in self._odom)
+            self._cloud_context = (self._odom_epoch, self._stamp(msg))
+            self._cloud_future = self._preprocessor.submit(self._prepare_cloud, CloudSnapshot.freeze(msg),
+                transform, samples, float(self.get_parameter('deskew_max_odom_gap_sec').value),
+                float(self.get_parameter('max_point_offset_sec').value))
+            break
+
+    @staticmethod
+    def _prepare_cloud(snapshot, transform, samples, gap_sec, offset_sec):
+        msg = snapshot.message()
+        if 'offset_time' not in [field.name for field in msg.fields]:
+            raise ValueError('point_timing_missing')
+        rows, offsets = [], []
+        for point in point_cloud2.read_points(msg, field_names=('x','y','z','offset_time'), skip_nans=True):
+            xyz = tuple(float(point[i]) for i in range(3))
+            if all(math.isfinite(v) for v in xyz) and 0.25 <= sum(v*v for v in xyz) <= 900.0:
+                rows.append(xyz)
+                offsets.append(int(point[3]))
+        if not rows:
+            raise ValueError('empty_filtered_cloud')
+        points = np.asarray(rows, dtype=float)
+        points = (transform[:3,:3] @ points.T).T + transform[:3,3]
+        stamps = np.asarray(offsets, dtype=np.int64) + snapshot.stamp_ns
+        aligned, reference_pose = MapTracker._deskew_snapshot(points, stamps, snapshot.stamp_ns, samples, gap_sec, offset_sec)
+        aligned.setflags(write=False)
+        reference_pose.setflags(write=False)
+        return CloudSample(snapshot.stamp_ns, aligned, reference_pose)
+
+    def _consume_cloud(self, msg, deskew=False):
         odom = self._nearest_odom(self._stamp(msg))
         if odom is None:
             self._cloud_time_sync_errors += 1
@@ -170,15 +298,29 @@ class MapTracker(Node):
             self._cloud_tf_errors += 1
             return
         rows = []
-        for p in point_cloud2.read_points(msg, field_names=('x', 'y', 'z'), skip_nans=True):
+        names = [field.name for field in msg.fields]
+        if deskew and 'offset_time' not in names:
+            self._publish_status('WAIT_QUERY', reason='point_timing_missing')
+            return
+        requested = ('x', 'y', 'z', 'offset_time') if deskew else ('x', 'y', 'z')
+        offsets = []
+        for p in point_cloud2.read_points(msg, field_names=requested, skip_nans=True):
             x, y, z = (float(p[0]), float(p[1]), float(p[2]))
             if 0.5 <= math.sqrt(x*x + y*y + z*z) <= 30.0:
                 rows.append((x, y, z))
+                if deskew: offsets.append(int(p[3]))
         if not rows:
             return
         points = np.asarray(rows, dtype=float)
         sensor_to_base = transform_matrix(tf.transform)
         points = (sensor_to_base[:3, :3] @ points.T).T + sensor_to_base[:3, 3]
+        if deskew:
+            try:
+                points, reference_pose = self._deskew_points(points, np.asarray(offsets, dtype=np.int64) + self._stamp(msg), self._stamp(msg))
+                odom = OdomSample(self._stamp(msg), reference_pose)
+            except ValueError as exc:
+                self._publish_status('WAIT_QUERY', reason='deskew:' + str(exc))
+                return
         self._clouds.append(CloudSample(self._stamp(msg), points, odom.pose))
 
     def _write_pcd(self, points: np.ndarray, path: Path):
@@ -281,6 +423,8 @@ class MapTracker(Node):
         path.write_text(json.dumps(data, indent=2, sort_keys=True) + '\n', encoding='utf-8')
 
     def _track(self):
+        if self._future is not None:
+            return
         if not (self._localized and self._correction_valid):
             self._publish_status('WAIT_LOCALIZED', reason='manager_not_localized')
             return
@@ -288,25 +432,21 @@ class MapTracker(Node):
             self._publish_status('WAIT_QUERY', reason='no_cloud')
             return
         ref = self._clouds[-1]
-        query = []
-        inv_ref = np.linalg.inv(ref.odom_pose)
-        for item in list(self._clouds)[-int(self.get_parameter('query_accumulate_clouds').value):]:
-            relative = inv_ref @ item.odom_pose
-            pts = (relative[:3, :3] @ item.points_base.T).T + relative[:3, 3]
-            query.append(pts)
-        query = np.concatenate(query, axis=0)
-        query = self._voxel(query, float(self.get_parameter('query_voxel_leaf_m').value))
-        self._attempt_id += 1
-        fields = self._attempt_fields(ref, len(query))
-        if len(query) < int(self.get_parameter('min_query_points').value):
-            self._record_reject('min_query_points', reason_codes=['MIN_QUERY_POINTS'], **fields)
+        if bool(self.get_parameter('shadow_mode').value) and (self.get_clock().now().nanoseconds - ref.stamp_ns)/1e9 > float(self.get_parameter('max_result_age_sec').value):
+            self._publish_status('WAIT_QUERY', reason='cloud_expired')
             return
+        cloud_snapshot = tuple(list(self._clouds)[-int(self.get_parameter('query_accumulate_clouds').value):])
+        if len(cloud_snapshot) < max(1, int(self.get_parameter('query_accumulate_clouds').value)):
+            self._publish_status('WAIT_QUERY', reason='query_window_incomplete')
+            return
+        self._attempt_id += 1
+        fields = self._attempt_fields(ref, sum(len(cloud.points_base) for cloud in cloud_snapshot))
         try:
             map_odom_tf = self._tf.lookup_transform(
                 self.get_parameter('map_frame').value, self.get_parameter('odom_frame').value,
                 rclpy.time.Time(), timeout=Duration(seconds=0.2))
             map_odom = transform_matrix(map_odom_tf.transform)
-        except TransformException:
+        except (TransformException, ValueError):
             # This has no authority to increment reject/recovery state: a TF
             # lookup failure is an unavailable input, not a GICP decision.
             self._publish_status('WAIT_LOCALIZED', reason='map_odom_unavailable',
@@ -336,7 +476,7 @@ class MapTracker(Node):
                 'prediction_latest_to_cloud_dy_m': float(cp[1]-p[1]),
                 'prediction_latest_to_cloud_dz_m': float(cp[2]-p[2]),
             })
-        except TransformException as exc:
+        except (TransformException, ValueError) as exc:
             fields.update({'tf_cloud_time_available': False, 'tf_cloud_time_error': str(exc)})
         fields.update({
             'tf_lookup_target_frame': self.get_parameter('map_frame').value,
@@ -360,58 +500,96 @@ class MapTracker(Node):
         if not map_path or not os.path.isfile(map_path):
             self._record_reject('global_map_missing', reason_codes=['LOCAL_MAP_ERROR'], **fields)
             return
+        debug_dir = self._debug_attempt_dir()
+        fields.update({
+            'native_initial_pose_x': float(p[0]), 'native_initial_pose_y': float(p[1]),
+            'native_initial_pose_z': float(p[2]), 'native_initial_pose_qx': float(q[0]),
+            'native_initial_pose_qy': float(q[1]), 'native_initial_pose_qz': float(q[2]),
+            'native_initial_pose_qw': float(q[3]),
+            'composition_to_prediction_translation_delta_m': 0.0,
+            'composition_to_prediction_rotation_delta_deg': 0.0,
+            'prediction_to_native_initial_translation_delta_m': 0.0,
+            'prediction_to_native_initial_rotation_delta_deg': 0.0,
+        })
+        options = {
+            'map': map_path, 'x': p[0], 'y': p[1], 'z': p[2],
+            'threads': max(1,int(self.get_parameter('backend_threads').value)),
+            'qx': q[0], 'qy': q[1], 'qz': q[2], 'qw': q[3],
+            'radius': float(self.get_parameter('local_map_radius_xy_m').value),
+            'half-height': float(self.get_parameter('local_map_half_height_m').value),
+        }
+        if debug_dir: options['debug-crop'] = str(debug_dir / 'local_map_crop.pcd')
+        identity = tuple(str(self.get_parameter(name).value) for name in ('global_map','map_id','map_version','map_hash'))
+        self._cancel = threading.Event()
+        self._context = (ref, predicted.copy(), dict(fields), debug_dir, self._odom_epoch,
+                         file_identity(map_path), str(uuid.uuid4()), identity)
+        self._future = self._worker.submit(self._run_tracking_backend, cloud_snapshot, tuple(options.items()),
+            float(self.get_parameter('native_timeout_sec').value), self._cancel,
+            str(self.get_parameter('map_hash').value), debug_dir,
+            float(self.get_parameter('query_voxel_leaf_m').value), int(self.get_parameter('max_points').value),
+            int(self.get_parameter('min_query_points').value))
+
+    @staticmethod
+    def _run_tracking_backend(clouds, options, timeout, cancelled, expected_hash, debug_dir, leaf, max_points, min_points):
+        options = dict(options)
+        map_path = options['map']
+        if cancelled.is_set():
+            raise RuntimeError('tracking_cancelled_before_query_assembly')
+        inverse_ref = np.linalg.inv(clouds[-1].odom_pose)
+        points = []
+        for cloud in clouds:
+            delta = inverse_ref @ cloud.odom_pose
+            points.append((delta[:3,:3] @ cloud.points_base.T).T + delta[:3,3])
+        points = MapTracker._voxel(np.concatenate(points, axis=0), leaf)[:max_points]
+        if len(points) < min_points:
+            raise RuntimeError('min_query_points')
+        verified = bool(expected_hash and hash_file(map_path) == expected_hash)
+        if expected_hash and not verified:
+            raise RuntimeError('frozen_map_hash_mismatch')
         with tempfile.TemporaryDirectory(prefix='agt_map_tracker_') as work:
-            scan_path = Path(work) / 'query.pcd'
-            self._write_pcd(query, scan_path)
-            debug_dir = self._debug_attempt_dir()
-            if debug_dir:
-                shutil.copy2(scan_path, debug_dir / 'query_cloud.pcd')
-                self._write_debug_yaml(debug_dir / 'initial_pose.yaml', fields)
-            cmd = ['ros2', 'run', 'agt_global_relocalization_native', 'map_gicp_tracker',
-                   '--map', map_path, '--scan', str(scan_path), '--x', str(p[0]), '--y', str(p[1]), '--z', str(p[2]),
-                   '--qx', str(q[0]), '--qy', str(q[1]), '--qz', str(q[2]), '--qw', str(q[3]),
-                   '--radius', str(self.get_parameter('local_map_radius_xy_m').value),
-                   '--half-height', str(self.get_parameter('local_map_half_height_m').value)]
-            # Native initial pose is intentionally the exact matrix_pose result
-            # above. Persist an independent serialized copy for audit; deltas
-            # must remain zero unless this construction path changes.
-            fields.update({
-                'native_initial_pose_x': float(p[0]), 'native_initial_pose_y': float(p[1]),
-                'native_initial_pose_z': float(p[2]), 'native_initial_pose_qx': float(q[0]),
-                'native_initial_pose_qy': float(q[1]), 'native_initial_pose_qz': float(q[2]),
-                'native_initial_pose_qw': float(q[3]),
-                'composition_to_prediction_translation_delta_m': 0.0,
-                'composition_to_prediction_rotation_delta_deg': 0.0,
-                'prediction_to_native_initial_translation_delta_m': 0.0,
-                'prediction_to_native_initial_rotation_delta_deg': 0.0,
-            })
-            if debug_dir:
-                cmd.extend(['--debug-crop', str(debug_dir / 'local_map_crop.pcd')])
-            try:
-                result = subprocess.run(cmd, check=False, capture_output=True, text=True,
-                                        timeout=float(self.get_parameter('native_timeout_sec').value))
-                # ``ros2 run`` appends its own failure line after the native
-                # JSON result when the matcher returns non-zero.  Select the
-                # last JSON object rather than treating that wrapper line as a
-                # tracker protocol failure.  This preserves the same reject
-                # outcome while making the reason evidence truthful.
-                json_line = next((line for line in reversed(result.stdout.splitlines())
-                                  if line.lstrip().startswith('{')), '')
-                data = json.loads(json_line)
-            except (OSError, subprocess.SubprocessError, ValueError, IndexError) as exc:
-                # Preserve bounded backend evidence.  A malformed CLI response
-                # is not evidence that the cropped map is bad, so keep this
-                # distinct from a reported matcher/local-map failure.
-                backend = locals().get('result')
-                if backend is not None:
-                    fields.update({
-                        'native_returncode': int(backend.returncode),
-                        'native_stdout_tail': backend.stdout[-512:],
-                        'native_stderr_tail': backend.stderr[-512:],
-                    })
-                self._record_reject(f'native_tracker:{exc}',
-                                    reason_codes=['BACKEND_PROTOCOL_ERROR'], **fields)
-                return
+            scan = Path(work) / 'query.pcd'
+            with scan.open('w', encoding='ascii') as stream:
+                stream.write('# .PCD v0.7\nVERSION 0.7\nFIELDS x y z\nSIZE 4 4 4\nTYPE F F F\nCOUNT 1 1 1\n')
+                stream.write(f'WIDTH {len(points)}\nHEIGHT 1\nVIEWPOINT 0 0 0 1 0 0 0\nPOINTS {len(points)}\nDATA ascii\n')
+                for point in points:
+                    stream.write(f'{point[0]:.6f} {point[1]:.6f} {point[2]:.6f}\n')
+            if debug_dir: shutil.copy2(scan, debug_dir / 'query_cloud.pcd')
+            cmd = ['ros2','run','agt_global_relocalization_native','map_gicp_tracker','--scan',str(scan)]
+            for key, value in options.items(): cmd.extend(['--' + key, str(value)])
+            result = run_command(cmd, timeout, cancelled)
+            line = next((line for line in reversed(result.stdout.splitlines()) if line.lstrip().startswith('{')), '')
+            return json.loads(line), result, verified, len(points)
+
+    def _poll_tracking(self):
+        if self._future is None or not self._future.done():
+            return
+        future, context = self._future, self._context
+        self._future = self._context = None
+        ref, predicted, fields, debug_dir, epoch, map_stat, job_id, identity = context
+        try:
+            data, result, verified, point_count = future.result()
+            self._map_hash_verified = verified
+            if self._cancel.is_set() or epoch != self._odom_epoch:
+                raise RuntimeError('tracking_odometry_epoch_expired')
+            if file_identity(str(self.get_parameter('global_map').value)) != map_stat:
+                raise RuntimeError('tracking_map_snapshot_changed')
+            current_identity = tuple(str(self.get_parameter(name).value) for name in ('global_map','map_id','map_version','map_hash'))
+            if current_identity != identity:
+                raise RuntimeError('tracking_map_identity_changed')
+            age = (self.get_clock().now().nanoseconds - ref.stamp_ns) / 1e9
+            if not 0 <= age <= float(self.get_parameter('max_result_age_sec').value):
+                raise RuntimeError('tracking_result_expired')
+            fields.update({'job_id': job_id, 'odom_epoch': epoch, 'map_hash_verified': verified,
+                           'reference_stamp_ns': ref.stamp_ns, 'query_points': point_count,
+                           'map_id': identity[1], 'map_version': identity[2], 'map_hash': identity[3]})
+            self._finish_tracking(ref, predicted, fields, debug_dir, data, result)
+        except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
+            fields.update({'job_id': job_id, 'odom_epoch': epoch, 'reference_stamp_ns': ref.stamp_ns})
+            self._record_reject('native_tracker:' + str(exc), reason_codes=['BACKEND_PROTOCOL_ERROR'], **fields)
+
+    def _finish_tracking(self, ref, predicted, fields, debug_dir, data, result):
+        if result.returncode != 0 and data.get('success'):
+            raise RuntimeError('backend_exit_status_inconsistent_with_success')
         if not data.get('success'):
             fields.update({'native_returncode': int(result.returncode),
                            'native_stderr_tail': result.stderr[-512:],
@@ -422,6 +600,10 @@ class MapTracker(Node):
                 self._write_debug_yaml(debug_dir / 'registration_result.yaml', {**fields, 'backend': data})
                 self._retain_debug_artifact(debug_dir)
             self._record_reject(fields['backend_message'], reason_codes=reason_codes, **fields)
+            return
+        required = ('x','y','z','qx','qy','qz','qw','fitness','overlap')
+        if not all(k in data and math.isfinite(float(data[k])) for k in required):
+            self._record_reject('nonfinite_registration', reason_codes=['BACKEND_PROTOCOL_ERROR'], **fields)
             return
         fitness = float(data.get('fitness', math.inf))
         overlap = float(data.get('overlap', 0.0))
@@ -497,13 +679,103 @@ class MapTracker(Node):
         pose_msg.pose.covariance[7] = max(0.01, fitness)
         pose_msg.pose.covariance[14] = max(0.01, fitness)
         pose_msg.pose.covariance[35] = max(0.001, fitness / max(overlap, 0.01))
-        fields['correction_applied'] = bool(self.get_parameter('apply_correction').value)
+        fields['correction_applied'] = bool(self.get_parameter('apply_correction').value) and not bool(self.get_parameter('shadow_mode').value)
         if fields['correction_applied']:
             self._pose_pub.publish(pose_msg)
         elif debug_dir:
             # Successful attempts are not failure artifacts.
             shutil.rmtree(debug_dir)
+        fields['num_inliers'] = int(data.get('num_inliers', 0))
+        fields['normalized_hessian_condition_number'] = float(data.get('normalized_hessian_condition_number', 1.0e30))
         self._record_accept(**fields)
+
+    @staticmethod
+    def _interpolated_snapshot(samples, stamps, max_gap_sec):
+        times = np.asarray([sample.stamp_ns for sample in samples], dtype=np.int64)
+        if len(times) < 2:
+            raise ValueError('odom_history_missing')
+        index = np.searchsorted(times, stamps, side='right')
+        index = np.clip(index, 1, len(times) - 1)
+        ta, tb = times[index - 1], times[index]
+        if np.any(stamps < ta) or np.any(stamps > tb):
+            raise ValueError('point_time_not_bracketed')
+        if np.any(tb - ta > max_gap_sec * 1e9):
+            raise ValueError('odom_gap_exceeds_bound')
+        alpha = ((stamps - ta) / (tb - ta)).astype(float)
+        poses = samples
+        translations = np.asarray([sample.pose[:3, 3] for sample in poses])
+        quaternions = np.asarray([matrix_pose(sample.pose)[1] for sample in poses])
+        qa, qb = quaternions[index - 1].copy(), quaternions[index].copy()
+        dots = np.sum(qa * qb, axis=1)
+        qb[dots < 0] *= -1
+        dots = np.clip(np.abs(dots), 0.0, 1.0)
+        angles = np.arccos(dots)
+        near = dots > 0.9995
+        denominators = np.sin(angles)
+        denominators[near] = 1.0
+        weights_a = np.sin((1.0 - alpha) * angles) / denominators
+        weights_b = np.sin(alpha * angles) / denominators
+        weights_a[near], weights_b[near] = 1.0 - alpha[near], alpha[near]
+        q = qa * weights_a[:, None] + qb * weights_b[:, None]
+        q /= np.linalg.norm(q, axis=1)[:, None]
+        t = translations[index - 1] * (1.0-alpha[:,None]) + translations[index] * alpha[:,None]
+        return t, q
+
+    @staticmethod
+    def _deskew_snapshot(points, stamps, reference_ns, samples, max_gap_sec, max_offset_sec):
+        if np.any(stamps < reference_ns) or np.any(stamps - reference_ns > max_offset_sec * 1e9):
+            raise ValueError('point_offset_outside_scan_bound')
+        translation, quaternion = MapTracker._interpolated_snapshot(samples, stamps, max_gap_sec)
+        ref_t, ref_q = MapTracker._interpolated_snapshot(samples, np.asarray([reference_ns], dtype=np.int64), max_gap_sec)
+        # Quaternion rotation for a batch: v'=v+2w(qv x v)+2(qv x(qv x v)).
+        cross = np.cross(quaternion[:, :3], points)
+        odom_points = points + 2.0 * quaternion[:,3,None] * cross + 2.0 * np.cross(quaternion[:,:3],cross) + translation
+        ref_rotation = quat_matrix(ref_q[0])
+        aligned = (ref_rotation.T @ (odom_points - ref_t[0]).T).T
+        ref_pose = np.eye(4); ref_pose[:3,:3] = ref_rotation; ref_pose[:3,3] = ref_t[0]
+        return aligned, ref_pose
+
+    def _deskew_points(self, points, stamps, reference_ns):
+        return self._deskew_snapshot(points, stamps, reference_ns, tuple(self._odom),
+            float(self.get_parameter('deskew_max_odom_gap_sec').value),
+            float(self.get_parameter('max_point_offset_sec').value))
+
+    def _publish_quality(self, state, fields):
+        reference_ns = int(fields.get('reference_stamp_ns', fields.get('reference_cloud_stamp_ns', 0)))
+        if reference_ns <= 0:
+            return
+        out = GlobalQuality()
+        out.header.frame_id = str(self.get_parameter('map_frame').value)
+        out.header.stamp = rclpy.time.Time(nanoseconds=reference_ns).to_msg()
+        out.map_id, out.map_version, out.map_hash = (str(fields.get(name, self.get_parameter(name).value)) for name in ('map_id','map_version','map_hash'))
+        out.job_id = str(fields.get('job_id', f'tracker-{self._attempt_id}'))
+        out.odom_epoch = int(fields.get('odom_epoch', self._odom_epoch))
+        out.residual = float(fields.get('fitness', 1.0e9))
+        out.overlap = float(fields.get('overlap', 0.0))
+        out.inliers = int(fields.get('num_inliers', 0))
+        out.position_std_m = out.yaw_std_rad = 1.0e9
+        out.translation_innovation_m = float(fields.get('translation_innovation_m', 1.0e9))
+        out.yaw_innovation_rad = math.radians(float(fields.get('yaw_innovation_deg', 1.0e9)))
+        out.quality = max(0.0, min(1.0, out.overlap)) * math.exp(-max(0.0, out.residual)) if math.isfinite(out.residual) else 0.0
+        q = self._odom_quality
+        now = self.get_clock().now().nanoseconds
+        odom_good = (q is not None and q.valid and int(q.odom_epoch) == self._odom_epoch
+                     and 0 <= (now - int(q.header.stamp.sec)*1_000_000_000 - int(q.header.stamp.nanosec)) / 1e9 <= 0.30
+                     and 0 <= (now - self._odom_quality_rx_ns) / 1e9 <= 0.30)
+        hessian_good = float(fields.get('normalized_hessian_condition_number', 1.0e30)) <= float(self.get_parameter('max_normalized_hessian_condition').value)
+        out.valid = bool(state == 'TRACKING_OK' and bool(self.get_parameter('shadow_mode').value)
+                         and bool(self.get_parameter('quality_calibrated').value) and odom_good
+                         and out.inliers > 0 and all((out.map_id,out.map_version,out.map_hash))
+                         and bool(fields.get('map_hash_verified', False)) and hessian_good
+                         and all(math.isfinite(v) for v in (out.residual,out.overlap,out.translation_innovation_m,out.yaw_innovation_rad)))
+        out.reason = str(fields.get('reason', state)) + ';empirical_score_not_probability;uncertainty_unavailable'
+        self._quality_pub.publish(out)
+
+    def destroy_node(self):
+        self._cancel.set()
+        self._preprocessor.shutdown(wait=True, cancel_futures=True)
+        self._worker.shutdown(wait=True, cancel_futures=True)
+        return super().destroy_node()
 
     @staticmethod
     def _voxel(points, leaf):
@@ -514,7 +786,8 @@ class MapTracker(Node):
         return points[np.sort(indices)]
 
     def _publish_status(self, state, **fields):
-        data = {'state': state, **fields}
+        data = {'state': state, 'stamp_ns': self.get_clock().now().nanoseconds, **fields}
+        self._publish_quality(state, fields)
         msg = String(); msg.data = json.dumps(data, sort_keys=True)
         self._status_pub.publish(msg)
 

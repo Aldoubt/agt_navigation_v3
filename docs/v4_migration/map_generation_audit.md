@@ -5,11 +5,12 @@
 `agt_terrain_map_generator` 完全是离线地形生成。
 正式导航只消费 registry 解析出的不可变 Map Package。
 
-`agt_map_manager` 目前仍有历史 `map_pipeline.py`，其生成入口依赖
-`agt_map_converter`；`map_package.py` 仅复用其中的 PGM 头解析。
-这两个依赖是尚待拆分的历史耦合。由于尚无相同 PCD 对两套投影器的栅格 parity
-结果，当前不迁移或删除任何一套生成算法，也不改变既有地图的 PGM。
-新建图发布入口已限制输出在 `experiments/`；正式发布经候选验证、兼容检查和原子
-晋升进入 `maps/`。下一轮应先固定相同输入和参数的 parity fixture，再把 V3 离线
-生成代码迁入 Mapping，并抽出 Map Package 格式校验，最后移除 Map Manager 的
-生成入口。
+2026-10-02：已退役 `agt_map_manager` 内的历史 `map_pipeline.py`、
+`generate_map_package` CLI 和 `/agt/map/generate` Action。Mapping producer
+负责地图生成；V4 的候选构建、校验与晋升仍由 Map Manager 承担。
+
+`agt_map_converter` 的 PCD→PGM 算法保留为显式回归/后备路径，Map Manager 也继续
+复用其 PGM 结构校验。由于尚无相同 PCD 对 Mapping 投影器与 V3 converter 的栅格
+parity 结果，不能删除或静默替换 converter，也不改变既有地图的 PGM。完成相同输入、
+相同参数的 parity fixture 和离线验收后，再决定是否移除 converter；包格式校验与
+栅格算法应保持解耦。

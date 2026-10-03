@@ -380,6 +380,16 @@ int main(int argc, char** argv) {
         hessian_degenerate = hessian_condition_number > 1.0e10;
       }
     }
+    double radius_sq = 0.0;
+    for (const auto& point : scan_points) radius_sq += point.squaredNorm();
+    const double length_scale = std::max(1.0e-3, std::sqrt(radius_sq / std::max<std::size_t>(1, scan_points.size())));
+    Eigen::Matrix<double, 6, 6> units = Eigen::Matrix<double, 6, 6>::Identity();
+    units.topLeftCorner<3, 3>() /= length_scale;
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double, 6, 6>> normalized_eig(units * hessian * units);
+    double normalized_condition = 1.0e30;
+    if (normalized_eig.info() == Eigen::Success && normalized_eig.eigenvalues().allFinite()
+        && normalized_eig.eigenvalues().minCoeff() > 1.0e-12)
+      normalized_condition = std::min(1.0e30, normalized_eig.eigenvalues().maxCoeff() / normalized_eig.eigenvalues().minCoeff());
     std::cout << "{\"success\":true"
               << ",\"constraint_mode\":\"" << o.constraint_mode << "\""
               << ",\"max_roll_delta_deg\":" << o.max_roll_delta_deg
@@ -392,6 +402,10 @@ int main(int argc, char** argv) {
               << ",\"qx\":" << q.x() << ",\"qy\":" << q.y()
               << ",\"qz\":" << q.z() << ",\"qw\":" << q.w()
               << ",\"fitness\":" << fitness << ",\"overlap\":" << overlap
+              << ",\"num_inliers\":" << result.num_inliers
+              << ",\"registration_error\":" << result.error
+              << ",\"normalized_hessian_length_scale_m\":" << length_scale
+              << ",\"normalized_hessian_condition_number\":" << normalized_condition
               << ",\"hessian_eigenvalues\":["
               << hessian_eigenvalues(0) << "," << hessian_eigenvalues(1) << ","
               << hessian_eigenvalues(2) << "," << hessian_eigenvalues(3) << ","

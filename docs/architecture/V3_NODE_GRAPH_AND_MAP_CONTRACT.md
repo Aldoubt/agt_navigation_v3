@@ -84,8 +84,9 @@ AGT launch 之前单独启动并检查。
 | `/agt/map/list`、`/agt/map/load` | 查询/加载 Map Package |
 | `/agt/map/validate`、`/agt/map/activate` | 校验或激活地图版本 |
 | `/agt/map/edit/*` | HMI staging 编辑生命周期，不直接覆盖正式包 |
-| `/agt/map/generate` (`GenerateMapPackage`) | 地图管理器的包生成接口；建图算法本身仍属于 producer |
 | `/navigate_to_pose` | Nav2 导航 action |
+
+Map Manager 不再提供地图栅格生成 CLI 或 Action。Mapping producer 负责输出导航栅格和定位资产；Map Manager 负责校验、候选晋升、版本选择和 HMI 编辑发布。
 
 ## 3. Map Package 格式
 

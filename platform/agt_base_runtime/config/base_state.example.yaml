@@ -1,0 +1,17 @@
+# Confirm each vendor field and active value against the actual chassis protocol.
+# Unknown flags must not be interpreted as safe. Bunker velocity fields are SI.
+base_state:
+  robot_profile: bunker_v1
+  field_verified: false
+  input_topic: /bunker_status
+  message_type: bunker_msgs/msg/BunkerStatus
+  stamp_field: header.stamp
+  output_topic: /agt/base/state
+  timeout_sec: 0.3
+  autonomous: {field: control_mode, active_values: [], inactive_values: []}
+  emergency_stop: {field: vehicle_state, active_values: [], inactive_values: []}
+  manual_override: {field: control_mode, active_values: [], inactive_values: []}
+  fault_active: {field: error_code, predicate: nonzero}
+  measured_velocity_fields:
+    linear_x: {field: linear_velocity, scale: 1.0}
+    angular_z: {field: angular_velocity, scale: 1.0}

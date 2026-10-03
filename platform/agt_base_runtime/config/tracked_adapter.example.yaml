@@ -1,0 +1,17 @@
+agt_tracked_twist_adapter:
+  ros__parameters:
+    robot_profile: ''
+    field_verified: false
+    input_topic: /agt/base/cmd_vel
+    driver_command_topic: ''
+    driver_odom_topic: /wheel/odom
+    output_odom_topic: /agt/base/odom
+    base_state_topic: /agt/base/state
+    odom_frame: odom
+    base_frame: base_link
+    max_forward_mps: 0.0
+    max_reverse_mps: 0.0
+    max_angular_rps: 0.0
+    command_timeout_sec: 0.15
+    state_timeout_sec: 0.3
+    publish_rate_hz: 50.0

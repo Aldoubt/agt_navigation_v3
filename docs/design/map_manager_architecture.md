@@ -13,7 +13,7 @@ The goal is to solve:
 
 ## 2. Architecture Position
 
-Map Manager is the map asset lifecycle manager between HMI, localization, Nav2 and map generation pipeline.
+Map Manager manages map package lifecycle between the Mapping producer, HMI, localization and Nav2. The Mapping producer owns map generation; Map Manager validates and publishes its completed assets.
 
 ```
 HMI
@@ -70,15 +70,13 @@ metadata.yaml defines:
 ## 5. Map Lifecycle
 
 ```
-create
+Mapping producer output
   |
-generate
+candidate package
   |
-validate
+validate and promote
   |
-ready
-  |
-active
+select / active
   |
 archive
 ```
@@ -101,9 +99,7 @@ Services:
 - /agt/map/edit/publish
 - /agt/map/edit/cancel
 
-Actions:
-
-- /agt/map/generate
+Map generation is not a Map Manager action. The producer supplies a completed candidate package; Map Manager validates and promotes it.
 
 ## 7. Runtime Binding
 

@@ -11,6 +11,7 @@
 
 #include <Eigen/Core>
 #include <Eigen/Geometry>
+#include <Eigen/Eigenvalues>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_cloud.h>
@@ -290,6 +291,17 @@ int main(int argc, char** argv) {
     const double fitness = result.error / static_cast<double>(std::max<std::size_t>(1, result.num_inliers));
     const double score = std::clamp(0.60 * coarse_score + 0.40 * overlap, 0.0, 1.0);
 
+    double radius_sq = 0.0;
+    for (const auto& point : scan_points) radius_sq += point.squaredNorm();
+    const double length_scale = std::max(1.0e-3, std::sqrt(radius_sq / std::max<std::size_t>(1,scan_points.size())));
+    Eigen::Matrix<double,6,6> units = Eigen::Matrix<double,6,6>::Identity();
+    units.topLeftCorner<3,3>() /= length_scale;
+    const Eigen::Matrix<double,6,6> hessian = units *
+      (0.5 * (result.H.template cast<double>() + result.H.transpose().template cast<double>())) * units;
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double,6,6>> eig(hessian);
+    double normalized_condition = 1.0e30;
+    if (eig.info() == Eigen::Success && eig.eigenvalues().allFinite() && eig.eigenvalues().minCoeff() > 1.0e-12)
+      normalized_condition = std::min(1.0e30,eig.eigenvalues().maxCoeff()/eig.eigenvalues().minCoeff());
     std::cout << "{\"success\":true"
               << ",\"x\":" << T.translation().x()
               << ",\"y\":" << T.translation().y()
@@ -304,6 +316,11 @@ int main(int argc, char** argv) {
               << ",\"coarse_qz\":" << coarse_q.z()
               << ",\"coarse_qw\":" << coarse_q.w()
               << ",\"score\":" << score
+              << ",\"num_inliers\":" << result.num_inliers
+              << ",\"registration_error\":" << result.error
+              << ",\"normalized_hessian_length_scale_m\":" << length_scale
+              << ",\"normalized_hessian_condition_number\":" << normalized_condition
+              << ",\"ambiguity_valid\":false,\"ambiguity_margin\":0.0"
               << ",\"fitness\":" << fitness
               << ",\"overlap\":" << overlap
               << ",\"bbs_score\":" << coarse_score

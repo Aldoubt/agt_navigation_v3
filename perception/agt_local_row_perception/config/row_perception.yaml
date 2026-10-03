@@ -1,0 +1,54 @@
+# Development values for offline perception. No field calibration is implied.
+row_perception:
+  pose_history_sec: 10.0
+  pose_max_gap_sec: 0.15
+  temporal_window_sec: 0.8
+  evidence_tau_sec: 0.45
+  max_frames: 8
+  min_frame_support: 2
+  min_range_m: 0.1
+  max_range_m: 15.0
+  grid_resolution_m: 0.12
+  x_min_m: -1.0
+  x_max_m: 8.0
+  y_abs_max_m: 4.0
+  ground_seed_percentile: 0.2
+  ground_tolerance_m: 0.08
+  ground_max_tilt_deg: 18.0
+  ground_max_residual_m: 0.08
+  # Height is relative to the geometry carrier origin, after gravity leveling.
+  # Handheld recordings need their own explicit height envelope.
+  ground_z_min_m: -2.0
+  ground_z_max_m: 0.1
+  ground_min_xy_span_m: 0.8
+  ground_min_cells: 12
+  ground_ransac_iterations: 100
+  boundary_min_height_m: 0.15
+  boundary_max_height_m: 2.0
+  obstacle_min_height_m: 0.10
+  obstacle_max_height_m: 1.5
+  low_coverage_height_m: 0.15
+  fit_x_min_m: 0.3
+  fit_x_max_m: 7.0
+  side_min_abs_y_m: 0.25
+  min_width_m: 0.6
+  max_width_m: 6.0
+  max_heading_rad: 0.7
+  fit_inlier_distance_m: 0.15
+  fit_huber_delta_m: 0.10
+  fit_min_span_m: 1.8
+  fit_min_side_cells: 8
+  fit_ransac_iterations: 160
+  uncertainty_lateral_scale_m: 0.15
+  uncertainty_heading_scale_rad: 0.10
+  temporal_lateral_scale_m: 0.2
+  temporal_heading_scale_rad: 0.15
+  temporal_width_scale_m: 0.3
+  quality_min: 0.45
+  covariance_variance_floor_m2: 0.0025
+  covariance_condition_max: 10000.0
+  visibility_max_age_sec: 0.25
+  clearance_lookahead_m: 2.0
+  # No unsampled hole is accepted in the default stopping corridor.
+  clearance_min_coverage: 1.0
+  path_spacing_m: 0.15

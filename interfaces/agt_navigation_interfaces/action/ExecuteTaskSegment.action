@@ -1,0 +1,13 @@
+string task_id
+uint64 request_epoch
+agt_navigation_interfaces/RouteSegment segment
+builtin_interfaces/Duration timeout
+---
+bool success
+string error_code
+string message
+float64 local_distance_m
+---
+agt_navigation_interfaces/NavigationMode mode
+float64 distance_remaining_m
+string state

@@ -1,0 +1,15 @@
+agt_navigation_capability:
+  ros__parameters:
+    robot_profile: bunker_v1
+    map_id: ''
+    map_version: ''
+    enable_research_task_continuity: false
+    research_field_verified: false
+    research_owner_id: agt_task_continuity
+    research_controller_id: ResearchFollowPath
+    research_goal_checker_id: general_goal_checker
+    research_goal_tolerance_m: 0.0
+    research_goal_yaw_tolerance_rad: 0.0
+    research_global_quality_timeout_sec: 3.0
+    research_recovery_timeout_sec: 3.0
+    require_payload_drive_permission: false

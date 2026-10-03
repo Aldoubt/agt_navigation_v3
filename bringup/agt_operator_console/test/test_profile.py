@@ -38,7 +38,7 @@ def test_profile_rejects_shell_command(tmp_path: Path):
         'schema_version: 1\n'
         'drivers: []\nchecks: []\n'
         'mode_commands:\n  navigation: "ros2 launch x y"\n'
-        'map_root: /tmp/maps\npipeline_config: /tmp/pipeline.yaml\n',
+        'map_root: /tmp/maps\n',
         encoding='utf-8',
     )
     with pytest.raises(ValueError, match='mode navigation command'):

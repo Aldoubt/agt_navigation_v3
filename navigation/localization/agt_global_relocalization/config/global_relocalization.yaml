@@ -63,7 +63,7 @@ agt_global_relocalization:
     candidate_sdk_command: >-
       ros2 run agt_global_relocalization_native candidate_bbs_gicp_localizer
       --map {global_map} --scan {scan_pcd} {assets_arg}
-      --timeout {timeout_sec}
+      --timeout {timeout_sec} --threads {backend_threads}
       --candidate-top-k 4 --descriptor-prefilter 40
       --candidate-xy-radius 4.0 --candidate-z-radius 2.0
       --candidate-yaw-range-deg 0.0 --roll-pitch-range-deg 0.0
@@ -84,7 +84,7 @@ agt_global_relocalization:
     sdk_command: >-
       ros2 run agt_global_relocalization_native bbs_gicp_localizer
       --map {global_map} --scan {scan_pcd} {assets_arg}
-      --timeout {timeout_sec}
+      --timeout {timeout_sec} --threads {backend_threads}
       --local-map-radius-xy {local_map_radius_xy}
       --local-map-half-height {local_map_half_height}
       --min-local-map-points {min_local_map_points}
@@ -95,6 +95,7 @@ agt_global_relocalization:
     backend_min_local_map_points: 800
     work_dir: ~/.ros/agt_global_relocalization
     sdk_timeout_sec: 18.0
+    backend_threads: 2
 
     # Accumulate several navigation-only PointCloud2 frames. Batch-LIO continues
     # to consume the untouched timing-preserving Livox CustomMsg stream.
@@ -121,3 +122,24 @@ agt_global_relocalization:
     worst_position_std_m: 0.80
     best_yaw_std_deg: 3.0
     worst_yaw_std_deg: 15.0
+
+    # Moving-query research branch. Both flags and valid OdomQuality evidence
+    # are required; require_stationary=false alone never bypasses this contract.
+    moving_query_enabled: false
+    moving_query_calibrated: false
+    deskew_max_odom_gap_sec: 0.05
+    max_point_offset_sec: 0.20
+    odom_buffer_sec: 30.0
+    candidate_topic: /agt/localization/candidate
+    cancel_topic: /agt/relocalization/cancel
+    odom_quality_topic: /agt/odometry/quality
+    map_id: ''
+    map_version: ''
+    map_hash: ''
+    publish_legacy_pose: true
+    odom_frame: odom
+    require_candidate_ambiguity: false
+    min_candidate_ambiguity_margin: 0.0
+    max_candidate_age_sec: 20.0
+    require_nondegenerate_hessian: false
+    max_normalized_hessian_condition: 1.0e10

@@ -68,4 +68,3 @@ mode_commands:
 mode_preflight_commands: {}
 
 map_root: /home/yangxuan/ros2_ws/maps
-pipeline_config: /home/yangxuan/ros2_ws/src/agt_navigation_v3/map_data_manager/agt_map_manager/config/map_pipeline.example.yaml

@@ -9,11 +9,9 @@ from typing import Dict, List, Optional
 
 import rclpy
 import yaml
-from rclpy.action import ActionServer
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 
-from agt_robot_interfaces.action import GenerateMapPackage
 from agt_robot_interfaces.msg import MapEditSession, MapPackage, MapStatus
 from agt_robot_interfaces.srv import (
     CancelMapEdit,
@@ -36,7 +34,6 @@ from .edit_session import (
 )
 from .map_package import PackageInfo, discover_packages, validate_package
 from .create_map_package import build_package
-from .map_pipeline import generate_map_package
 from .promote_hmi_navigation_edit import promote
 from .map_events import MAP_ACTIVATED, MAP_GENERATED, MAP_VALIDATED, decode_event, encode_event
 from .map_registry import MapRegistry, MapState
@@ -71,7 +68,6 @@ class MapManager(Node):
         self.declare_parameter('start_edit_service', '/agt/map/edit/start')
         self.declare_parameter('publish_edit_service', '/agt/map/edit/publish')
         self.declare_parameter('cancel_edit_service', '/agt/map/edit/cancel')
-        self.declare_parameter('generate_action', '/agt/map/generate')
         self.declare_parameter('registry_file', '/home/yangxuan/ros2_ws/maps/map_registry.yaml')
         self.declare_parameter('events_topic', '/agt/map/events')
         self.declare_parameter('validate_service', '/agt/map/validate')
@@ -131,12 +127,6 @@ class MapManager(Node):
         self.create_service(ValidateMap, self.get_parameter('validate_service').value, self._on_validate)
         self.create_service(ActivateMap, self.get_parameter('activate_service').value, self._on_activate)
         self.create_service(DiscardMap, self.get_parameter('discard_service').value, self._on_discard)
-        self._generate_action = ActionServer(
-            self,
-            GenerateMapPackage,
-            self.get_parameter('generate_action').value,
-            execute_callback=self._on_generate,
-        )
 
         self._refresh()
         self._restore_active_state()
@@ -545,58 +535,6 @@ class MapManager(Node):
         response.message = 'edit session cancelled; staging files retained for audit'
         response.session = self._to_edit_session_msg(cancelled)
         return response
-
-    @staticmethod
-    def _optional_path(value: str) -> Optional[Path]:
-        value = str(value).strip()
-        return Path(value) if value else None
-
-    def _on_generate(self, goal_handle):
-        request = goal_handle.request
-        result = GenerateMapPackage.Result()
-        feedback = GenerateMapPackage.Feedback()
-        feedback.phase = 'generate_navigation_assets'
-        goal_handle.publish_feedback(feedback)
-        if goal_handle.is_cancel_requested:
-            goal_handle.canceled()
-            result.success = False
-            result.message = 'map generation cancelled before publication'
-            return result
-        try:
-            destination = generate_map_package(
-                map_root=self._root,
-                map_id=str(request.map_id),
-                map_version=str(request.map_version),
-                source_pcd=Path(str(request.source_pcd)),
-                pipeline_config=Path(str(request.pipeline_config)),
-                relocalization_assets_dir=self._optional_path(request.relocalization_assets_dir),
-                trajectory_poses=self._optional_path(request.trajectory_poses),
-                rtk_origin=self._optional_path(request.rtk_origin),
-                preview=self._optional_path(request.preview),
-            )
-            feedback.phase = 'validate_published_package'
-            goal_handle.publish_feedback(feedback)
-            package = validate_package(destination / 'metadata.yaml', verify_hashes=True)
-            if not package.valid:
-                raise RuntimeError(f'published_map_failed_validation:{package.reason}')
-        except (OSError, RuntimeError, ValueError) as exc:
-            goal_handle.abort()
-            result.success = False
-            result.message = str(exc)
-            return result
-
-        goal_handle.succeed()
-        result.success = True
-        result.message = 'generated and published immutable Map Package; awaiting validation/activation'
-        self._refresh()
-        self._sync_registry()
-        result.package = self._to_package_msg(package)
-        self._publish_event(MAP_GENERATED, map_id=package.map_id,
-                            map_version=package.map_version,
-                            package_path=str(package.package_path))
-        self.get_logger().info(
-            f'Generated map package {package.map_id}/{package.map_version} via action')
-        return result
 
     @staticmethod
     def _atomic_write_yaml(path: Path, data: Dict) -> None:

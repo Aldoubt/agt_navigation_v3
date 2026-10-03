@@ -1,0 +1,18 @@
+# This reproduces the existing Bunker collision proxy for visualization only.
+# Unknown physical/braking values deliberately remain zero. Do not use as acceptance.
+geometry:
+  frame_id: base_link
+  field_verified: false
+  footprint: [[0.5115, 0.389], [0.5115, -0.389], [-0.5115, -0.389], [-0.5115, 0.389]]
+  vehicle_height_m: 0.0
+  braking_deceleration_mps2: 0.0
+  command_latency_sec: 0.0
+  safety_margin_m: 0.0
+  self_shapes:
+    - id: collision_proxy
+      type: box
+      center_xyz: [0.0, 0.0, 0.0]
+      size_xyz: [1.023, 0.778, 0.400]
+      rpy: [0.0, 0.0, 0.0]
+      padding_m: 0.0
+# Online sensor transforms come from TF. Offline supply --extrinsics explicitly.

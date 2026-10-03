@@ -7,9 +7,13 @@
   <license>Apache-2.0</license>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>agt_navigation_interfaces</exec_depend>
+  <exec_depend>agt_robot_interfaces</exec_depend>
   <exec_depend>nav2_msgs</exec_depend>
   <exec_depend>action_msgs</exec_depend>
   <exec_depend>std_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>tf2_ros_py</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
   <test_depend>python3-pytest</test_depend>

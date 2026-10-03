@@ -11,6 +11,7 @@
 
 #include <Eigen/Core>
 #include <Eigen/Geometry>
+#include <Eigen/Eigenvalues>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_cloud.h>
@@ -38,6 +39,8 @@ struct Options {
   double candidate_z_radius{2.0};
   double candidate_yaw_range_deg{0.0};
   int candidate_top_k{2};
+  double ambiguity_separation_m{2.0};
+  double ambiguity_separation_yaw_deg{15.0};
   int descriptor_prefilter{40};
   double per_candidate_timeout_sec{8.0};
   double gicp_max_corr{2.0};
@@ -101,6 +104,8 @@ bool parse(int argc, char** argv, Options& o) {
     else if (a == "--candidate-z-radius") o.candidate_z_radius = std::stod(next());
     else if (a == "--candidate-yaw-range-deg") o.candidate_yaw_range_deg = std::stod(next());
     else if (a == "--candidate-top-k") o.candidate_top_k = std::stoi(next());
+    else if (a == "--ambiguity-separation-m") o.ambiguity_separation_m = std::stod(next());
+    else if (a == "--ambiguity-separation-yaw-deg") o.ambiguity_separation_yaw_deg = std::stod(next());
     else if (a == "--descriptor-prefilter") o.descriptor_prefilter = std::stoi(next());
     else if (a == "--per-candidate-timeout") o.per_candidate_timeout_sec = std::stod(next());
     else if (a == "--gicp-max-corr") o.gicp_max_corr = std::stod(next());
@@ -310,6 +315,8 @@ int main(int argc, char** argv) {
 
     const auto started = std::chrono::steady_clock::now();
     CoarseResult best;
+    std::vector<CoarseResult> coarse_results;
+    int attempted_candidates = 0;
     const int try_count =
       std::min<int>(o.candidate_top_k, static_cast<int>(candidates.size()));
 
@@ -321,6 +328,7 @@ int main(int argc, char** argv) {
       if (remaining <= 0.15) break;
 
       const auto& c = candidates[static_cast<std::size_t>(i)];
+      ++attempted_candidates;
       cpu::BBS3D bbs;
       bbs.set_num_threads(std::max(1, o.threads));
       if (!bbs.set_voxelmaps_coords(o.assets_dir)) {
@@ -373,23 +381,20 @@ int main(int argc, char** argv) {
       if (!bbs.has_localized() || bbs.has_timed_out()) continue;
       const double score =
         std::clamp(bbs.get_best_score_percentage(), 0.0, 1.0);
-      if (!best.valid || score > best.bbs_score) {
-        best.valid = true;
-        best.candidate = c;
-        const Eigen::Isometry3d residual_pose(bbs.get_global_pose());
-        Eigen::Isometry3d orientation_seed = Eigen::Isometry3d::Identity();
-        orientation_seed.linear() = seed_rotation;
-        best.pose = residual_pose * orientation_seed;
-        best.bbs_score = score;
-        best.elapsed_ms = bbs.get_elapsed_time();
-      }
+      CoarseResult coarse;
+      coarse.valid = true;
+      coarse.candidate = c;
+      const Eigen::Isometry3d residual_pose(bbs.get_global_pose());
+      Eigen::Isometry3d orientation_seed = Eigen::Isometry3d::Identity();
+      orientation_seed.linear() = seed_rotation;
+      coarse.pose = residual_pose * orientation_seed;
+      coarse.bbs_score = score;
+      coarse.elapsed_ms = bbs.get_elapsed_time();
+      coarse_results.push_back(coarse);
+      if (!best.valid || score > best.bbs_score) best = coarse;
+      // Every retrieved candidate within the shared deadline is attempted.
+      // A high score alone cannot resolve two visually similar greenhouse rows.
 
-      // A strong geometric score plus a strong descriptor match is enough to
-      // stop trying weaker descriptor candidates.
-      // Polar Context is the place/yaw selector; BBS only needs to provide a
-      // geometrically useful coarse seed. Final acceptance is intentionally
-      // deferred to GICP fitness/overlap and the ROS-side quality gates.
-      if (score >= 0.65 && c.sector_similarity >= 0.85) break;
     }
 
     if (!best.valid) {
@@ -444,6 +449,32 @@ int main(int argc, char** argv) {
       0.25 * std::max(0.0, best.candidate.sector_similarity),
       0.0, 1.0);
 
+    double second_score = -1.0;
+    for (const auto& candidate : coarse_results) {
+      const double distance = (candidate.pose.translation() - best.pose.translation()).norm();
+      const double angle = Eigen::AngleAxisd(best.pose.rotation().transpose() * candidate.pose.rotation()).angle();
+      if ((distance >= o.ambiguity_separation_m || angle >= o.ambiguity_separation_yaw_deg * M_PI / 180.0)
+          && candidate.bbs_score > second_score) second_score = candidate.bbs_score;
+    }
+    // This margin compares spatially distinct BBS seeds, not fine-match
+    // posterior probabilities. Missing/timeout competitors remain unresolved.
+    const bool ambiguity_valid = second_score >= 0.0 && attempted_candidates == try_count && static_cast<int>(coarse_results.size()) == try_count;
+    const double ambiguity_margin = ambiguity_valid ? std::max(0.0, best.bbs_score - second_score) : 0.0;
+    double squared_radius = 0.0;
+    for (const auto& point : scan_points) squared_radius += point.squaredNorm();
+    const double length_scale = std::max(1.0e-3, std::sqrt(squared_radius / scan_points.size()));
+    Eigen::Matrix<double, 6, 6> units = Eigen::Matrix<double, 6, 6>::Identity();
+    units.topLeftCorner<3, 3>() /= length_scale;
+    const Eigen::Matrix<double, 6, 6> hessian =
+      units * (0.5 * (result.H.template cast<double>() + result.H.transpose().template cast<double>())) * units;
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double, 6, 6>> eig(hessian);
+    double normalized_condition = 1.0e30;
+    Eigen::Matrix<double, 6, 1> eigenvalues = Eigen::Matrix<double, 6, 1>::Zero();
+    if (eig.info() == Eigen::Success && eig.eigenvalues().allFinite()) {
+      eigenvalues = eig.eigenvalues();
+      if (eigenvalues.minCoeff() > 1.0e-12)
+        normalized_condition = std::min(1.0e30, eigenvalues.maxCoeff() / eigenvalues.minCoeff());
+    }
     std::cout << "{\"success\":true"
               << ",\"bbs_query_frame_mode\":\"" << o.bbs_query_frame_mode << "\""
               << ",\"x\":" << T.translation().x()
@@ -461,6 +492,18 @@ int main(int argc, char** argv) {
               << ",\"coarse_qz\":" << coarse_q.z()
               << ",\"coarse_qw\":" << coarse_q.w()
               << ",\"score\":" << score
+              << ",\"num_inliers\":" << result.num_inliers
+              << ",\"registration_error\":" << result.error
+              << ",\"ambiguity_valid\":" << (ambiguity_valid ? "true" : "false")
+              << ",\"ambiguity_margin\":" << ambiguity_margin
+              << ",\"ambiguity_second_bbs_score\":" << second_score
+              << ",\"candidate_attempted_count\":" << attempted_candidates
+              << ",\"candidate_valid_count\":" << coarse_results.size()
+              << ",\"normalized_hessian_length_scale_m\":" << length_scale
+              << ",\"normalized_hessian_condition_number\":" << normalized_condition
+              << ",\"normalized_hessian_eigenvalues\":["
+              << eigenvalues(0) << "," << eigenvalues(1) << "," << eigenvalues(2) << ","
+              << eigenvalues(3) << "," << eigenvalues(4) << "," << eigenvalues(5) << "]"
               << ",\"fitness\":" << fitness
               << ",\"overlap\":" << overlap
               << ",\"bbs_score\":" << best.bbs_score

@@ -14,5 +14,6 @@ setup(
     entry_points={'console_scripts': [
         'navigation_supervisor = agt_navigation_supervisor.supervisor:main',
         'wait_navigation_ready = agt_navigation_supervisor.wait_ready:main',
+        'odom_quality = agt_navigation_supervisor.odom_quality:main',
     ]},
 )

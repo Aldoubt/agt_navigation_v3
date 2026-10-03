@@ -54,8 +54,8 @@ assets:
     path: quality/report.yaml
     sha256: ""
 
-# New packages generated through generate_map_package also carry these two
-# immutable provenance assets. Legacy packages remain readable without them.
+# Producers may attach these optional provenance assets. Map Manager verifies
+# them when declared; older immutable packages remain readable without them.
 generation:
   pipeline_asset: generation_pipeline
   source_pcd_sha256: ""

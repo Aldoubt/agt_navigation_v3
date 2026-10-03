@@ -38,7 +38,6 @@ class Profile:
     mode_commands: dict[str, tuple[str, ...]]
     mode_preflight_commands: dict[str, tuple[tuple[str, ...], ...]]
     map_root: Path
-    pipeline_config: Path
 
 
 @dataclass(frozen=True)
@@ -151,17 +150,16 @@ def load_profile(path: Path) -> Profile:
         mode_preflight_commands[mode] = tuple(
             _command(command, f'mode {mode} preflight command') for command in commands)
 
-    map_root = Path(str(data.get('map_root', '')).strip()).expanduser()
-    pipeline_config = Path(str(data.get('pipeline_config', '')).strip()).expanduser()
-    if not str(map_root) or not str(pipeline_config):
-        raise ValueError('operator profile requires map_root and pipeline_config')
+    map_root_value = str(data.get('map_root', '')).strip()
+    if not map_root_value:
+        raise ValueError('operator profile requires map_root')
+    map_root = Path(map_root_value).expanduser()
     return Profile(
         drivers=tuple(drivers),
         checks=tuple(checks),
         mode_commands=mode_commands,
         mode_preflight_commands=mode_preflight_commands,
         map_root=map_root,
-        pipeline_config=pipeline_config,
     )
 
 

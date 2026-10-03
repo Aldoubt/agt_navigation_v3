@@ -47,3 +47,36 @@ agt_localization_manager:
     debug_status_topic: /agt/relocalization/status
     global_status_topic: /agt/global_relocalization/status
     map_events_topic: /agt/map/events
+
+    # Opt-in frozen-map research policy; all numeric limits below need replay
+    # and vehicle evidence before research_recovery_calibrated is enabled.
+    research_recovery_enabled: false
+    research_recovery_calibrated: false
+    map_hash: ''
+    candidate_topic: /agt/localization/candidate
+    odom_quality_topic: /agt/odometry/quality
+    global_quality_topic: /agt/localization/quality
+    global_observation_topic: /agt/localization/global_observation
+    recovery_status_topic: /agt/localization/recovery_status
+    relocalization_cancel_topic: /agt/relocalization/cancel
+    global_quality_timeout_sec: 3.0
+    tracking_status_timeout_sec: 3.0
+    candidate_max_age_sec: 20.0
+    candidate_completion_timeout_sec: 1.0
+    research_odom_interpolation_max_gap_sec: 0.05
+    research_candidate_retry_sec: 2.0
+    candidate_min_quality: 0.50
+    candidate_max_residual: 1.0
+    candidate_min_overlap: 0.40
+    # A positive measured margin is mandatory before calibration is enabled.
+    candidate_min_ambiguity_margin: 0.0
+    recovery_consecutive_candidates: 2
+    recovery_blend_duration_sec: 5.0
+    recovery_max_robot_displacement_m: 1.0
+    recovery_max_yaw_delta_deg: 10.0
+    recovery_max_rotation_delta_deg: 10.0
+    recovery_consistency_m: 0.20
+    recovery_consistency_yaw_deg: 2.0
+    recovery_settle_translation_m: 0.02
+    recovery_settle_yaw_deg: 0.2
+    recovery_verification_count: 2

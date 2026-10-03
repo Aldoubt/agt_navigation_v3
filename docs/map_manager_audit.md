@@ -4,13 +4,19 @@
 > topology table were removed from this repository during the separate-mapping
 > refactor. Current navigation consumes mapping-owned Map Packages instead.
 
+> Update 2026-10-02: Map Manager's legacy `map_pipeline.py`,
+> `generate_map_package` CLI, `/agt/map/generate` Action and its ROS action
+> interface have been retired. `agt_map_converter` remains the explicit
+> regression/fallback converter until same-input raster parity is accepted.
+> References below to the local generation action describe the historical
+> snapshot only.
+
 ## Scope and snapshot
 
-This is a read-only architecture audit of the local `agt_navigation_v3` tree.
-No source, configuration, or existing document was changed. The inspected Git
-baseline is `f5af4e6`; the working tree also contains uncommitted Map Package
-pipeline, runtime-binding, and action-interface work. This report calls those
-items **local candidate work**, not a released baseline.
+The original audit was read-only. At that time, the inspected Git baseline was
+`f5af4e6`; the working tree also contained uncommitted Map Package pipeline,
+runtime-binding, and action-interface work. This report calls those items
+**local candidate work**, not a released baseline.
 
 The audit covers mapping, map conversion, Map Manager, relocalization, Nav2,
 the system/HMI launch path, RViz patrol, and mission/camera execution. It does
@@ -94,11 +100,11 @@ supervisor.
    CLI conversion path. It supports ASCII and uncompressed binary PCD XYZ,
    occupancy from cell height span/slope, and optional `poses.txt` footprint
    carving.
-4. **Local candidate pipeline:** uncommitted
-   `agt_map_manager/map_pipeline.py` uses the converter, runs the structural
-   validator, records source SHA-256/pipeline YAML/quality YAML, and publishes
-   a package. The local candidate `GenerateMapPackage.action` exposes it at
-   `/agt/map/generate`. It is not connected to Mapping Session or PGO output.
+4. **Retired Map Manager pipeline:** the historical
+   `agt_map_manager/map_pipeline.py` wrapped the converter, recorded provenance
+   and published directly into the map root. Its CLI and `/agt/map/generate`
+   action were removed on 2026-10-02. Mapping producer output now enters through
+   the candidate build/validation/promotion flow.
 5. **Terrain generator:** this is an offline future route. Its README states
    `pipeline.enabled: false`; it must not be treated as an active generator.
 
@@ -162,10 +168,10 @@ an edit session, publishes an edit, or consumes acknowledgement/state changes.
 | Mapping topics/services | `/agt/mapping/status`, `/agt/mapping/result`, `/agt/mapping/start`, `/agt/mapping/stop`, `/agt/mapping/save`; `/pgo/save_maps`; `/fastlio2/body_cloud`; `/agt/octomap/rear_filtered_cloud`; `/projected_map`. Mapping Session payloads are currently plain `std_msgs/String` and `Trigger`. |
 | Map Manager topic | `/agt/map/status` (`MapStatus`), reliable/transient-local. |
 | Map Manager services | `/agt/map/list`, `/agt/map/load`, `/agt/map/edit/start`, `/agt/map/edit/publish`, `/agt/map/edit/cancel`. |
-| Local candidate action | `/agt/map/generate` (`GenerateMapPackage`): map identity, PCD, pipeline config, relocalization assets, poses, RTK origin, preview; phase feedback. |
+| Map generation action | Retired on 2026-10-02; Mapping producer owns raster and localization-asset generation. |
 | Localization | `/agt/odometry/local`, `/agt/relocalization/pose`, `/agt/localization/status`, `/agt/relocalization/request`, `/agt/localization/relocalize`. |
 | Navigation / HMI / mission | `/map`, `/goal_pose`, `/agt/task/request`, `/agt/task/status`, `/agt/task/start`, `/agt/task/pause`, `/agt/task/cancel`, `/agt/mission/execute`, `/agt/mission/status`, Nav2 `NavigateToPose`, camera `/camera_gimbal/acquire_view`. |
-| Primary configuration | `mapping_mode.yaml`, `octomap_navigation_baseline.yaml`, FAST-LIO2/PGO YAML, `map_manager.yaml`, local `map_pipeline.example.yaml`, `global_relocalization.yaml`, `localization_manager.yaml`, and `nav2_params.yaml`. |
+| Primary configuration | `mapping_mode.yaml`, `octomap_navigation_baseline.yaml`, FAST-LIO2/PGO YAML, `map_manager.yaml`, `global_relocalization.yaml`, `localization_manager.yaml`, and `nav2_params.yaml`. |
 
 ## Current architecture diagram
 
@@ -185,7 +191,7 @@ an edit session, publishes an edit, or consumes acknowledgement/state changes.
                                                      |
               [NO completion/orchestration link]     |
                                                      v
-   manual OctoMap script or PCD converter / local candidate map_pipeline
+   Mapping-owned map output or the explicit PCD converter fallback
                     |                         |
                     +------> PGM/YAML -------+
                               |          relocal assets / RTK / provenance
@@ -228,12 +234,10 @@ produce a `map`-frame-looking artifact.
   acquisition flow.
 - OctoMap export helper and PCD-to-Nav2-map converter/structural validator.
 
-### Local candidate capabilities that need commit, review, and integration
+### Map-management capabilities retained after the audit
 
-- `map_pipeline.py` turns a selected PCD into a package with pipeline and
-  quality artifacts.
-- `GenerateMapPackage.action` and its Map Manager action server expose that
-  pipeline through ROS 2.
+- `map_promotion.py` builds candidates under `experiments/`, validates their
+  assets and Robot Profile, then atomically promotes versions into `maps/`.
 - `runtime_binding.py` resolves and revalidates an active pointer before the
   HMI field demo reads paths.
 - Package validation additionally checks that a navigation YAML image remains

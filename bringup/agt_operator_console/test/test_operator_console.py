@@ -14,7 +14,7 @@ def _profile() -> Profile:
     return Profile(
         drivers=(), checks=(), mode_commands={'navigation': ('echo', 'navigation')},
         mode_preflight_commands={},
-        map_root=Path('/maps'), pipeline_config=Path('/pipeline.yaml'),
+        map_root=Path('/maps'),
     )
 
 

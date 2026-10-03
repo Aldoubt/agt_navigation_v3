@@ -10,6 +10,7 @@ agt_map_tracker:
     base_frame: base_link
     global_map: ''
     tracking_rate_hz: 0.5
+    backend_threads: 2
     local_map_radius_xy_m: 20.0
     local_map_half_height_m: 5.0
     query_accumulate_clouds: 3
@@ -39,3 +40,17 @@ agt_map_tracker:
     save_debug_cloud: false
     debug_directory: ~/.ros/agt_map_tracker_debug
     max_debug_failure_samples: 20
+
+    # Shadow mode uses timestamp-bracketed per-point deskew, an asynchronous
+    # matcher and isolated pose/status publishers. It cannot apply correction.
+    shadow_mode: false
+    quality_calibrated: false
+    quality_topic: /agt/localization/global_observation
+    odom_quality_topic: /agt/odometry/quality
+    map_id: ''
+    map_version: ''
+    map_hash: ''
+    max_result_age_sec: 2.0
+    deskew_max_odom_gap_sec: 0.05
+    max_point_offset_sec: 0.20
+    max_normalized_hessian_condition: 1.0e10

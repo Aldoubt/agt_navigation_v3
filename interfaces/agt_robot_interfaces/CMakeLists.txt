@@ -14,6 +14,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/LocalizationMetrics.msg"
   "msg/YawConstraint.msg"
   "msg/AdapterStatus.msg"
+  "msg/BaseState.msg"
   "msg/MapPackage.msg"
   "msg/MapStatus.msg"
   "msg/MapEditSession.msg"
@@ -26,7 +27,6 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/ActivateMap.srv"
   "srv/DiscardMap.srv"
   "srv/CaptureCamera.srv"
-  "action/GenerateMapPackage.action"
   "action/ExecuteInspectionMission.action"
   DEPENDENCIES builtin_interfaces geometry_msgs
 )

@@ -1,0 +1,25 @@
+agt_task_continuity:
+  ros__parameters:
+    research_enabled: false
+    field_verified: false
+    owner_id: agt_task_continuity
+    publish_rate_hz: 50.0
+    source_timeout_sec: 0.3
+    # Global registration is asynchronous and runs slower than row/odometry.
+    # Calibrate against measured matcher latency and query period.
+    global_quality_timeout_sec: 3.0
+    task_timeout_sec: 0.5
+    authorization_ttl_sec: 0.15
+    degrade_dwell_sec: 0.5
+    acquire_dwell_sec: 0.5
+    # Unset quality and physical values intentionally prevent motion. Calibrate
+    # from D_R0 and independently measured braking/coverage before enabling.
+    q_global_low: 0.0
+    q_global_high: 0.0
+    q_row_low: 0.0
+    q_row_high: 0.0
+    q_odom_min: 0.0
+    braking_decel_mps2: 0.0
+    stopping_latency_sec: 0.0
+    clearance_margin_m: 0.0
+    require_payload_drive_permission: false

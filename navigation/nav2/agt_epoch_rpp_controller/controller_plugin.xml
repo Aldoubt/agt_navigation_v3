@@ -1,0 +1,5 @@
+<library path="epoch_rpp">
+  <class name="agt_epoch_rpp_controller/EpochRppController" type="agt_epoch_rpp_controller::EpochRppController" base_class_type="nav2_core::Controller">
+    <description>RPP with immutable accepted-plan epoch and source-stamped velocity envelope.</description>
+  </class>
+</library>

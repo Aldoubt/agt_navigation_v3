@@ -1,0 +1,23 @@
+uint8 GLOBAL=0
+uint8 DEGRADED=1
+uint8 LOCAL_TASK=2
+uint8 RECOVERING=3
+uint8 SAFE=4
+std_msgs/Header header
+uint8 mode
+string owner_id
+string task_id
+string route_id
+string segment_id
+string row_id
+uint64 control_epoch
+uint64 odom_epoch
+bool authorized
+builtin_interfaces/Time valid_until
+# The accepted FollowPath header stamp binds commands to a specific plan.
+builtin_interfaces/Time plan_stamp
+float64 max_linear_mps
+float64 max_angular_rps
+float64 remaining_distance_m
+float64 remaining_time_sec
+string reason

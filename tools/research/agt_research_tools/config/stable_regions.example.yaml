@@ -1,0 +1,8 @@
+schema_version: 1
+frame_id: map
+source_map_sha256: null
+reviewed: false
+reviewed_by: null
+regions: []
+# Each reviewed box: {id: structure_id, evidence: inspection/date/reference,
+#                    center_xyz: [x,y,z], size_xyz: [length,width,height], rpy: [roll,pitch,yaw]}

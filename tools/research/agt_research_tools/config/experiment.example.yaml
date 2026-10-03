@@ -1,0 +1,19 @@
+# Required paths and identity are intentionally unset. This is not a runnable experiment.
+schema_version: 1
+experiment_id: null
+map_id: null
+map_version: null
+robot_profile: null
+navigation_map_yaml: null
+assets:
+  geometry_map: null
+  navigation_map: null
+  relocalization_assets: null
+  stable_mask: null
+  corridors: null
+  routes: null
+  parameters: null
+  calibration: null
+  sensor_geometry: null
+repositories: []
+# Example entry: {name: navigation, path: /absolute/repository/path}

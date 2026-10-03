@@ -18,6 +18,7 @@ from std_msgs.msg import Bool
 
 from .policy import (HEALTH_MAX_AGE_SEC, health_allows_motion, navigation_succeeded,
                      payload_permission_ok)
+from .research_execution import ResearchTaskExecutor
 
 
 class NavigationCapability(Node):
@@ -40,6 +41,7 @@ class NavigationCapability(Node):
         self.nav_goal = None
         self.health_lost = False
         self.health_lost_detail = ''
+        self._research_active = False
         group = ReentrantCallbackGroup()
         self.nav_client = ActionClient(self, NavigateToPose, '/navigate_to_pose',
                                        callback_group=group)
@@ -67,6 +69,7 @@ class NavigationCapability(Node):
             self._on_payload, 20, callback_group=group)
         self.create_timer(0.1, self._watch_payload, callback_group=group)
         self.create_timer(0.1, self._watch_health, callback_group=group)
+        self.research = ResearchTaskExecutor(self, group)
 
     def _payload_ok(self):
         return payload_permission_ok(
@@ -105,7 +108,7 @@ class NavigationCapability(Node):
         """Latch a bad or stale Health update once and cancel the active Nav2 goal."""
         value = lambda name: str(self.get_parameter(name).value)
         with self._running_lock:
-            if not self.running or self.health_lost:
+            if not self.running or self.health_lost or self._research_active:
                 return
             health = self.health
             age = time.monotonic() - self.health_received
@@ -160,6 +163,8 @@ class NavigationCapability(Node):
         self.active_pub.publish(Bool(data=False))
 
     async def _execute(self, goal):
+        if self.research.enabled:
+            return self._result(goal, 'RESEARCH_ACTION_REQUIRED', 'research profile requires ExecuteTaskSegment')
         if not self._payload_ok():
             return self._result(goal, 'ARM_NOT_DRIVE_SAFE',
                                 'payload drive permission is not granted')
@@ -213,6 +218,8 @@ class NavigationCapability(Node):
 
     async def _execute_follow(self, goal):
         result_type = FollowRoute.Result
+        if self.research.enabled:
+            return self._result(goal, 'RESEARCH_ACTION_REQUIRED', 'research profile requires ExecuteTaskSegment', result_type=result_type)
         path = goal.request.path
         if path.header.frame_id != 'map' or len(path.poses) < 2:
             return self._result(goal, 'INVALID_ROUTE', 'map-frame path with two poses required',

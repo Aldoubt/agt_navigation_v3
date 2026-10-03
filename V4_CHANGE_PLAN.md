@@ -1,5 +1,7 @@
 # AGT Navigation Runtime V4 变更计划
 
+> 2026-10-03：温室任务连续导航研究分支的感知、模式、命令链、异步恢复、多履带配置和实验工具已加入工作区，默认禁止研究运动。实际入口、编译检查与待实测参数见 [温室研究代码落地状态](docs/research/GREENHOUSE_IMPLEMENTATION_STATUS.md)。V1 现场验收边界继续保留。
+
 > 本轮后续目标已统一到 [工作空间改造收敛与部署启动方案](docs/upgrade/WORKSPACE_CONSOLIDATION_PLAN.md)。本文保留原 V4 基线和阶段记录；新增范围与使用流程以统一方案为入口，验收仍沿用 V4 验收矩阵。
 >
 > 2026-10-02 新增 R10 **Platform Runtime C++ / Multi-Chassis** 工作流。该工作流不推翻 R0–R9，也不授权一次性重写现有导航；详细接口、实施顺序和验收门分别见：

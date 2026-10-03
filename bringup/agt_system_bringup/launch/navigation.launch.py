@@ -290,12 +290,71 @@ def _validate_ackermann_nav_semantics(config_dir, robot_profile, manifest):
         raise RuntimeError('Ackermann controller, smoother and motion guard must preserve the 50 Hz command chain')
 
 
+def _validate_generic_tracked_profile(config_dir, profile, manifest):
+    """Resolve measured YHS/custom planar Twist profiles without Bunker geometry."""
+    base, geometry, motion = profile['base'], profile['geometry'], profile['motion']
+    if (base.get('kinematics') not in ('skid_steer', 'differential') or
+            base.get('command_interface') != 'twist' or
+            base.get('publish_odom_tf') is not False or
+            base.get('rotate_in_place') is not True or
+            not _positive_finite(base.get('control_rate_hz')) or base['control_rate_hz'] < 50):
+        raise RuntimeError('tracked profile requires verified planar Twist, rotation and a 50 Hz chain')
+    for key in ('width', 'length'):
+        if not _positive_finite(geometry.get(key)):
+            raise RuntimeError(f'tracked profile requires measured geometry.{key}')
+    for key in ('max_linear_velocity', 'max_angular_velocity'):
+        if not _positive_finite(motion.get(key)):
+            raise RuntimeError(f'tracked profile requires measured motion.{key}')
+    footprint = geometry.get('footprint')
+    if (not isinstance(footprint, list) or len(footprint) < 3 or
+            any(len(p) != 2 or not all(isinstance(v, (int, float)) and math.isfinite(v) for v in p)
+                for p in footprint)):
+        raise RuntimeError('tracked profile requires a finite measured footprint polygon')
+    margin = geometry.get('safety_margin')
+    if not isinstance(margin, (int, float)) or not math.isfinite(margin) or margin < 0:
+        raise RuntimeError('tracked profile requires a measured nonnegative safety margin')
+    planner_plugin = 'nav2_smac_planner/SmacPlanner2D'
+    rpp_plugin = 'nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController'
+    if (manifest.get('schema_version') != 1 or
+            manifest.get('planner', {}).get('plugin') != planner_plugin or
+            manifest.get('controller') != {'plugin': rpp_plugin, 'rotate_to_heading': True,
+                                          'allow_reversing': False}):
+        raise RuntimeError('tracked profile requires Smac2D and forward RPP with rotate-to-heading')
+    configs = _profile_nav_configs(config_dir)
+    nav, control = configs['navigation.yaml'], configs['controller.yaml']
+    follow = _params(control, 'controller_server')['FollowPath']
+    if (_params(nav, 'planner_server')['GridBased'].get('plugin') != planner_plugin or
+            follow.get('plugin') != rpp_plugin or follow.get('use_rotate_to_heading') is not True or
+            follow.get('allow_reversing') is not False):
+        raise RuntimeError('tracked Nav2 algorithms differ from their manifest')
+    robot = _params(configs['robot.yaml'], 'agt_robot_config')
+    if (not _same_numbers(yaml.safe_load(robot['footprint']), footprint) or
+            not _same_numbers(robot['footprint_padding'], margin)):
+        raise RuntimeError('tracked Nav2 footprint and margin must equal the selected Robot Profile')
+    local = _params(configs['costmap.yaml'], 'local_costmap', 'local_costmap')
+    if local.get('global_frame') != 'odom' or local.get('rolling_window') is not True:
+        raise RuntimeError('tracked local costmap must be a rolling odom-frame costmap')
+    if local.get('robot_base_frame') != profile['frames']['base']:
+        raise RuntimeError('tracked costmap base frame differs from the Robot Profile')
+    limits = _params(configs['safety.yaml'], 'agt_motion_limits')
+    if (not _same_numbers(limits['forward_mps'], motion['max_linear_velocity']) or
+            not _same_numbers(limits['angular_radps'], motion['max_angular_velocity'])):
+        raise RuntimeError('tracked velocity limits differ from the Robot Profile')
+    for key in ('linear_accel_mps2', 'linear_decel_mps2', 'angular_accel_radps2',
+                'angular_decel_radps2'):
+        if not _positive_finite(limits.get(key)):
+            raise RuntimeError(f'tracked profile requires measured {key}')
+    rates = (_params(control, 'controller_server')['controller_frequency'],
+             _params(configs['safety.yaml'], 'velocity_smoother')['smoothing_frequency'],
+             _params(configs['safety.yaml'], 'agt_cmd_vel_guard')['publish_rate_hz'])
+    if any(not _positive_finite(r) or r < 50 for r in rates):
+        raise RuntimeError('tracked controller, smoother and guard must run at least 50 Hz')
+
+
 def select_navigation_config(robot_profile, explicit_dir, default_dir, robot_profiles_dir=None):
     """Select a kinematics-matched Nav2 profile and fail closed before field use."""
     default = Path(default_dir).resolve()
     selected_robot = (robot_profile or 'bunker_v1').strip()
-    if selected_robot in ('yhs_v1', 'yhs_tk_mid'):
-        raise RuntimeError('YHS navigation remains BLOCKED pending protocol and kinematics audit')
     profile = _robot_profile_path(selected_robot, robot_profiles_dir)
     kinematics = profile.get('base', {}).get('kinematics')
 
@@ -326,6 +385,9 @@ def select_navigation_config(robot_profile, explicit_dir, default_dir, robot_pro
         raise RuntimeError('non-baseline Nav2 profile requires measured field_verified: true and verified_by')
     if kinematics == 'ackermann':
         _validate_ackermann_nav_semantics(selected, profile, manifest)
+        return selected
+    if kinematics in ('skid_steer', 'differential'):
+        _validate_generic_tracked_profile(selected, profile, manifest)
         return selected
     raise RuntimeError(
         f'Nav2 profile for kinematics {kinematics!r} is not implemented/verified; refusing Bunker fallback')
@@ -466,11 +528,11 @@ def base_adapter_node_spec(adapter):
     selected = (adapter or '').strip().lower()
     if selected == 'bunker':
         return 'agt_base_runtime', 'bunker_adapter'
+    if selected in ('tracked', 'yhs', 'custom'):
+        return 'agt_base_runtime', 'tracked_twist_adapter'
     if selected == 'ackermann':
         raise RuntimeError('Ackermann conversion is software-only; no real driver adapter is enabled')
-    if selected in ('yhs', 'yhs_tk_mid'):
-        raise RuntimeError('YHS base adapter is BLOCKED pending vehicle protocol/kinematics audit')
-    raise RuntimeError(f'unsupported base adapter {adapter!r}; expected bunker')
+    raise RuntimeError(f'unsupported base adapter {adapter!r}; expected bunker|tracked|yhs|custom')
 
 
 def _validate_base_adapter(adapter):
@@ -564,6 +626,8 @@ def _launch_runtime(context):
         }),
         _include('agt_base_runtime', 'base_adapter.launch.py', {
             'adapter': base_adapter,
+            'params_file': LaunchConfiguration('base_adapter_params_file').perform(context),
+            'robot_profile': robot_profile,
         }),
         # Map-frame path editing has its own atomic launch owner.
         _include('agt_rviz_patrol', 'path_tool.launch.py', {
@@ -580,13 +644,14 @@ def generate_launch_description():
                           description='auto, active, latest, map_id or map_id/version'),
     DeclareLaunchArgument('robot', default_value='bunker_v1'),
     DeclareLaunchArgument('nav_config_dir', default_value='',
-                          description='Reviewed measured non-baseline Nav2 profile directory; YHS remains blocked'),
+                          description='Reviewed measured non-baseline Nav2 profile directory'),
         DeclareLaunchArgument('robot_config', default_value='',
                               description='whole-robot config id/dir; decides payload_interlock'),
         DeclareLaunchArgument(
             'base_adapter',
             default_value=EnvironmentVariable('AGT_BASE_ADAPTER', default_value='bunker'),
-            description='bunker only; selected from the validated whole-robot config'),
+            description='bunker|tracked|yhs|custom; generic adapters require measured driver parameters'),
+        DeclareLaunchArgument('base_adapter_params_file', default_value=''),
         DeclareLaunchArgument('payload_interlock', default_value='auto',
                               description='auto (from robot_config) | true | false; '
                                           'true = hold chassis unless the arm grants drive permission'),

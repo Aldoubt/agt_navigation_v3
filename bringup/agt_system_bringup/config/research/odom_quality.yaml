@@ -1,0 +1,21 @@
+agt_odom_quality:
+  ros__parameters:
+    field_verified: false
+    covariance_calibrated: false
+    odom_frame: odom
+    base_frame: base_link
+    source_timeout_sec: 0.3
+    adapter_timeout_sec: 0.5
+    max_measured_linear_mps: 0.0
+    max_measured_angular_rps: 0.0
+    jump_slack_m: 0.0
+    jump_slack_rad: 0.0
+    position_std_floor_m: 0.0
+    yaw_std_floor_rad: 0.0
+    position_drift_per_meter: 0.0
+    yaw_drift_per_meter: 0.0
+    position_drift_per_second: 0.0
+    yaw_drift_per_second: 0.0
+    max_position_std_m: 0.0
+    max_yaw_std_rad: 0.0
+    publish_rate_hz: 20.0

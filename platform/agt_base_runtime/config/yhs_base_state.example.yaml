@@ -1,0 +1,37 @@
+# Populate flags only after reviewing the actual tracked YHS protocol.
+# The driver publishes source heartbeats only on received checksum-valid CAN frames.
+base_state:
+  robot_profile: yhs_v1
+  field_verified: false
+  input_topic: /yhs/chassis_info_fb
+  message_type: yhs_can_interfaces/msg/ChassisInfoFb
+  stamp_field: header.stamp
+  output_topic: /agt/base/state
+  timeout_sec: 0.3
+  autonomous: {field: ctrl_fb.ctrl_fb_target_gear, active_values: [], inactive_values: []}
+  emergency_stop: {field: io_fb.io_fb_estop, active_values: [], inactive_values: []}
+  manual_override: {field: io_fb.io_fb_joypad_ctrl, active_values: [], inactive_values: []}
+  fault_active: {field: '', active_values: [], inactive_values: []}
+  measured_velocity_fields:
+    linear_x: {field: ctrl_fb.ctrl_fb_linear, scale: 1.0}
+    angular_z: {field: ctrl_fb.ctrl_fb_angular, scale: 0.017453292519943295}
+  required_freshness_sources:
+    - id: ctrl
+      input_topic: /yhs/ctrl_feedback_source
+      message_type: std_msgs/msg/Header
+      stamp_field: stamp
+      timeout_sec: 0.3
+    - id: io
+      input_topic: /yhs/io_feedback_source
+      message_type: std_msgs/msg/Header
+      stamp_field: stamp
+      timeout_sec: 0.3
+      require_primary_at_or_after: true
+    # If fault_active references BMS flags, enable this independent freshness
+    # source as well. Missing BMS frames then deny permission.
+    - id: bms_flags
+      input_topic: /yhs/bms_flag_feedback_source
+      message_type: std_msgs/msg/Header
+      stamp_field: stamp
+      timeout_sec: 0.3
+      require_primary_at_or_after: true

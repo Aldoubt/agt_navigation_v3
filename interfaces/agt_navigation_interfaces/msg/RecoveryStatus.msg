@@ -1,0 +1,12 @@
+std_msgs/Header header
+string job_id
+string map_id
+string map_version
+string map_hash
+uint64 odom_epoch
+bool active
+bool complete
+builtin_interfaces/Time verified_observation_stamp
+float64 remaining_translation_m
+float64 remaining_yaw_rad
+string reason
