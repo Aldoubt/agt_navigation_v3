@@ -1,0 +1,1212 @@
+[2026-10-07 18:07:58,101][INFO] [/opt/hmi/src/app/mainwindow.cpp:47]  MainWindow init thread id0x7fc6dc712840
+[2026-10-07 18:07:58,113][INFO] [/opt/hmi/src/core/framework/../../core/framework/message_bus.h:154] [MessageBus::Subscribe] topic: kOccupancyMap, type: N5basic12OccupancyMapE, callback_id: 1
+[2026-10-07 18:07:58,113][INFO] [/opt/hmi/src/core/framework/../../core/framework/message_bus.h:154] [MessageBus::Subscribe] topic: kGlobalCostMap, type: N5basic12OccupancyMapE, callback_id: 2
+[2026-10-07 18:07:58,113][INFO] [/opt/hmi/src/core/framework/../../core/framework/message_bus.h:154] [MessageBus::Subscribe] topic: kLocalCostMap, type: N5basic12OccupancyMapE, callback_id: 3
+[2026-10-07 18:07:58,113][INFO] [/opt/hmi/src/core/framework/../../core/framework/message_bus.h:154] [MessageBus::Subscribe] topic: kOccupancyMap, type: N5basic12OccupancyMapE, callback_id: 4
+[2026-10-07 18:07:58,113][INFO] [/opt/hmi/src/core/framework/../../core/framework/message_bus.h:154] [MessageBus::Subscribe] topic: kGlobalPath, type: St6vectorIN5basic5pointIdEESaIS2_EE, callback_id: 5
+[2026-10-07 18:07:58,113][INFO] [/opt/hmi/src/core/framework/../../core/framework/message_bus.h:154] [MessageBus::Subscribe] topic: kOccupancyMap, type: N5basic12OccupancyMapE, callback_id: 6
+[2026-10-07 18:07:58,113][INFO] [/opt/hmi/src/core/framework/../../core/framework/message_bus.h:154] [MessageBus::Subscribe] topic: kLocalPath, type: St6vectorIN5basic5pointIdEESaIS2_EE, callback_id: 7
+[2026-10-07 18:07:58,113][INFO] [/opt/hmi/src/core/framework/../../core/framework/message_bus.h:154] [MessageBus::Subscribe] topic: kOccupancyMap, type: N5basic12OccupancyMapE, callback_id: 8
+[2026-10-07 18:07:58,113][INFO] [/opt/hmi/src/core/framework/../../core/framework/message_bus.h:154] [MessageBus::Subscribe] topic: kRobotFootprint, type: St6vectorIN5basic5pointIdEESaIS2_EE, callback_id: 9
+[2026-10-07 18:07:58,113][INFO] [/opt/hmi/src/core/framework/../../core/framework/message_bus.h:154] [MessageBus::Subscribe] topic: kTopologyMap, type: 11TopologyMap, callback_id: 10
+[2026-10-07 18:07:58,113][INFO] [/opt/hmi/src/core/framework/../../core/framework/message_bus.h:154] [MessageBus::Subscribe] topic: kOccupancyMap, type: N5basic12OccupancyMapE, callback_id: 11
+[2026-10-07 18:07:58,113][INFO] [/opt/hmi/src/core/framework/../../core/framework/message_bus.h:154] [MessageBus::Subscribe] topic: kRobotPose, type: N5basic13orientedpointIddEE, callback_id: 12
+[2026-10-07 18:07:58,113][INFO] [/opt/hmi/src/core/framework/../../core/framework/message_bus.h:154] [MessageBus::Subscribe] topic: kLaserScan, type: N5basic9LaserScanE, callback_id: 13
+[2026-10-07 18:07:58,181][INFO] [/opt/hmi/src/channel/channel_manager.cc:138] find channel: /opt/hmi_build/lib/libchannel_ros2.so type=ros2
+[2026-10-07 18:07:58,181][INFO] [/opt/hmi/src/channel/channel_manager.cc:138] find channel: /opt/hmi_build/lib/libchannel_rosbridge.so type=rosbridge
+Unknown property content
+This plugin does not support propagateSizeHints()
+[2026-10-07 18:07:58,251][INFO] [/opt/hmi/src/app/main.cpp:43] ros_qt5_gui_app init!
+This plugin does not support propagateSizeHints()
+[2026-10-07 18:07:58,273][INFO] [/opt/hmi/src/basic/map/occupancy_map.h:116] The map does not contain a mode tag or it is invalid... assuming Trinary
+[2026-10-07 18:07:58,273][INFO] [/opt/hmi/src/basic/map/occupancy_map.h:398] read from image width:3 height:3
+[2026-10-07 18:07:58,273][INFO] [/opt/hmi/src/basic/map/occupancy_map.h:484] Map loaded successfully: 3 X 3 @ 0.1 m/cell
+[2026-10-07 18:07:58,273][INFO] [/opt/hmi/src/app/display/display_occ_map.cpp:24] map update calling:0 0
+
+[2026-10-07 18:07:58,279][INFO] [/opt/hmi/src/channel/channel_manager.cc:138] find channel: /opt/hmi_build/lib/libchannel_ros2.so type=ros2
+[2026-10-07 18:07:58,279][INFO] [/opt/hmi/src/channel/channel_manager.cc:138] find channel: /opt/hmi_build/lib/libchannel_rosbridge.so type=rosbridge
+[2026-10-07 18:07:58,279][INFO] [/opt/hmi/src/channel/channel_manager.cc:100] Auto select channel: /opt/hmi_build/lib/libchannel_ros2.so
+[2026-10-07 18:07:58,607][INFO] [/opt/hmi/src/channel/ros2/rclcomm.cpp:125] image location:fronttopic:/camera/front/image_raw
+[2026-10-07 18:07:58,611][INFO] [/opt/hmi/src/core/framework/../../core/framework/message_bus.h:154] [MessageBus::Subscribe] topic: kSetNavGoalPose, type: N5basic13orientedpointIddEE, callback_id: 14
+[2026-10-07 18:07:58,611][INFO] [/opt/hmi/src/core/framework/../../core/framework/message_bus.h:154] [MessageBus::Subscribe] topic: kSetRelocPose, type: N5basic13orientedpointIddEE, callback_id: 15
+[2026-10-07 18:07:58,611][INFO] [/opt/hmi/src/core/framework/../../core/framework/message_bus.h:154] [MessageBus::Subscribe] topic: kSetRobotSpeed, type: N5basic10RobotSpeedE, callback_id: 16
+[2026-10-07 18:07:58,611][INFO] [/opt/hmi/src/core/framework/../../core/framework/message_bus.h:154] [MessageBus::Subscribe] topic: kTopologyMapUpdate, type: 11TopologyMap, callback_id: 17
+start channel success
+[2026-10-07 18:07:58,611][INFO] [/opt/hmi/src/channel/channel_manager.cc:163] open channel: ROS2
+[2026-10-07 18:07:58,611][INFO] [/opt/hmi/src/core/framework/../../core/framework/message_bus.h:154] [MessageBus::Subscribe] topic: kOdomPose, type: N5basic10RobotStateE, callback_id: 18
+[2026-10-07 18:07:58,611][INFO] [/opt/hmi/src/core/framework/../../core/framework/message_bus.h:154] [MessageBus::Subscribe] topic: kRobotPose, type: N5basic13orientedpointIddEE, callback_id: 19
+[2026-10-07 18:07:58,611][INFO] [/opt/hmi/src/core/framework/../../core/framework/message_bus.h:154] [MessageBus::Subscribe] topic: kBatteryState, type: St3mapINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEES5_St4lessIS5_ESaISt4pairIKS5_S5_EEE, callback_id: 20
+[2026-10-07 18:07:58,611][INFO] [/opt/hmi/src/core/framework/../../core/framework/message_bus.h:154] [MessageBus::Subscribe] topic: kImage, type: St4pairINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt10shared_ptrIN2cv3MatEEE, callback_id: 21
+[2026-10-07 18:07:58,611][INFO] [/opt/hmi/src/core/framework/../../core/framework/message_bus.h:154] [MessageBus::Subscribe] topic: kDiagnostic, type: N5basic18DiagnosticSnapshotE, callback_id: 22
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+[2026-10-07 18:07:58,612][INFO] [/opt/hmi/src/basic/map/occupancy_map.h:116] The map does not contain a mode tag or it is invalid... assuming Trinary
+[2026-10-07 18:07:58,612][INFO] [/opt/hmi/src/basic/map/occupancy_map.h:398] read from image width:3 height:3
+[2026-10-07 18:07:58,612][INFO] [/opt/hmi/src/basic/map/occupancy_map.h:484] Map loaded successfully: 3 X 3 @ 0.1 m/cell
+[2026-10-07 18:07:58,612][INFO] [/opt/hmi/src/app/display/display_occ_map.cpp:24] map update calling:3 3
+
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+[INFO] [1791396485.694033331] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp
+Warning: Invalid frame ID "map" passed to canTransform argument target_frame - frame does not exist
+         at line 95 in ./src/buffer_core.cpp

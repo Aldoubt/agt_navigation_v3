@@ -1,0 +1,20 @@
+# INTERMEDIATE build recipe, NOT the final image.
+# Old no-build-isolation setuptools created UNKNOWN; final import check caught it.
+# Final image installs the tested wheel, normalizes code permissions and uses
+# persistent ROS/cache paths; see docker_runtime_acceptance.txt and HANDOFF.md.
+# Cloud VFS incremental finalization: original native sources match candidate build.
+FROM agt-yhs-field:candidate
+SHELL ["/bin/bash", "-c"]
+RUN --mount=type=bind,source=.,target=/run/navigation,ro \
+    --mount=type=bind,from=hmi,source=.,target=/run/hmi,ro \
+    cp -a /run/hmi/. /opt/hmi/ && \
+    cp -a /run/navigation/. /opt/nav_ws/src/agt_navigation_v3/ && \
+    cp /run/navigation/appliance/repos.lock.yaml /opt/agt/versions.yaml && \
+    python3 -m pip install --no-deps --no-build-isolation --force-reinstall /opt/nav_ws/src/agt_navigation_v3/appliance && \
+    source /opt/ros/humble/setup.bash && \
+    cd /opt/nav_ws && source install/setup.bash && \
+    colcon build --packages-select agt_mission_executor --event-handlers console_direct+ && \
+    bash /opt/nav_ws/src/agt_navigation_v3/appliance/scripts/build_hmi.sh
+ARG NAVIGATION_COMMIT
+ARG HMI_PATCH_SHA256
+ENV AGT_NAVIGATION_COMMIT=$NAVIGATION_COMMIT AGT_HMI_PATCH_SHA256=$HMI_PATCH_SHA256

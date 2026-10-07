@@ -1,0 +1,1 @@
+/opt/mapping_ws/install/fastlio2

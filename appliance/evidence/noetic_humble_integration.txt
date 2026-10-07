@@ -1,0 +1,4 @@
+{"noetic_to_humble_odom_hz": 50.08, "command_transfer": true, "stale_command_zero": true, "physical_hardware": "PENDING"}
+{"result": "PASS_ROS2_SOFTWARE_ONLY", "nav2_action_goals": 4, "pause_resume_cancel": true, "localization_lost": true, "nav2_failure": true, "physical_hardware": "PENDING"}
+.
+1 passed in 3.20s

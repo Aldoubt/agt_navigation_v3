@@ -1,0 +1,480 @@
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile.release
+#1 transferring dockerfile: 1.00kB done
+#1 DONE 0.0s
+
+#2 [stage-0 1/2] FROM docker.io/library/agt-yhs-field:candidate
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/agt-yhs-field:candidate
+#3 DONE 0.0s
+
+#4 [context hmi] load .dockerignore
+#4 transferring hmi: 2B done
+#4 DONE 0.0s
+
+#5 [internal] load .dockerignore
+#5 transferring context: 215B done
+#5 DONE 0.0s
+
+#6 [context hmi] load from client
+#6 transferring hmi: 36.34MB 0.7s done
+#6 DONE 0.7s
+
+#7 [internal] load build context
+#7 transferring context: 19.38MB 0.6s done
+#7 DONE 0.7s
+
+#8 [stage-0 2/2] RUN --mount=type=bind,source=.,target=/run/navigation,ro     --mount=type=bind,from=hmi,source=.,target=/run/hmi,ro     cp -a /run/hmi/. /opt/hmi/ &&     cp -a /run/navigation/. /opt/nav_ws/src/agt_navigation_v3/ &&     cp /run/navigation/appliance/repos.lock.yaml /opt/agt/versions.yaml &&     python3 -m pip install --no-deps --no-build-isolation --force-reinstall /opt/nav_ws/src/agt_navigation_v3/appliance &&     source /opt/ros/humble/setup.bash &&     cd /opt/nav_ws && source install/setup.bash &&     colcon build --packages-select agt_mission_executor --event-handlers console_direct+ &&     bash /opt/nav_ws/src/agt_navigation_v3/appliance/scripts/build_hmi.sh
+#8 53.81 Processing /opt/nav_ws/src/agt_navigation_v3/appliance
+#8 53.81   Preparing metadata (pyproject.toml): started
+#8 54.00   Preparing metadata (pyproject.toml): finished with status 'done'
+#8 54.00 Building wheels for collected packages: UNKNOWN
+#8 54.00   Building wheel for UNKNOWN (pyproject.toml): started
+#8 54.19   Building wheel for UNKNOWN (pyproject.toml): finished with status 'done'
+#8 54.19   Created wheel for UNKNOWN: filename=UNKNOWN-0.0.0-py3-none-any.whl size=961 sha256=b8f831d8892fed3df8bafb33ef9de03bc285bfb4baa84a2e8c567ce202ff9963
+#8 54.19   Stored in directory: /tmp/pip-ephem-wheel-cache-2lxwaqjx/wheels/97/4a/64/5c2291cd312d1c0720d7128e04b06cc5e8338736ab77d62252
+#8 54.19 Successfully built UNKNOWN
+#8 54.19 Installing collected packages: UNKNOWN
+#8 54.19   Attempting uninstall: UNKNOWN
+#8 54.19     Found existing installation: UNKNOWN 0.0.0
+#8 54.20     Uninstalling UNKNOWN-0.0.0:
+#8 54.20       Successfully uninstalled UNKNOWN-0.0.0
+#8 54.21 Successfully installed UNKNOWN-0.0.0
+#8 54.21 WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
+#8 55.43 Starting >>> agt_mission_executor
+#8 56.16 running egg_info
+#8 56.16 writing ../../../../../build/agt_mission_executor/agt_mission_executor.egg-info/PKG-INFO
+#8 56.16 writing dependency_links to ../../../../../build/agt_mission_executor/agt_mission_executor.egg-info/dependency_links.txt
+#8 56.16 writing entry points to ../../../../../build/agt_mission_executor/agt_mission_executor.egg-info/entry_points.txt
+#8 56.16 writing top-level names to ../../../../../build/agt_mission_executor/agt_mission_executor.egg-info/top_level.txt
+#8 56.16 reading manifest file '../../../../../build/agt_mission_executor/agt_mission_executor.egg-info/SOURCES.txt'
+#8 56.17 writing manifest file '../../../../../build/agt_mission_executor/agt_mission_executor.egg-info/SOURCES.txt'
+#8 56.17 running build
+#8 56.17 running build_py
+#8 56.17 running install
+#8 56.17 running install_lib
+#8 56.17 running install_data
+#8 56.17 copying launch/field_localization.launch.py -> /opt/nav_ws/install/agt_mission_executor/share/agt_mission_executor/launch
+#8 56.17 running install_egg_info
+#8 56.17 removing '/opt/nav_ws/install/agt_mission_executor/lib/python3.10/site-packages/agt_mission_executor-1.0.0-py3.10.egg-info' (and everything under it)
+#8 56.17 Copying ../../../../../build/agt_mission_executor/agt_mission_executor.egg-info to /opt/nav_ws/install/agt_mission_executor/lib/python3.10/site-packages/agt_mission_executor-1.0.0-py3.10.egg-info
+#8 56.18 running install_scripts
+#8 56.20 Installing mission_executor script to /opt/nav_ws/install/agt_mission_executor/lib/agt_mission_executor
+#8 56.20 writing list of installed files to '/opt/nav_ws/build/agt_mission_executor/install.log'
+#8 56.23 Finished <<< agt_mission_executor [0.80s]
+#8 56.26 
+#8 56.26 Summary: 1 package finished [1.19s]
+#8 56.51 -- get nlohmann_json ...
+#8 56.59 -- Using the multi-header code from /opt/hmi_build/_deps/nlohmann_json-src/include/
+#8 56.59 -- get dockwidget ...
+#8 56.66 -- Forced to use Qt version 5
+#8 56.69 -- get yaml-cpp ...
+#8 56.79 BUILD_WITH_CHANNEL_AUTO
+#8 56.79 Auto USE ROS2 channel
+#8 56.79 -- get topology_msgs ...
+#8 56.86 -- Found ament_cmake: 1.3.14 (/opt/ros/humble/share/ament_cmake/cmake)
+#8 57.02 -- Found rosidl_default_generators: 1.2.1 (/opt/ros/humble/share/rosidl_default_generators/cmake)
+#8 57.03 -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+#8 57.03 -- Found rosidl_adapter: 3.1.9 (/opt/ros/humble/share/rosidl_adapter/cmake)
+#8 57.08 -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+#8 57.41 -- Found ament_cmake_ros: 0.10.1 (/opt/ros/humble/share/ament_cmake_ros/cmake)
+#8 57.59 -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+#8 57.81 -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+#8 57.83 -- Found python_cmake_module: 0.10.0 (/opt/ros/humble/share/python_cmake_module/cmake)
+#8 57.84 -- Using PYTHON_EXECUTABLE: /usr/bin/python3
+#8 57.84 -- Using PYTHON_INCLUDE_DIRS: /usr/include/python3.10
+#8 57.84 -- Using PYTHON_LIBRARIES: /usr/lib/x86_64-linux-gnu/libpython3.10.so
+#8 58.23 -- Found ament_cmake: 1.3.14 (/opt/ros/humble/share/ament_cmake/cmake)
+#8 58.35 -- Found rclcpp: 16.0.21 (/opt/ros/humble/share/rclcpp/cmake)
+#8 58.39 -- Found rosidl_generator_c: 3.1.9 (/opt/ros/humble/share/rosidl_generator_c/cmake)
+#8 58.39 -- Found rosidl_adapter: 3.1.9 (/opt/ros/humble/share/rosidl_adapter/cmake)
+#8 58.40 -- Found rosidl_generator_cpp: 3.1.9 (/opt/ros/humble/share/rosidl_generator_cpp/cmake)
+#8 58.41 -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+#8 58.42 -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+#8 58.47 -- Found rmw_implementation_cmake: 6.1.4 (/opt/ros/humble/share/rmw_implementation_cmake/cmake)
+#8 58.47 -- Found rmw_fastrtps_cpp: 6.2.10 (/opt/ros/humble/share/rmw_fastrtps_cpp/cmake)
+#8 58.56 -- Using RMW implementation 'rmw_fastrtps_cpp' as default
+#8 58.64 -- Found rclcpp_action: 16.0.21 (/opt/ros/humble/share/rclcpp_action/cmake)
+#8 58.69 -- Found nav_msgs: 4.9.2 (/opt/ros/humble/share/nav_msgs/cmake)
+#8 58.74 -- Found tf2: 0.25.23 (/opt/ros/humble/share/tf2/cmake)
+#8 58.75 -- Found tf2_ros: 0.25.23 (/opt/ros/humble/share/tf2_ros/cmake)
+#8 58.82 -- Found tf2_kdl: 0.25.23 (/opt/ros/humble/share/tf2_kdl/cmake)
+#8 58.83 -- Found eigen3_cmake_module: 0.1.1 (/opt/ros/humble/share/eigen3_cmake_module/cmake)
+#8 58.83 -- Ensuring Eigen3 include directory is part of orocos-kdl CMake target
+#8 58.83 -- Found tf2_geometry_msgs: 0.25.23 (/opt/ros/humble/share/tf2_geometry_msgs/cmake)
+#8 58.84 -- Found sensor_msgs: 4.9.2 (/opt/ros/humble/share/sensor_msgs/cmake)
+#8 58.86 -- Found diagnostic_msgs: 4.9.2 (/opt/ros/humble/share/diagnostic_msgs/cmake)
+#8 58.88 -- Found cv_bridge: 3.2.1 (/opt/ros/humble/share/cv_bridge/cmake)
+#8 58.90 -- Found Boost: /usr/lib/x86_64-linux-gnu/cmake/Boost-1.74.0/BoostConfig.cmake (found version "1.74.0") found components: thread 
+#8 58.90 build ROSBridge channel
+#8 58.92 -- Found Boost: /usr/lib/x86_64-linux-gnu/cmake/Boost-1.74.0/BoostConfig.cmake (found version "1.74.0") found components: thread system 
+#8 58.92 -- get websocketpp ...
+#8 59.00 CMake Deprecation Warning at /opt/hmi_build/_deps/websocketpp-src/CMakeLists.txt:5 (cmake_minimum_required):
+#8 59.00   Compatibility with CMake < 2.8.12 will be removed from a future version of
+#8 59.00   CMake.
+#8 59.00 
+#8 59.00   Update the VERSION argument <min> value or use a ...<max> suffix to tell
+#8 59.00   CMake that the project does not need compatibility with older versions.
+#8 59.00 
+#8 59.00 
+#8 59.00 CMake Warning (dev) at /opt/hmi_build/_deps/websocketpp-src/CMakeLists.txt:37 (project):
+#8 59.00   Policy CMP0048 is not set: project() command manages VERSION variables.
+#8 59.00   Run "cmake --help-policy CMP0048" for policy details.  Use the cmake_policy
+#8 59.00   command to set the policy and suppress this warning.
+#8 59.00 
+#8 59.00   The following variable(s) would be set to empty:
+#8 59.00 
+#8 59.00     PROJECT_VERSION
+#8 59.00     PROJECT_VERSION_MAJOR
+#8 59.00     PROJECT_VERSION_MINOR
+#8 59.00     PROJECT_VERSION_PATCH
+#8 59.00 This warning is for project developers.  Use -Wno-dev to suppress it.
+#8 59.00 
+#8 59.00 ** websocketpp
+#8 59.00 
+#8 59.00 =========== Used Build Configuration =============
+#8 59.00 
+#8 59.00 -- ENABLE_CPP11        = ON
+#8 59.00 -- BUILD_EXAMPLES      = OFF
+#8 59.00 -- BUILD_TESTS         = OFF
+#8 59.00 -- WEBSOCKETPP_ROOT    = /opt/hmi_build/_deps/websocketpp-src
+#8 59.00 -- WEBSOCKETPP_BIN     = /opt/hmi_build/_deps/websocketpp-build/bin
+#8 59.00 -- WEBSOCKETPP_LIB     = /opt/hmi_build/_deps/websocketpp-build/lib
+#8 59.00 -- Install prefix      = /usr/local
+#8 59.00 -- WEBSOCKETPP_BOOST_LIBS        = 
+#8 59.00 -- WEBSOCKETPP_PLATFORM_LIBS     = 
+#8 59.00 -- WEBSOCKETPP_PLATFORM_TLS_LIBS = 
+#8 59.00 -- OPENSSL_FOUND        = 
+#8 59.00 -- OPENSSL_INCLUDE_DIR     = /usr/include
+#8 59.00 -- OPENSSL_LIBRARIES = 
+#8 59.00 -- OPENSSL_VERSION = 
+#8 59.00 
+#8 59.00 
+#8 59.00 
+#8 59.00 
+#8 59.01 -- Found Boost: /usr/lib/x86_64-linux-gnu/cmake/Boost-1.74.0/BoostConfig.cmake (found version "1.74.0") found components: filesystem 
+#8 59.05 -- Configuring done
+#8 59.27 -- Generating done
+#8 59.29 -- Build files have been written to: /opt/hmi_build
+#8 59.52 [  0%] Automatic MOC for target qtadvanceddocking-qt5
+#8 59.53 Consolidate compiler generated dependencies of target yaml-cpp
+#8 59.55 [  0%] Built target qtadvanceddocking-qt5_autogen
+#8 59.55 [ 13%] Built target yaml-cpp
+#8 59.56 [ 13%] Built target topology_msgs__cpp
+#8 59.57 [ 13%] Built target topology_msgs__rs
+#8 59.58 Consolidate compiler generated dependencies of target topology_msgs__rosidl_generator_c
+#8 59.59 [ 16%] Built target topology_msgs__rosidl_generator_c
+#8 59.61 [ 16%] Built target ament_cmake_python_copy_topology_msgs
+#8 59.63 Consolidate compiler generated dependencies of target common
+#8 59.63 Consolidate compiler generated dependencies of target qtadvanceddocking-qt5
+#8 59.65 [ 16%] Building CXX object src/common/CMakeFiles/common.dir/config/config_manager.cc.o
+#8 59.65 [ 28%] Built target qtadvanceddocking-qt5
+#8 59.67 Consolidate compiler generated dependencies of target topology_msgs__rosidl_typesupport_cpp
+#8 59.68 [ 32%] Built target topology_msgs__rosidl_typesupport_cpp
+#8 59.70 Consolidate compiler generated dependencies of target topology_msgs__rosidl_typesupport_fastrtps_cpp
+#8 59.71 [ 35%] Built target topology_msgs__rosidl_typesupport_fastrtps_cpp
+#8 59.72 Consolidate compiler generated dependencies of target topology_msgs__rosidl_typesupport_introspection_cpp
+#8 59.74 [ 39%] Built target topology_msgs__rosidl_typesupport_introspection_cpp
+#8 59.75 Consolidate compiler generated dependencies of target topology_msgs__rosidl_typesupport_fastrtps_c
+#8 59.77 [ 42%] Built target topology_msgs__rosidl_typesupport_fastrtps_c
+#8 59.78 Consolidate compiler generated dependencies of target topology_msgs__rosidl_typesupport_introspection_c
+#8 59.79 [ 45%] Built target topology_msgs__rosidl_typesupport_introspection_c
+#8 59.80 Consolidate compiler generated dependencies of target topology_msgs__rosidl_typesupport_c
+#8 59.81 [ 48%] Built target topology_msgs__rosidl_typesupport_c
+#8 60.04 running egg_info
+#8 60.04 writing topology_msgs.egg-info/PKG-INFO
+#8 60.04 writing dependency_links to topology_msgs.egg-info/dependency_links.txt
+#8 60.04 writing top-level names to topology_msgs.egg-info/top_level.txt
+#8 60.04 reading manifest file 'topology_msgs.egg-info/SOURCES.txt'
+#8 60.04 writing manifest file 'topology_msgs.egg-info/SOURCES.txt'
+#8 60.07 [ 48%] Built target ament_cmake_python_build_topology_msgs_egg
+#8 60.08 [ 48%] Built target topology_msgs
+#8 60.10 [ 49%] Built target topology_msgs__py
+#8 60.11 Consolidate compiler generated dependencies of target topology_msgs__rosidl_generator_py
+#8 60.13 [ 52%] Built target topology_msgs__rosidl_generator_py
+#8 60.14 Consolidate compiler generated dependencies of target topology_msgs__rosidl_typesupport_fastrtps_c__pyext
+#8 60.15 [ 53%] Built target topology_msgs__rosidl_typesupport_fastrtps_c__pyext
+#8 60.15 Consolidate compiler generated dependencies of target topology_msgs__rosidl_typesupport_introspection_c__pyext
+#8 60.16 [ 54%] Built target topology_msgs__rosidl_typesupport_introspection_c__pyext
+#8 60.17 Consolidate compiler generated dependencies of target topology_msgs__rosidl_typesupport_c__pyext
+#8 60.18 [ 55%] Built target topology_msgs__rosidl_typesupport_c__pyext
+#8 69.34 [ 55%] Linking CXX shared library ../../libcommon.so
+#8 69.46 [ 56%] Built target common
+#8 69.47 Consolidate compiler generated dependencies of target framework
+#8 69.47 [ 56%] Linking CXX shared library ../../../libframework.so
+#8 69.57 [ 57%] Built target framework
+#8 69.58 Consolidate compiler generated dependencies of target channel
+#8 69.59 Consolidate compiler generated dependencies of target channel_ros2
+#8 69.60 [ 57%] Built target channel
+#8 69.61 [ 57%] Building CXX object src/channel/ros2/CMakeFiles/channel_ros2.dir/rclcomm.cpp.o
+#8 69.63 Consolidate compiler generated dependencies of target channel_rosbridge
+#8 69.66 [ 57%] Building CXX object src/channel/rosbridge/CMakeFiles/channel_rosbridge.dir/rosbridge_comm.cpp.o
+#8 70.19 In file included from /opt/hmi/src/channel/ros2/rclcomm.h:31,
+#8 70.19                  from /opt/hmi/src/channel/ros2/rclcomm.cpp:9:
+#8 70.19 /opt/ros/humble/include/tf2_geometry_msgs/tf2_geometry_msgs/tf2_geometry_msgs.h:35:2: warning: #warning This header is obsolete, please include tf2_geometry_msgs/tf2_geometry_msgs.hpp instead [-Wcpp]
+#8 70.19    35 | #warning This header is obsolete, please include tf2_geometry_msgs/tf2_geometry_msgs.hpp instead
+#8 70.19       |  ^~~~~~~
+#8 72.63 In file included from /opt/hmi/src/channel/virtual_channel_node.h:14,
+#8 72.63                  from /opt/hmi/src/channel/rosbridge/rosbridge_comm.h:4,
+#8 72.63                  from /opt/hmi/src/channel/rosbridge/rosbridge_comm.cpp:7:
+#8 72.63 /opt/hmi/src/basic/map/occupancy_map.h: In member function 'void basic::OccupancyMap::Save(std::string)':
+#8 72.63 /opt/hmi/src/basic/map/occupancy_map.h:351:32: warning: comparison of integer expressions of different signedness: 'unsigned int' and 'int' [-Wsign-compare]
+#8 72.63   351 |     for (unsigned int y = 0; y < height(); y++) {
+#8 72.63       |                              ~~^~~~~~~~~~
+#8 72.63 /opt/hmi/src/basic/map/occupancy_map.h:352:34: warning: comparison of integer expressions of different signedness: 'unsigned int' and 'int' [-Wsign-compare]
+#8 72.63   352 |       for (unsigned int x = 0; x < width(); x++) {
+#8 72.63       |                                ~~^~~~~~~~~
+#8 76.27 In file included from /opt/hmi/src/core/framework/../../core/framework/framework.h:9,
+#8 76.27                  from /opt/hmi/src/channel/virtual_channel_node.h:17,
+#8 76.27                  from /opt/hmi/src/channel/rosbridge/rosbridge_comm.h:4,
+#8 76.27                  from /opt/hmi/src/channel/rosbridge/rosbridge_comm.cpp:7:
+#8 76.27 /opt/hmi/src/core/framework/../../core/framework/message_bus.h: In instantiation of 'void Framework::MessageBus::Publish(const string&, const T&) [with T = basic::orientedpoint<double, double>; std::string = std::__cxx11::basic_string<char>]':
+#8 76.27 /opt/hmi/src/channel/rosbridge/rosbridge_comm.cpp:414:3:   required from here
+#8 76.27 /opt/hmi/src/core/framework/../../core/framework/message_bus.h:122:29: warning: unused variable 'data_type' [-Wunused-variable]
+#8 76.27   122 |       const std::type_info& data_type = typeid(T);
+#8 76.27       |                             ^~~~~~~~~
+#8 76.27 /opt/hmi/src/core/framework/../../core/framework/message_bus.h:123:14: warning: unused variable 'subscriber_count' [-Wunused-variable]
+#8 76.27   123 |       size_t subscriber_count = it->second.size();
+#8 76.27       |              ^~~~~~~~~~~~~~~~
+#8 76.28 /opt/hmi/src/core/framework/../../core/framework/message_bus.h: In instantiation of 'void Framework::MessageBus::Publish(const string&, const T&) [with T = basic::OccupancyMap; std::string = std::__cxx11::basic_string<char>]':
+#8 76.28 /opt/hmi/src/channel/rosbridge/rosbridge_comm.cpp:538:3:   required from here
+#8 76.28 /opt/hmi/src/core/framework/../../core/framework/message_bus.h:122:29: warning: unused variable 'data_type' [-Wunused-variable]
+#8 76.28   122 |       const std::type_info& data_type = typeid(T);
+#8 76.28       |                             ^~~~~~~~~
+#8 76.28 /opt/hmi/src/core/framework/../../core/framework/message_bus.h:123:14: warning: unused variable 'subscriber_count' [-Wunused-variable]
+#8 76.28   123 |       size_t subscriber_count = it->second.size();
+#8 76.28       |              ^~~~~~~~~~~~~~~~
+#8 76.28 /opt/hmi/src/core/framework/../../core/framework/message_bus.h: In instantiation of 'void Framework::MessageBus::Publish(const string&, const T&) [with T = basic::LaserScan; std::string = std::__cxx11::basic_string<char>]':
+#8 76.28 /opt/hmi/src/channel/rosbridge/rosbridge_comm.cpp:707:3:   required from here
+#8 76.28 /opt/hmi/src/core/framework/../../core/framework/message_bus.h:122:29: warning: unused variable 'data_type' [-Wunused-variable]
+#8 76.28   122 |       const std::type_info& data_type = typeid(T);
+#8 76.28       |                             ^~~~~~~~~
+#8 76.28 /opt/hmi/src/core/framework/../../core/framework/message_bus.h:123:14: warning: unused variable 'subscriber_count' [-Wunused-variable]
+#8 76.28   123 |       size_t subscriber_count = it->second.size();
+#8 76.28       |              ^~~~~~~~~~~~~~~~
+#8 76.29 /opt/hmi/src/core/framework/../../core/framework/message_bus.h: In instantiation of 'void Framework::MessageBus::Publish(const string&, const T&) [with T = std::vector<basic::point<double> >; std::string = std::__cxx11::basic_string<char>]':
+#8 76.29 /opt/hmi/src/channel/rosbridge/rosbridge_comm.cpp:732:3:   required from here
+#8 76.29 /opt/hmi/src/core/framework/../../core/framework/message_bus.h:122:29: warning: unused variable 'data_type' [-Wunused-variable]
+#8 76.29   122 |       const std::type_info& data_type = typeid(T);
+#8 76.29       |                             ^~~~~~~~~
+#8 76.29 /opt/hmi/src/core/framework/../../core/framework/message_bus.h:123:14: warning: unused variable 'subscriber_count' [-Wunused-variable]
+#8 76.29   123 |       size_t subscriber_count = it->second.size();
+#8 76.29       |              ^~~~~~~~~~~~~~~~
+#8 76.30 /opt/hmi/src/core/framework/../../core/framework/message_bus.h: In instantiation of 'void Framework::MessageBus::Publish(const string&, const T&) [with T = std::map<std::__cxx11::basic_string<char>, std::__cxx11::basic_string<char> >; std::string = std::__cxx11::basic_string<char>]':
+#8 76.30 /opt/hmi/src/channel/rosbridge/rosbridge_comm.cpp:791:3:   required from here
+#8 76.30 /opt/hmi/src/core/framework/../../core/framework/message_bus.h:122:29: warning: unused variable 'data_type' [-Wunused-variable]
+#8 76.30   122 |       const std::type_info& data_type = typeid(T);
+#8 76.30       |                             ^~~~~~~~~
+#8 76.30 /opt/hmi/src/core/framework/../../core/framework/message_bus.h:123:14: warning: unused variable 'subscriber_count' [-Wunused-variable]
+#8 76.30   123 |       size_t subscriber_count = it->second.size();
+#8 76.30       |              ^~~~~~~~~~~~~~~~
+#8 76.31 /opt/hmi/src/core/framework/../../core/framework/message_bus.h: In instantiation of 'void Framework::MessageBus::Publish(const string&, const T&) [with T = basic::DiagnosticSnapshot; std::string = std::__cxx11::basic_string<char>]':
+#8 76.31 /opt/hmi/src/channel/rosbridge/rosbridge_comm.cpp:916:3:   required from here
+#8 76.31 /opt/hmi/src/core/framework/../../core/framework/message_bus.h:122:29: warning: unused variable 'data_type' [-Wunused-variable]
+#8 76.31   122 |       const std::type_info& data_type = typeid(T);
+#8 76.31       |                             ^~~~~~~~~
+#8 76.31 /opt/hmi/src/core/framework/../../core/framework/message_bus.h:123:14: warning: unused variable 'subscriber_count' [-Wunused-variable]
+#8 76.31   123 |       size_t subscriber_count = it->second.size();
+#8 76.31       |              ^~~~~~~~~~~~~~~~
+#8 76.32 /opt/hmi/src/core/framework/../../core/framework/message_bus.h: In instantiation of 'void Framework::MessageBus::Publish(const string&, const T&) [with T = basic::RobotState; std::string = std::__cxx11::basic_string<char>]':
+#8 76.32 /opt/hmi/src/channel/rosbridge/rosbridge_comm.cpp:952:3:   required from here
+#8 76.32 /opt/hmi/src/core/framework/../../core/framework/message_bus.h:122:29: warning: unused variable 'data_type' [-Wunused-variable]
+#8 76.32   122 |       const std::type_info& data_type = typeid(T);
+#8 76.32       |                             ^~~~~~~~~
+#8 76.32 /opt/hmi/src/core/framework/../../core/framework/message_bus.h:123:14: warning: unused variable 'subscriber_count' [-Wunused-variable]
+#8 76.32   123 |       size_t subscriber_count = it->second.size();
+#8 76.32       |              ^~~~~~~~~~~~~~~~
+#8 76.36 /opt/hmi/src/core/framework/../../core/framework/message_bus.h: In instantiation of 'void Framework::MessageBus::Publish(const string&, const T&) [with T = TopologyMap; std::string = std::__cxx11::basic_string<char>]':
+#8 76.36 /opt/hmi/src/channel/rosbridge/rosbridge_comm.cpp:1076:3:   required from here
+#8 76.36 /opt/hmi/src/core/framework/../../core/framework/message_bus.h:122:29: warning: unused variable 'data_type' [-Wunused-variable]
+#8 76.36   122 |       const std::type_info& data_type = typeid(T);
+#8 76.36       |                             ^~~~~~~~~
+#8 76.36 /opt/hmi/src/core/framework/../../core/framework/message_bus.h:123:14: warning: unused variable 'subscriber_count' [-Wunused-variable]
+#8 76.36   123 |       size_t subscriber_count = it->second.size();
+#8 76.36       |              ^~~~~~~~~~~~~~~~
+#8 76.37 /opt/hmi/src/core/framework/../../core/framework/message_bus.h: In instantiation of 'void Framework::MessageBus::Publish(const string&, const T&) [with T = std::pair<std::__cxx11::basic_string<char>, cv::Mat>; std::string = std::__cxx11::basic_string<char>]':
+#8 76.37 /opt/hmi/src/channel/rosbridge/rosbridge_comm.cpp:1147:3:   required from here
+#8 76.37 /opt/hmi/src/core/framework/../../core/framework/message_bus.h:122:29: warning: unused variable 'data_type' [-Wunused-variable]
+#8 76.37   122 |       const std::type_info& data_type = typeid(T);
+#8 76.37       |                             ^~~~~~~~~
+#8 76.37 /opt/hmi/src/core/framework/../../core/framework/message_bus.h:123:14: warning: unused variable 'subscriber_count' [-Wunused-variable]
+#8 76.37   123 |       size_t subscriber_count = it->second.size();
+#8 76.37       |              ^~~~~~~~~~~~~~~~
+#8 88.79 [ 58%] Linking CXX shared library ../../../lib/libchannel_rosbridge.so
+#8 89.29 [ 61%] Built target channel_rosbridge
+#8 89.31 [ 62%] Generating widgets/moc_field_client.cpp
+#8 89.31 /opt/hmi/src/app/widgets/field_client.h:0: Note: No relevant classes found. No output generated.
+#8 89.32 [ 62%] Generating widgets/moc_field_panel.cpp
+#8 89.33 [ 62%] Generating widgets/moc_field_route_model.cpp
+#8 89.33 /opt/hmi/src/app/widgets/field_route_model.h:0: Note: No relevant classes found. No output generated.
+#8 89.34 [ 62%] Generating widgets/moc_nav_goal_table_view.cpp
+#8 89.47 Consolidate compiler generated dependencies of target ros_qt5_gui_app
+#8 89.52 [ 63%] Building CXX object src/app/CMakeFiles/ros_qt5_gui_app.dir/main.cpp.o
+#8 94.41 In file included from /opt/hmi/src/app/mainwindow.h:38,
+#8 94.41                  from /opt/hmi/src/app/main.cpp:21:
+#8 94.41 /opt/hmi/src/app/widgets/ratio_layouted_frame.h:58:71: warning: 'constexpr QFlags<T>::QFlags(QFlags<T>::Zero) [with Enum = Qt::WindowType; QFlags<T>::Zero = int QFlags<Qt::WindowType>::Private::*]' is deprecated: Use default constructor instead [-Wdeprecated-declarations]
+#8 94.41    58 |   RatioLayoutedFrame(QWidget* parent=nullptr, Qt::WindowFlags flags = 0);
+#8 94.41       |                                                                       ^
+#8 94.41 In file included from /usr/include/x86_64-linux-gnu/qt5/QtCore/qglobal.h:1299,
+#8 94.41                  from /usr/include/x86_64-linux-gnu/qt5/QtGui/qtguiglobal.h:43,
+#8 94.41                  from /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qtwidgetsglobal.h:43,
+#8 94.41                  from /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qapplication.h:43,
+#8 94.41                  from /usr/include/x86_64-linux-gnu/qt5/QtWidgets/QApplication:1,
+#8 94.41                  from /opt/hmi/src/app/main.cpp:12:
+#8 94.41 /usr/include/x86_64-linux-gnu/qt5/QtCore/qflags.h:123:80: note: declared here
+#8 94.41   123 |     QT_DEPRECATED_X("Use default constructor instead") Q_DECL_CONSTEXPR inline QFlags(Zero) noexcept : i(0) {}
+#8 94.41       |                                                                                ^~~~~~
+#8 96.12 [ 63%] Building CXX object src/app/CMakeFiles/ros_qt5_gui_app.dir/mainwindow.cpp.o
+#8 100.8 In file included from /opt/hmi/src/app/mainwindow.h:38,
+#8 100.8                  from /opt/hmi/src/app/mainwindow.cpp:10:
+#8 100.8 /opt/hmi/src/app/widgets/ratio_layouted_frame.h:58:71: warning: 'constexpr QFlags<T>::QFlags(QFlags<T>::Zero) [with Enum = Qt::WindowType; QFlags<T>::Zero = int QFlags<Qt::WindowType>::Private::*]' is deprecated: Use default constructor instead [-Wdeprecated-declarations]
+#8 100.8    58 |   RatioLayoutedFrame(QWidget* parent=nullptr, Qt::WindowFlags flags = 0);
+#8 100.8       |                                                                       ^
+#8 100.8 In file included from /usr/include/x86_64-linux-gnu/qt5/QtCore/qglobal.h:1299,
+#8 100.8                  from /usr/include/x86_64-linux-gnu/qt5/QtGui/qtguiglobal.h:43,
+#8 100.8                  from /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qtwidgetsglobal.h:43,
+#8 100.8                  from /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qcalendarwidget.h:43,
+#8 100.8                  from /usr/include/x86_64-linux-gnu/qt5/QtWidgets/QCalendarWidget:1,
+#8 100.8                  from /opt/hmi/src/app/mainwindow.h:4,
+#8 100.8                  from /opt/hmi/src/app/mainwindow.cpp:10:
+#8 100.8 /usr/include/x86_64-linux-gnu/qt5/QtCore/qflags.h:123:80: note: declared here
+#8 100.8   123 |     QT_DEPRECATED_X("Use default constructor instead") Q_DECL_CONSTEXPR inline QFlags(Zero) noexcept : i(0) {}
+#8 100.8       |                                                                                ^~~~~~
+#8 101.2 /opt/hmi/src/app/mainwindow.cpp: In member function 'void MainWindow::setupUi()':
+#8 101.2 /opt/hmi/src/app/mainwindow.cpp:670:67: warning: 'ads::CDockWidget::CDockWidget(const QString&, QWidget*)' is deprecated [-Wdeprecated-declarations]
+#8 101.2   670 |   CDockWidget *CentralDockWidget = new CDockWidget("CentralWidget");
+#8 101.2       |                                                                   ^
+#8 101.2 In file included from /opt/hmi_build/_deps/dockwidget-src/src/DockAreaWidget.h:37,
+#8 101.2                  from /opt/hmi/src/app/mainwindow.h:27,
+#8 101.2                  from /opt/hmi/src/app/mainwindow.cpp:10:
+#8 101.2 /opt/hmi_build/_deps/dockwidget-src/src/DockWidget.h:262:32: note: declared here
+#8 101.2   262 |     Q_DECL_DEPRECATED explicit CDockWidget(const QString &title, QWidget* parent = nullptr);
+#8 101.2       |                                ^~~~~~~~~~~
+#8 101.2 /opt/hmi/src/app/mainwindow.cpp:676:75: warning: 'ads::CDockWidget::CDockWidget(const QString&, QWidget*)' is deprecated [-Wdeprecated-declarations]
+#8 101.2   676 |   ads::CDockWidget *DashBoardDockWidget = new ads::CDockWidget("DashBoard");
+#8 101.2       |                                                                           ^
+#8 101.2 In file included from /opt/hmi_build/_deps/dockwidget-src/src/DockAreaWidget.h:37,
+#8 101.2                  from /opt/hmi/src/app/mainwindow.h:27,
+#8 101.2                  from /opt/hmi/src/app/mainwindow.cpp:10:
+#8 101.2 /opt/hmi_build/_deps/dockwidget-src/src/DockWidget.h:262:32: note: declared here
+#8 101.2   262 |     Q_DECL_DEPRECATED explicit CDockWidget(const QString &title, QWidget* parent = nullptr);
+#8 101.2       |                                ^~~~~~~~~~~
+#8 101.2 /opt/hmi/src/app/mainwindow.cpp:691:75: warning: 'ads::CDockWidget::CDockWidget(const QString&, QWidget*)' is deprecated [-Wdeprecated-declarations]
+#8 101.2   691 |   ads::CDockWidget *SpeedCtrlDockWidget = new ads::CDockWidget("SpeedCtrl");
+#8 101.2       |                                                                           ^
+#8 101.2 In file included from /opt/hmi_build/_deps/dockwidget-src/src/DockAreaWidget.h:37,
+#8 101.2                  from /opt/hmi/src/app/mainwindow.h:27,
+#8 101.2                  from /opt/hmi/src/app/mainwindow.cpp:10:
+#8 101.2 /opt/hmi_build/_deps/dockwidget-src/src/DockWidget.h:262:32: note: declared here
+#8 101.2   262 |     Q_DECL_DEPRECATED explicit CDockWidget(const QString &title, QWidget* parent = nullptr);
+#8 101.2       |                                ^~~~~~~~~~~
+#8 101.2 /opt/hmi/src/app/mainwindow.cpp:702:54: warning: 'ads::CDockWidget::CDockWidget(const QString&, QWidget*)' is deprecated [-Wdeprecated-declarations]
+#8 101.2   702 |   settings_dock_ = new ads::CDockWidget(tr("Setting"));
+#8 101.2       |                                                      ^
+#8 101.2 In file included from /opt/hmi_build/_deps/dockwidget-src/src/DockAreaWidget.h:37,
+#8 101.2                  from /opt/hmi/src/app/mainwindow.h:27,
+#8 101.2                  from /opt/hmi/src/app/mainwindow.cpp:10:
+#8 101.2 /opt/hmi_build/_deps/dockwidget-src/src/DockWidget.h:262:32: note: declared here
+#8 101.2   262 |     Q_DECL_DEPRECATED explicit CDockWidget(const QString &title, QWidget* parent = nullptr);
+#8 101.2       |                                ^~~~~~~~~~~
+#8 101.2 /opt/hmi/src/app/mainwindow.cpp:714:59: warning: 'ads::CDockWidget::CDockWidget(const QString&, QWidget*)' is deprecated [-Wdeprecated-declarations]
+#8 101.2   714 |   diagnostic_dock_ = new ads::CDockWidget(tr("Diagnostic"));
+#8 101.2       |                                                           ^
+#8 101.2 In file included from /opt/hmi_build/_deps/dockwidget-src/src/DockAreaWidget.h:37,
+#8 101.2                  from /opt/hmi/src/app/mainwindow.h:27,
+#8 101.2                  from /opt/hmi/src/app/mainwindow.cpp:10:
+#8 101.2 /opt/hmi_build/_deps/dockwidget-src/src/DockWidget.h:262:32: note: declared here
+#8 101.2   262 |     Q_DECL_DEPRECATED explicit CDockWidget(const QString &title, QWidget* parent = nullptr);
+#8 101.2       |                                ^~~~~~~~~~~
+#8 101.2 /opt/hmi/src/app/mainwindow.cpp:727:59: warning: 'ads::CDockWidget::CDockWidget(const QString&, QWidget*)' is deprecated [-Wdeprecated-declarations]
+#8 101.2   727 |     auto field_dock=new ads::CDockWidget("AGT YHS CONTROL");
+#8 101.2       |                                                           ^
+#8 101.2 In file included from /opt/hmi_build/_deps/dockwidget-src/src/DockAreaWidget.h:37,
+#8 101.2                  from /opt/hmi/src/app/mainwindow.h:27,
+#8 101.2                  from /opt/hmi/src/app/mainwindow.cpp:10:
+#8 101.2 /opt/hmi_build/_deps/dockwidget-src/src/DockWidget.h:262:32: note: declared here
+#8 101.2   262 |     Q_DECL_DEPRECATED explicit CDockWidget(const QString &title, QWidget* parent = nullptr);
+#8 101.2       |                                ^~~~~~~~~~~
+#8 101.2 /opt/hmi/src/app/mainwindow.cpp:738:76: warning: 'ads::CDockWidget::CDockWidget(const QString&, QWidget*)' is deprecated [-Wdeprecated-declarations]
+#8 101.2   738 |   ads::CDockWidget *nav_goal_list_dock_widget = new ads::CDockWidget("Task");
+#8 101.2       |                                                                            ^
+#8 101.2 In file included from /opt/hmi_build/_deps/dockwidget-src/src/DockAreaWidget.h:37,
+#8 101.2                  from /opt/hmi/src/app/mainwindow.h:27,
+#8 101.2                  from /opt/hmi/src/app/mainwindow.cpp:10:
+#8 101.2 /opt/hmi_build/_deps/dockwidget-src/src/DockWidget.h:262:32: note: declared here
+#8 101.2   262 |     Q_DECL_DEPRECATED explicit CDockWidget(const QString &title, QWidget* parent = nullptr);
+#8 101.2       |                                ^~~~~~~~~~~
+#8 101.3 /opt/hmi/src/app/mainwindow.cpp:889:67: warning: 'constexpr QFlags<T>::QFlags(QFlags<T>::Zero) [with Enum = Qt::WindowType; QFlags<T>::Zero = int QFlags<Qt::WindowType>::Private::*]' is deprecated: Use default constructor instead [-Wdeprecated-declarations]
+#8 101.3   889 |     image_frame_map_[one_image.location] = new RatioLayoutedFrame();
+#8 101.3       |                                                                   ^
+#8 101.3 In file included from /usr/include/x86_64-linux-gnu/qt5/QtCore/qglobal.h:1299,
+#8 101.3                  from /usr/include/x86_64-linux-gnu/qt5/QtGui/qtguiglobal.h:43,
+#8 101.3                  from /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qtwidgetsglobal.h:43,
+#8 101.3                  from /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qcalendarwidget.h:43,
+#8 101.3                  from /usr/include/x86_64-linux-gnu/qt5/QtWidgets/QCalendarWidget:1,
+#8 101.3                  from /opt/hmi/src/app/mainwindow.h:4,
+#8 101.3                  from /opt/hmi/src/app/mainwindow.cpp:10:
+#8 101.3 /usr/include/x86_64-linux-gnu/qt5/QtCore/qflags.h:123:80: note: declared here
+#8 101.3   123 |     QT_DEPRECATED_X("Use default constructor instead") Q_DECL_CONSTEXPR inline QFlags(Zero) noexcept : i(0) {}
+#8 101.3       |                                                                                ^~~~~~
+#8 101.3 /opt/hmi/src/app/mainwindow.cpp:890:108: warning: 'ads::CDockWidget::CDockWidget(const QString&, QWidget*)' is deprecated [-Wdeprecated-declarations]
+#8 101.3   890 |     ads::CDockWidget *dock_widget = new ads::CDockWidget(std::string("image/" + one_image.location).c_str());
+#8 101.3       |                                                                                                            ^
+#8 101.3 In file included from /opt/hmi_build/_deps/dockwidget-src/src/DockAreaWidget.h:37,
+#8 101.3                  from /opt/hmi/src/app/mainwindow.h:27,
+#8 101.3                  from /opt/hmi/src/app/mainwindow.cpp:10:
+#8 101.3 /opt/hmi_build/_deps/dockwidget-src/src/DockWidget.h:262:32: note: declared here
+#8 101.3   262 |     Q_DECL_DEPRECATED explicit CDockWidget(const QString &title, QWidget* parent = nullptr);
+#8 101.3       |                                ^~~~~~~~~~~
+#8 108.7 [ 63%] Building CXX object src/app/CMakeFiles/ros_qt5_gui_app.dir/widgets/nav_goal_table_view.cpp.o
+#8 117.4 [ 63%] Building CXX object src/app/CMakeFiles/ros_qt5_gui_app.dir/moc_mainwindow.cpp.o
+#8 118.9 [ 64%] Linking CXX shared library ../../../lib/libchannel_ros2.so
+#8 119.4 [ 65%] Built target channel_ros2
+#8 119.4 [ 65%] Building CXX object src/app/CMakeFiles/ros_qt5_gui_app.dir/widgets/moc_field_client.cpp.o
+#8 119.4 [ 65%] Building CXX object src/app/CMakeFiles/ros_qt5_gui_app.dir/widgets/moc_field_panel.cpp.o
+#8 122.3 In file included from /opt/hmi_build/src/app/../../../hmi/src/app/mainwindow.h:38,
+#8 122.3                  from /opt/hmi_build/src/app/moc_mainwindow.cpp:10:
+#8 122.3 /opt/hmi_build/src/app/../../../hmi/src/app/widgets/ratio_layouted_frame.h:58:71: warning: 'constexpr QFlags<T>::QFlags(QFlags<T>::Zero) [with Enum = Qt::WindowType; QFlags<T>::Zero = int QFlags<Qt::WindowType>::Private::*]' is deprecated: Use default constructor instead [-Wdeprecated-declarations]
+#8 122.3    58 |   RatioLayoutedFrame(QWidget* parent=nullptr, Qt::WindowFlags flags = 0);
+#8 122.3       |                                                                       ^
+#8 122.3 In file included from /usr/include/x86_64-linux-gnu/qt5/QtCore/qglobal.h:1299,
+#8 122.3                  from /usr/include/x86_64-linux-gnu/qt5/QtGui/qtguiglobal.h:43,
+#8 122.3                  from /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qtwidgetsglobal.h:43,
+#8 122.3                  from /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qcalendarwidget.h:43,
+#8 122.3                  from /usr/include/x86_64-linux-gnu/qt5/QtWidgets/QCalendarWidget:1,
+#8 122.3                  from /opt/hmi_build/src/app/../../../hmi/src/app/mainwindow.h:4,
+#8 122.3                  from /opt/hmi_build/src/app/moc_mainwindow.cpp:10:
+#8 122.3 /usr/include/x86_64-linux-gnu/qt5/QtCore/qflags.h:123:80: note: declared here
+#8 122.3   123 |     QT_DEPRECATED_X("Use default constructor instead") Q_DECL_CONSTEXPR inline QFlags(Zero) noexcept : i(0) {}
+#8 122.3       |                                                                                ^~~~~~
+#8 123.0 [ 66%] Building CXX object src/app/CMakeFiles/ros_qt5_gui_app.dir/widgets/moc_field_route_model.cpp.o
+#8 123.0 [ 67%] Building CXX object src/app/CMakeFiles/ros_qt5_gui_app.dir/widgets/moc_nav_goal_table_view.cpp.o
+#8 126.2 [ 67%] Linking CXX executable ../../ros_qt5_gui_app
+#8 127.0 Copying start.sh to build directory
+#8 127.0 Setting execute permissions on start.sh
+#8 127.0 [100%] Built target ros_qt5_gui_app
+#8 127.0 -- Configuring done
+#8 127.0 -- Generating done
+#8 127.0 -- Build files have been written to: /opt/hmi_field_tests
+#8 127.1 Consolidate compiler generated dependencies of target field_hmi_logic_test
+#8 127.1 [ 50%] Building CXX object CMakeFiles/field_hmi_logic_test.dir/field_hmi_logic_test.cpp.o
+#8 128.4 [100%] Linking CXX executable field_hmi_logic_test
+#8 128.7 [100%] Built target field_hmi_logic_test
+#8 128.7 Internal ctest changing into directory: /opt/hmi_field_tests
+#8 128.7 Test project /opt/hmi_field_tests
+#8 128.7     Start 1: field_hmi_logic
+#8 128.8 1/1 Test #1: field_hmi_logic ..................   Passed    0.02 sec
+#8 128.8 
+#8 128.8 100% tests passed, 0 tests failed out of 1
+#8 128.8 
+#8 128.8 Total Test time (real) =   0.02 sec
+#8 DONE 128.8s
+
+#9 exporting to image
+#9 exporting layers
+#9 exporting layers 4.0s done
+#9 writing image sha256:64bdc9504162a557cb701957f492ee3ec3220ff137f3e07ebe43a09e0dd23d54 done
+#9 naming to docker.io/library/agt-yhs-field:v1 done
+#9 DONE 4.0s

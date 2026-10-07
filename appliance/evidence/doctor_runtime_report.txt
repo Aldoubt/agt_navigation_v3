@@ -1,0 +1,262 @@
+Report: /workspace/scratch/final-appliance/diagnostics/agt_diagnostic_20261007_180757_617828.zip
+{
+  "schema_version": 1,
+  "timestamp": "2026-10-07T18:07:51.594370+00:00",
+  "mock": true,
+  "checks": {
+    "calibration": "PASS_MOCK",
+    "real_hardware": "PENDING",
+    "can": "MOCK_ONLY",
+    "tf_duplicate_publishers": "PENDING",
+    "critical_topic_rates": {
+      "LiDAR": {
+        "state": "ONLINE",
+        "frequency": 100,
+        "last_timestamp": 1791396464.3356664
+      },
+      "IMU": {
+        "state": "ONLINE",
+        "frequency": 100,
+        "last_timestamp": 1791396464.3356671
+      },
+      "CAN": {
+        "state": "ACTIVE",
+        "frequency": 100,
+        "last_timestamp": 1791396464.3356676
+      },
+      "YHS": {
+        "state": "ONLINE",
+        "frequency": 100,
+        "last_timestamp": 1791396464.335668
+      },
+      "Wheel Odom": {
+        "state": "ONLINE",
+        "frequency": 50,
+        "last_timestamp": 1791396464.3356686
+      }
+    },
+    "tf_frames": {},
+    "map_bundle": "PASS_MOCK"
+  },
+  "host": {
+    "os": "Linux-6.18.44-x86_64-with-glibc2.35",
+    "disk": {
+      "total": 33770192896,
+      "used": 26894139392,
+      "free": 5141291008
+    },
+    "memory": "MemTotal:       10207516 kB\nMemFree:         1306064 kB\nMemAvailable:    9237756 kB\nBuffers:          546040 kB\nCached:          6523292 kB\nSwapCached:            0 kB\nActive:          6066184 kB\nInactive:        1156808 kB\nActive(anon):       5028 kB\nInactive(anon):   183796 kB\nActive(file):    6061156 kB\nInactive(file):   973012 kB\nUnevictable:       29920 kB\nMlocked:               0 kB\nSwapTotal:             0 kB\nSwapFree:              0 kB\nDirty:            401524 kB\nWriteback:             0 kB\nAnonPages:        183936 kB\nMapped:           110968 kB\nShmem:              5248 kB\nKReclaimable:    1211200 kB\nSlab:            1339792 kB\nSReclaimable:    1211200 kB\nSUnreclaim:       128592 kB\nKernelStack:        2112 kB\nPageTables:         4660 kB\nSecPageTables:         0 kB\nNFS_Unstable:          0 kB\nBounce:                0 kB\nWritebackTmp:          0 kB\nCommitLimit:     5103756 kB\nCommitted_AS:    1327076 kB\nVmallocTotal:   34359738367 kB\nVmallocUsed:        3288 kB\nVmallocChunk:          0 kB\nPercpu:              960 kB\nAnonHugePages:         0 kB\nShmemHugePages:        0 kB\nShmemPmdMapped:        0 kB\nFileHugePages:   1036288 kB\nFilePmdMapped:         0 kB\nBalloon:               0 kB\nHugePages_Total:       0\nHugePages_Free:        0\nHugePages_Rsvd:        0\nHugePages_Surp:        0\nHugepagesize:       2048 kB\nHugetlb:               0 kB\nDirectMap4k:      389120 kB\nDirectMap2M:     9295872 kB\nDirectMap1G:    17825792 kB\n",
+    "network": {
+      "exit_code": 0,
+      "stdout": "[{\"ifindex\":1,\"ifname\":\"lo\",\"flags\":[\"LOOPBACK\",\"UP\",\"LOWER_UP\"],\"mtu\":65536,\"qdisc\":\"noqueue\",\"operstate\":\"UNKNOWN\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"loopback\",\"address\":\"00:00:00:00:00:00\",\"broadcast\":\"00:00:00:00:00:00\",\"addr_info\":[{\"family\":\"inet\",\"local\":\"127.0.0.1\",\"prefixlen\":8,\"scope\":\"host\",\"label\":\"lo\",\"valid_life_time\":4294967295,\"preferred_life_time\":4294967295},{\"family\":\"inet6\",\"local\":\"::1\",\"prefixlen\":128,\"scope\":\"host\",\"valid_life_time\":4294967295,\"preferred_life_time\":4294967295}]},{\"ifindex\":2,\"ifname\":\"eth0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"pfifo_fast\",\"operstate\":\"UP\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"1e:b1:88:30:4c:0a\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"addr_info\":[{\"family\":\"inet\",\"local\":\"172.26.91.243\",\"prefixlen\":22,\"broadcast\":\"172.26.91.255\",\"scope\":\"global\",\"label\":\"eth0\",\"valid_life_time\":4294967295,\"preferred_life_time\":4294967295},{\"family\":\"inet6\",\"local\":\"fe80::1cb1:88ff:fe30:4c0a\",\"prefixlen\":64,\"scope\":\"link\",\"valid_life_time\":4294967295,\"preferred_life_time\":4294967295}]},{\"ifindex\":3,\"ifname\":\"eth1\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"pfifo_fast\",\"operstate\":\"UP\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"72:69:e2:1a:b7:a5\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"addr_info\":[{\"family\":\"inet\",\"local\":\"172.31.6.14\",\"prefixlen\":28,\"broadcast\":\"172.31.6.15\",\"scope\":\"global\",\"label\":\"eth1\",\"valid_life_time\":4294967295,\"preferred_life_time\":4294967295},{\"family\":\"inet6\",\"local\":\"fe80::7069:e2ff:fe1a:b7a5\",\"prefixlen\":64,\"scope\":\"link\",\"valid_life_time\":4294967295,\"preferred_life_time\":4294967295}]},{\"ifindex\":4,\"ifname\":\"docker0\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"62:ee:97:4f:01:ae\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"addr_info\":[{\"family\":\"inet\",\"local\":\"172.17.0.1\",\"prefixlen\":16,\"broadcast\":\"172.17.255.255\",\"scope\":\"global\",\"label\":\"docker0\",\"valid_life_time\":4294967295,\"preferred_life_time\":4294967295},{\"family\":\"inet6\",\"local\":\"fe80::60ee:97ff:fe4f:1ae\",\"prefixlen\":64,\"scope\":\"link\",\"valid_life_time\":4294967295,\"preferred_life_time\":4294967295}]}]\n",
+      "stderr": ""
+    },
+    "docker": {
+      "exit_code": -1,
+      "error": "[Errno 2] No such file or directory: 'docker'"
+    },
+    "compose": {
+      "exit_code": -1,
+      "error": "[Errno 2] No such file or directory: 'docker'"
+    },
+    "host_observations": {
+      "os": "Linux-6.18.44-x86_64-with-glibc2.41",
+      "docker": {
+        "exit_code": 0,
+        "stdout": "{\"Command\":\"\\\"/opt/nav_ws/src/agt…\\\"\",\"CreatedAt\":\"2026-10-07 18:05:00 +0000 UTC\",\"ID\":\"8c7405f3a635\",\"Image\":\"agt-yhs-field:v1\",\"Labels\":\"com.docker.compose.config-hash=59e0325cefeb4ac46ca81c73cf3b8ba945a5f2e67eddb7673b5afdd9e048c8c4,com.docker.compose.container-number=1,com.docker.compose.depends_on=,com.docker.compose.image=sha256:f8621fe2f03f0398eaaf8e209d45de5f6e8af6f60ca85dce7d3af823e6923c06,com.docker.compose.oneoff=False,com.docker.compose.project.config_files=/workspace/agt_navigation_v3/appliance/docker-compose.yml,com.docker.compose.project.working_dir=/workspace/agt_navigation_v3/appliance,com.docker.compose.project=agt-yhs,com.docker.compose.service=runtime,com.docker.compose.version=2.40.3\",\"LocalVolumes\":\"0\",\"Mounts\":\"/workspace/scr…,/dev/null,/tmp/.X11-unix\",\"Names\":\"agt-yhs-runtime-1\",\"Networks\":\"host\",\"Platform\":null,\"Ports\":\"\",\"RunningFor\":\"2 minutes ago\",\"Size\":\"0B (virtual 3.8GB)\",\"State\":\"running\",\"Status\":\"Up About a minute (healthy)\"}\n",
+        "stderr": ""
+      },
+      "compose": {
+        "exit_code": 0,
+        "stdout": "Docker Compose version v2.40.3\n",
+        "stderr": ""
+      },
+      "network": {
+        "exit_code": 0,
+        "stdout": "[{\"ifindex\":1,\"ifname\":\"lo\",\"flags\":[\"LOOPBACK\",\"UP\",\"LOWER_UP\"],\"mtu\":65536,\"qdisc\":\"noqueue\",\"operstate\":\"UNKNOWN\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"loopback\",\"address\":\"00:00:00:00:00:00\",\"broadcast\":\"00:00:00:00:00:00\",\"addr_info\":[{\"family\":\"inet\",\"local\":\"127.0.0.1\",\"prefixlen\":8,\"scope\":\"host\",\"label\":\"lo\",\"valid_life_time\":4294967295,\"preferred_life_time\":4294967295},{\"family\":\"inet6\",\"local\":\"::1\",\"prefixlen\":128,\"scope\":\"host\",\"protocol\":\"kernel_lo\",\"valid_life_time\":4294967295,\"preferred_life_time\":4294967295}]},{\"ifindex\":2,\"ifname\":\"eth0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"pfifo_fast\",\"operstate\":\"UP\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"1e:b1:88:30:4c:0a\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"addr_info\":[{\"family\":\"inet\",\"local\":\"172.26.91.243\",\"prefixlen\":22,\"broadcast\":\"172.26.91.255\",\"scope\":\"global\",\"label\":\"eth0\",\"valid_life_time\":4294967295,\"preferred_life_time\":4294967295},{\"family\":\"inet6\",\"local\":\"fe80::1cb1:88ff:fe30:4c0a\",\"prefixlen\":64,\"scope\":\"link\",\"valid_life_time\":4294967295,\"preferred_life_time\":4294967295}]},{\"ifindex\":3,\"ifname\":\"eth1\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"pfifo_fast\",\"operstate\":\"UP\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"72:69:e2:1a:b7:a5\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"addr_info\":[{\"family\":\"inet\",\"local\":\"172.31.6.14\",\"prefixlen\":28,\"broadcast\":\"172.31.6.15\",\"scope\":\"global\",\"label\":\"eth1\",\"valid_life_time\":4294967295,\"preferred_life_time\":4294967295},{\"family\":\"inet6\",\"local\":\"fe80::7069:e2ff:fe1a:b7a5\",\"prefixlen\":64,\"scope\":\"link\",\"valid_life_time\":4294967295,\"preferred_life_time\":4294967295}]},{\"ifindex\":4,\"ifname\":\"docker0\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"62:ee:97:4f:01:ae\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"addr_info\":[{\"family\":\"inet\",\"local\":\"172.17.0.1\",\"prefixlen\":16,\"broadcast\":\"172.17.255.255\",\"scope\":\"global\",\"label\":\"docker0\",\"valid_life_time\":4294967295,\"preferred_life_time\":4294967295},{\"family\":\"inet6\",\"local\":\"fe80::60ee:97ff:fe4f:1ae\",\"prefixlen\":64,\"scope\":\"link\",\"protocol\":\"kernel_ll\",\"valid_life_time\":4294967295,\"preferred_life_time\":4294967295}]}]\n",
+        "stderr": ""
+      },
+      "ros1_master_uri": null,
+      "ros1_nodes": {
+        "exit_code": -1,
+        "error": "[Errno 2] No such file or directory: 'rosnode'"
+      },
+      "ros1_topics": {
+        "exit_code": -1,
+        "error": "[Errno 2] No such file or directory: 'rostopic'"
+      }
+    }
+  },
+  "can": {
+    "state": "CONFIG_REQUIRED"
+  },
+  "mid360": {
+    "interface": null,
+    "host_ip": null,
+    "sensor_ip": null,
+    "reachability": {
+      "state": "CONFIG_REQUIRED"
+    }
+  },
+  "ros2": {
+    "nodes": {
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    "topics": {
+      "exit_code": 0,
+      "stdout": "/parameter_events [rcl_interfaces/msg/ParameterEvent]\n/rosout [rcl_interfaces/msg/Log]\n",
+      "stderr": ""
+    },
+    "tf": {
+      "exit_code": -1,
+      "error": "Command '['ros2', 'topic', 'echo', '/tf', 'tf2_msgs/msg/TFMessage', '--once']' timed out after 3 seconds"
+    }
+  },
+  "runtime": {
+    "robot": "YHS",
+    "mock": true,
+    "mode": "IDLE",
+    "control_mode": "navigation",
+    "mapping": "CANCELLED",
+    "localization": "STOPPED",
+    "recording": "STOPPED",
+    "recording_duration": 0,
+    "bag_path": "/data/bags/record_20261007_180744_252673",
+    "map": {
+      "map_bundle_id": "docker_mock_1791396463123719704",
+      "map_version": "1",
+      "bundle_sha256": "cc2bd351988a1ce51a758ff4e20801987300dd893374e6cce3c7a0b58b99507a"
+    },
+    "bundle_path": "/data/maps/docker_mock_1791396463123719704/1",
+    "mapping_duration": 0,
+    "mission": {
+      "state": "CANCELLED",
+      "detail": "operator cancel",
+      "waypoint_index": 0,
+      "dwell_remaining": 0.0,
+      "cancel_pending": false,
+      "route_id": "docker_mock_1791396463123719704"
+    },
+    "mapping_history": [
+      "STOPPED",
+      "START",
+      "MAPPING",
+      "FINISH",
+      "PROCESSING",
+      "VERIFY",
+      "LOCALIZATION_ASSET_BUILD",
+      "GRID_BUILD",
+      "REVIEW_REQUIRED",
+      "REVIEW_CONFIRMED",
+      "READY"
+    ],
+    "devices": {
+      "LiDAR": {
+        "state": "ONLINE",
+        "frequency": 100,
+        "last_timestamp": 1791396464.3356664
+      },
+      "IMU": {
+        "state": "ONLINE",
+        "frequency": 100,
+        "last_timestamp": 1791396464.3356671
+      },
+      "CAN": {
+        "state": "ACTIVE",
+        "frequency": 100,
+        "last_timestamp": 1791396464.3356676
+      },
+      "YHS": {
+        "state": "ONLINE",
+        "frequency": 100,
+        "last_timestamp": 1791396464.335668
+      },
+      "Wheel Odom": {
+        "state": "ONLINE",
+        "frequency": 50,
+        "last_timestamp": 1791396464.3356686
+      }
+    },
+    "disk_free": 5141291008,
+    "sensors": {
+      "device": "MID360",
+      "driver_rate_hz": 10,
+      "host_ip": null,
+      "imu_min_hz": 50,
+      "interface": null,
+      "lidar_min_hz": 5,
+      "livox_config": null,
+      "sensor_ip": null,
+      "stale_sec": 1.0,
+      "transport": "ethernet_udp"
+    },
+    "topics": {
+      "chassis": "/agt/yhs/chassis",
+      "estop": "/agt/yhs/estop",
+      "guarded_cmd_vel": "/mux/cmd_vel",
+      "imu": "/livox/imu",
+      "lidar": "/livox/lidar",
+      "recording": [
+        "/livox/lidar",
+        "/livox/imu",
+        "/wheel/odom",
+        "/agt/yhs/chassis",
+        "/agt/yhs/estop",
+        "/agt/odometry/local",
+        "/mux/cmd_vel",
+        "/tf",
+        "/tf_static"
+      ],
+      "ros1_chassis": null,
+      "ros1_cmd_vel": null,
+      "ros1_estop": null,
+      "ros1_odom": null,
+      "wheel_odom": "/wheel/odom"
+    },
+    "gateway_status": {
+      "mock": true
+    },
+    "base": {
+      "can_bitrate": null,
+      "can_interface": null,
+      "command_timeout_sec": 0.15,
+      "driver_watchdog_sec": 0.3,
+      "driver_watchdog_verified": false,
+      "estop_adapter": "std_msgs/Bool",
+      "ros1_master_uri": null,
+      "status_adapter": "std_msgs/String JSON",
+      "stop_angular_radps": 0.01,
+      "stop_linear_mps": 0.01,
+      "stop_timeout_sec": 10
+    },
+    "last_error": "",
+    "profiles": "/data/profiles/mock_yhs",
+    "tf": {},
+    "busy": false
+  },
+  "active_map": {
+    "map_bundle_id": "docker_mock_1791396463123719704",
+    "map_version": "1",
+    "bundle_sha256": "cc2bd351988a1ce51a758ff4e20801987300dd893374e6cce3c7a0b58b99507a"
+  },
+  "profile_errors": [],
+  "build_commits": {
+    "navigation": "7ac545cf5179e01857aaf40389ca454a67df24e9",
+    "hmi_patch_sha256": "c900f9a1a91d9a71db8eb788f0da244e0cb5ae14b711447740a08d7d57f6ca33"
+  },
+  "configuration_hashes": {
+    "base.yaml": "679b113b10a900e1f28ba40f037a992a50377195a24b60fd5210f69dc80cc84e",
+    "calibration/base_geometry.yaml": "8061733d4165cf64bb5b2306d1e632cb4ec016ac154ab791e4bfce40b51b6e28",
+    "calibration/calibration_version.yaml": "8061733d4165cf64bb5b2306d1e632cb4ec016ac154ab791e4bfce40b51b6e28",
+    "calibration/imu_extrinsics.yaml": "8061733d4165cf64bb5b2306d1e632cb4ec016ac154ab791e4bfce40b51b6e28",
+    "calibration/lidar_extrinsics.yaml": "8061733d4165cf64bb5b2306d1e632cb4ec016ac154ab791e4bfce40b51b6e28",
+    "localization.yaml": "f642a5c06c0fd0a762dd95ed38c66a8b5e6978accbd1dd30719c1bef2320f0d7",
+    "mapping.yaml": "4915de561434b275c397acbb29f9cfe2db75ff076f77f5a8fd023efed539fc43",
+    "navigation.yaml": "aff6154d678e316c1d2613007da727016a0365f60dac35b50c5c0666fd5b2dbf",
+    "robot.yaml": "677f63dff06bea56219f4a414b8688e1906f3e3c7168c7615572493eaa01c0c3",
+    "sensors.yaml": "9a83874015a3c4031abc03b30bcb69331b00a5d44a452c9d6b16cdd2f39c2ebb",
+    "topics.yaml": "55e41260dfb84c2d7f16af8867507b469237bc2c4e44ad58e086e37d7df94dab"
+  }
+}

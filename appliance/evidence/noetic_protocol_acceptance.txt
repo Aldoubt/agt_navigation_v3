@@ -1,0 +1,1 @@
+{"result": "PASS_NOETIC_SOFTWARE_ONLY", "odom_rate_hz": 49.789561927085266, "odom_frame_pose_covariance": true, "cmd_vel_transfer": true, "stale_command_zero": true, "physical_hardware": "PENDING"}

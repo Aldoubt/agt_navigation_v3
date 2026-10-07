@@ -1,0 +1,114 @@
+ Container agt-yhs-runtime-1  Creating
+ Container agt-yhs-runtime-1  Created
+ Container agt-yhs-runtime-1  Starting
+ Container agt-yhs-runtime-1  Started
+ Container agt-yhs-runtime-1  Waiting
+ Container agt-yhs-runtime-1  Healthy
+{
+  "robot": "YHS",
+  "mock": true,
+  "mode": "IDLE",
+  "control_mode": "navigation",
+  "mapping": "STOPPED",
+  "localization": "STOPPED",
+  "recording": "STOPPED",
+  "recording_duration": 0,
+  "bag_path": "",
+  "map": {},
+  "bundle_path": "",
+  "mapping_duration": 0,
+  "mission": {
+    "state": "IDLE",
+    "detail": "",
+    "waypoint_index": 0,
+    "dwell_remaining": 0.0,
+    "cancel_pending": false,
+    "route_id": ""
+  },
+  "mapping_history": [
+    "STOPPED"
+  ],
+  "devices": {
+    "LiDAR": {
+      "state": "ONLINE",
+      "frequency": 100,
+      "last_timestamp": 1791396381.3026853
+    },
+    "IMU": {
+      "state": "ONLINE",
+      "frequency": 100,
+      "last_timestamp": 1791396381.3026862
+    },
+    "CAN": {
+      "state": "ACTIVE",
+      "frequency": 100,
+      "last_timestamp": 1791396381.302687
+    },
+    "YHS": {
+      "state": "ONLINE",
+      "frequency": 100,
+      "last_timestamp": 1791396381.3026874
+    },
+    "Wheel Odom": {
+      "state": "ONLINE",
+      "frequency": 50,
+      "last_timestamp": 1791396381.302688
+    }
+  },
+  "disk_free": 5141417984,
+  "sensors": {
+    "device": "MID360",
+    "driver_rate_hz": 10,
+    "host_ip": null,
+    "imu_min_hz": 50,
+    "interface": null,
+    "lidar_min_hz": 5,
+    "livox_config": null,
+    "sensor_ip": null,
+    "stale_sec": 1.0,
+    "transport": "ethernet_udp"
+  },
+  "topics": {
+    "chassis": "/agt/yhs/chassis",
+    "estop": "/agt/yhs/estop",
+    "guarded_cmd_vel": "/mux/cmd_vel",
+    "imu": "/livox/imu",
+    "lidar": "/livox/lidar",
+    "recording": [
+      "/livox/lidar",
+      "/livox/imu",
+      "/wheel/odom",
+      "/agt/yhs/chassis",
+      "/agt/yhs/estop",
+      "/agt/odometry/local",
+      "/mux/cmd_vel",
+      "/tf",
+      "/tf_static"
+    ],
+    "ros1_chassis": null,
+    "ros1_cmd_vel": null,
+    "ros1_estop": null,
+    "ros1_odom": null,
+    "wheel_odom": "/wheel/odom"
+  },
+  "gateway_status": {
+    "mock": true
+  },
+  "base": {
+    "can_bitrate": null,
+    "can_interface": null,
+    "command_timeout_sec": 0.15,
+    "driver_watchdog_sec": 0.3,
+    "driver_watchdog_verified": false,
+    "estop_adapter": "std_msgs/Bool",
+    "ros1_master_uri": null,
+    "status_adapter": "std_msgs/String JSON",
+    "stop_angular_radps": 0.01,
+    "stop_linear_mps": 0.01,
+    "stop_timeout_sec": 10
+  },
+  "last_error": "",
+  "profiles": "/data/profiles/mock_yhs",
+  "tf": {},
+  "busy": false
+}

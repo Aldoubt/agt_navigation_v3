@@ -1,0 +1,31 @@
+SOFTWARE CLOUD ACCEPTANCE — hardware remains PENDING
+Final image: agt-yhs-field:v1
+Final image ID: sha256:f8621fe2f03f0398eaaf8e209d45de5f6e8af6f60ca85dce7d3af823e6923c06
+Runtime code commit: 7ac545cf5179e01857aaf40389ca454a67df24e9
+HMI upstream: b0825e3cba3e7186cba8a6b83ff230be37c8b1fb
+HMI patch SHA256: c900f9a1a91d9a71db8eb788f0da244e0cb5ae14b711447740a08d7d57f6ca33
+Mapping: 539352d309deef4f0acfe5f2bd783d5e72623a88
+./install.sh --skip-build: PASS directory/profile/desktop creation against already built image
+./agt up --mock --headless: PASS, actual Docker Compose runtime healthy, UID/GID1000:1000
+Installed agt_field and agt_mission_executor imports as UID1000: PASS
+./agt down then ./agt up: PASS; host maps/routes/bags/logs preserved
+Final image ID equals actual running Compose container image ID: PASS
+Actual Docker RPC end-to-end: see docker_mock_runtime.txt
+./agt doctor --mock --report: PASS; bounded zip, no bags (see doctor_runtime_report.txt)
+Complete Qt executable offscreen as UID1000: PASS, stayed alive 8s; deliberately terminated by timeout 124
+Unconfigured physical-profile ros2 run agt_mission_executor: PASS startup as UID1000; timeout 124, no motion
+Real CAN/YHS/TF/MID360/extrinsics/BBS+GICP accuracy/Nav2 planning/controller/physical safety: PENDING
+Interactive desktop X11/double-click: PENDING R0, cloud had no display session
+
+Build provenance/limitations:
+- docker_candidate_build.txt: native Navigation18 / Mapping17 and full Qt clean build.
+- docker_release_build.txt: adapter/executor/Qt incremental rebuild against the same native sources.
+- First non-root launcher attempt failed (0700 source permissions). Fixed formal Dockerfile a+rX permissions.
+- Incremental no-build-isolation used old setuptools and created UNKNOWN; actual startup failed import.
+  Repaired using separately built/tested pure Python wheel and verified installed imports as UID1000.
+  Formal Dockerfile now asserts installed agt_field import immediately after pip install.
+- Final cloud image flattened from the task's build to fit VFS/32GB, normalized code permissions,
+  persistent ROS/cache paths, installed tested wheel, removed UNKNOWN, captured actual runtime commit.
+  Cleared transient build-session proxy settings from final image metadata.
+- Standard field install uses formal two-stage Dockerfile; no registry artifact was published.
+- Source pins and archive checksums are fixed; apt packages are inventoried, not snapshot-pinned.

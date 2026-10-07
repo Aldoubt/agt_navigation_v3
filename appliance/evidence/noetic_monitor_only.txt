@@ -1,0 +1,1 @@
+{"result": "PASS_MONITOR_ONLY", "missing_calibration_blocks_motion": true, "odom_monitoring": true, "physical_hardware": "PENDING"}
