@@ -1,0 +1,7 @@
+base_frame: base_link
+map_frame: map
+model: null
+odom_frame: odom
+profile: yhs
+status: CALIBRATION_REQUIRED
+urdf: null

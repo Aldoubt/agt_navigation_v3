@@ -1,0 +1,15 @@
+footprint: null
+footprint_padding: null
+motion_limits:
+  angular_accel_radps2: null
+  angular_decel_radps2: null
+  angular_radps: null
+  controller_approach_mps: null
+  controller_bootstrap_angular_accel: null
+  controller_cruise_mps: null
+  controller_regulated_min_mps: null
+  forward_mps: null
+  linear_accel_mps2: null
+  linear_decel_mps2: null
+  reverse_mps: null
+  rotate_to_heading_radps: null

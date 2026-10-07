@@ -1,0 +1,7 @@
+base_frame: base_link
+map_frame: map
+model: null
+odom_frame: odom
+profile: mock_yhs
+status: MOCK_ONLY
+urdf: null

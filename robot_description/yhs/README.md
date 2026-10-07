@@ -1,0 +1,1 @@
+CALIBRATION_REQUIRED. Place measured production URDF in urdf/ and its meshes in meshes/; reference the host-mounted path from profiles/yhs/robot.yaml. No production URDF or physical dimensions are invented. The profile, URDF and meshes are mounted at runtime; image rebuild is unnecessary.

@@ -1,0 +1,5 @@
+backend: 3D-BBS + small_gicp
+candidate_top_k: 2
+fastlio_config: null
+lio_backend: fastlio2
+status_timeout_sec: 0.75

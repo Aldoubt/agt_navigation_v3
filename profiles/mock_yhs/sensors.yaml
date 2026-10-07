@@ -1,0 +1,10 @@
+device: MID360
+driver_rate_hz: 10
+host_ip: null
+imu_min_hz: 50
+interface: null
+lidar_min_hz: 5
+livox_config: null
+sensor_ip: null
+stale_sec: 1.0
+transport: ethernet_udp

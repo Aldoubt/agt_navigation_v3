@@ -1,0 +1,20 @@
+chassis: /agt/yhs/chassis
+estop: /agt/yhs/estop
+guarded_cmd_vel: /mux/cmd_vel
+imu: /livox/imu
+lidar: /livox/lidar
+recording:
+- /livox/lidar
+- /livox/imu
+- /wheel/odom
+- /agt/yhs/chassis
+- /agt/yhs/estop
+- /agt/odometry/local
+- /mux/cmd_vel
+- /tf
+- /tf_static
+ros1_chassis: null
+ros1_cmd_vel: null
+ros1_estop: null
+ros1_odom: null
+wheel_odom: /wheel/odom

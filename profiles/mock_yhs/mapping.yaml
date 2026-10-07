@@ -1,0 +1,5 @@
+domain_id: 89
+entry: run_mid360_live_mapping.sh
+export_timeout_sec: 240
+projection_config: null
+wheel_odom_required: false

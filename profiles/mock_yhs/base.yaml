@@ -1,0 +1,8 @@
+can_bitrate: null
+can_interface: null
+command_timeout_sec: 0.15
+driver_watchdog_sec: 0.3
+driver_watchdog_verified: false
+estop_adapter: std_msgs/Bool
+ros1_master_uri: null
+status_adapter: std_msgs/String JSON
