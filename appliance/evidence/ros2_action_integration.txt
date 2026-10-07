@@ -1,0 +1,14 @@
+RELOCALIZATION ASSETS BUILT
+output=/tmp/pytest-of-root/pytest-8/test_native_assets0/localization
+points=252
+map=/tmp/pytest-of-root/pytest-8/test_native_assets0/localization/global_map_downsampled.pcd
+bbs=/tmp/pytest-of-root/pytest-8/test_native_assets0/localization/voxelmaps_coords
+RELOCALIZATION CANDIDATES BUILT
+map_dir=/tmp/pytest-of-root/pytest-8/test_native_assets0/mapping
+output=/tmp/pytest-of-root/pytest-8/test_native_assets0/localization
+entries=1
+skipped=0
+database=/tmp/pytest-of-root/pytest-8/test_native_assets0/localization/polar_context.db
+.{"result": "PASS_ROS2_SOFTWARE_ONLY", "nav2_action_goals": 4, "pause_resume_cancel": true, "localization_lost": true, "nav2_failure": true, "physical_hardware": "PENDING"}
+.
+2 passed in 2.50s

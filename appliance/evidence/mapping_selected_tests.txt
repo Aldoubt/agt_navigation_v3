@@ -1,0 +1,553 @@
+Starting >>> agt_map_refinement_core
+============================= test session starts ==============================
+platform linux -- Python 3.10.12, pytest-6.2.5, py-1.10.0, pluggy-0.13.0
+cachedir: /opt/mapping_ws/build/agt_map_refinement_core/.pytest_cache
+rootdir: /opt/mapping_ws/src/agt-lio-pgo-mapping/refinement/agt_map_refinement_core
+plugins: ament-pep257-0.12.15, ament-lint-0.12.15, ament-xmllint-0.12.15, launch-testing-1.0.15, launch-testing-ros-0.19.14, ament-copyright-0.12.15, ament-flake8-0.12.15, colcon-core-0.21.3
+collected 8 items
+
+test/test_pcd_and_rules.py .....                                         [ 62%]
+test/test_pipeline.py ...                                                [100%]
+
+- generated xml file: /opt/mapping_ws/build/agt_map_refinement_core/pytest.xml -
+============================== 8 passed in 0.18s ===============================
+Finished <<< agt_map_refinement_core [0.84s]
+Starting >>> agt_mapping_artifacts
+============================= test session starts ==============================
+platform linux -- Python 3.10.12, pytest-6.2.5, py-1.10.0, pluggy-0.13.0
+cachedir: /opt/mapping_ws/build/agt_mapping_artifacts/.pytest_cache
+rootdir: /opt/mapping_ws/src/agt-lio-pgo-mapping/artifacts/agt_mapping_artifacts
+plugins: ament-pep257-0.12.15, ament-lint-0.12.15, ament-xmllint-0.12.15, launch-testing-1.0.15, launch-testing-ros-0.19.14, ament-copyright-0.12.15, ament-flake8-0.12.15, colcon-core-0.21.3
+collected 16 items
+
+test/test_artifact_writer.py .                                           [  6%]
+test/test_optimized_pgo_artifact.py .                                    [ 12%]
+test/test_validation.py ..............                                   [100%]
+
+-- generated xml file: /opt/mapping_ws/build/agt_mapping_artifacts/pytest.xml --
+============================== 16 passed in 0.22s ==============================
+Finished <<< agt_mapping_artifacts [0.91s]
+Starting >>> agt_mapping_backend_api
+Finished <<< agt_mapping_backend_api [0.05s]
+Starting >>> agt_mapping_frontend_api
+Finished <<< agt_mapping_frontend_api [0.02s]
+Starting >>> agt_mapping_interfaces
+Finished <<< agt_mapping_interfaces [0.02s]
+Starting >>> agt_pcd2grid_exporter
+UpdateCTestConfiguration  from :/opt/mapping_ws/build/agt_pcd2grid_exporter/CTestConfiguration.ini
+Parse Config file:/opt/mapping_ws/build/agt_pcd2grid_exporter/CTestConfiguration.ini
+   Site: 3551ff2bd1ae
+   Build name: (empty)
+ Add coverage exclude regular expressions.
+Create new tag: 20261007-1605 - Experimental
+UpdateCTestConfiguration  from :/opt/mapping_ws/build/agt_pcd2grid_exporter/CTestConfiguration.ini
+Parse Config file:/opt/mapping_ws/build/agt_pcd2grid_exporter/CTestConfiguration.ini
+Test project /opt/mapping_ws/build/agt_pcd2grid_exporter
+Constructing a list of tests
+Done constructing a list of tests
+Updating test list for fixtures
+Added 0 tests to meet fixture requirements
+Checking test dependency graph...
+Checking test dependency graph end
+test 1
+    Start 1: test_pcd2grid
+
+1: Test command: /usr/bin/python3 "-u" "/opt/ros/humble/share/ament_cmake_test/cmake/run_test.py" "/opt/mapping_ws/build/agt_pcd2grid_exporter/test_results/agt_pcd2grid_exporter/test_pcd2grid.gtest.xml" "--package-name" "agt_pcd2grid_exporter" "--output-file" "/opt/mapping_ws/build/agt_pcd2grid_exporter/ament_cmake_gtest/test_pcd2grid.txt" "--command" "/opt/mapping_ws/build/agt_pcd2grid_exporter/test_pcd2grid" "--gtest_output=xml:/opt/mapping_ws/build/agt_pcd2grid_exporter/test_results/agt_pcd2grid_exporter/test_pcd2grid.gtest.xml"
+1: Test timeout computed to be: 60
+1: -- run_test.py: invoking following command in '/opt/mapping_ws/build/agt_pcd2grid_exporter':
+1:  - /opt/mapping_ws/build/agt_pcd2grid_exporter/test_pcd2grid --gtest_output=xml:/opt/mapping_ws/build/agt_pcd2grid_exporter/test_results/agt_pcd2grid_exporter/test_pcd2grid.gtest.xml
+1: Running main() from /opt/ros/humble/src/gtest_vendor/src/gtest_main.cc
+1: [==========] Running 18 tests from 5 test suites.
+1: [----------] Global test environment set-up.
+1: [----------] 6 tests from PCDProjectorTest
+1: [ RUN      ] PCDProjectorTest.EmptyCloudIsRejected
+1: [       OK ] PCDProjectorTest.EmptyCloudIsRejected (0 ms)
+1: [ RUN      ] PCDProjectorTest.SinglePointProjectsToOneCell
+1: [       OK ] PCDProjectorTest.SinglePointProjectsToOneCell (0 ms)
+1: [ RUN      ] PCDProjectorTest.MultiplePointsShareHitCount
+1: [       OK ] PCDProjectorTest.MultiplePointsShareHitCount (0 ms)
+1: [ RUN      ] PCDProjectorTest.ZFilterExcludesPoints
+1: [       OK ] PCDProjectorTest.ZFilterExcludesPoints (0 ms)
+1: [ RUN      ] PCDProjectorTest.LocalGroundSeparatesFreeAndObstacleEvidence
+1: [       OK ] PCDProjectorTest.LocalGroundSeparatesFreeAndObstacleEvidence (0 ms)
+1: [ RUN      ] PCDProjectorTest.SmallIsolatedObstacleComponentsAreRemoved
+1: [       OK ] PCDProjectorTest.SmallIsolatedObstacleComponentsAreRemoved (0 ms)
+1: [----------] 6 tests from PCDProjectorTest (1 ms total)
+1: 
+1: [----------] 1 test from OccupancyGridWriterTest
+1: [ RUN      ] OccupancyGridWriterTest.WritesNav2Package
+1: [       OK ] OccupancyGridWriterTest.WritesNav2Package (1 ms)
+1: [----------] 1 test from OccupancyGridWriterTest (1 ms total)
+1: 
+1: [----------] 1 test from TemporalPersistenceFilterTest
+1: [ RUN      ] TemporalPersistenceFilterTest.RemovesSingleKeyframeVoxels
+1: [       OK ] TemporalPersistenceFilterTest.RemovesSingleKeyframeVoxels (0 ms)
+1: [----------] 1 test from TemporalPersistenceFilterTest (0 ms total)
+1: 
+1: [----------] 8 tests from TraversabilityGridBuilderTest
+1: [ RUN      ] TraversabilityGridBuilderTest.RaysCarveFreeSpaceBetweenSparseGroundReturns
+1: [       OK ] TraversabilityGridBuilderTest.RaysCarveFreeSpaceBetweenSparseGroundReturns (1 ms)
+1: [ RUN      ] TraversabilityGridBuilderTest.WallIsOccupiedAndSpaceBehindItStaysUnknown
+1: [       OK ] TraversabilityGridBuilderTest.WallIsOccupiedAndSpaceBehindItStaysUnknown (1 ms)
+1: [ RUN      ] TraversabilityGridBuilderTest.SelfReturnsAreDroppedAndSweptTransientsCleared
+1: [       OK ] TraversabilityGridBuilderTest.SelfReturnsAreDroppedAndSweptTransientsCleared (2 ms)
+1: [ RUN      ] TraversabilityGridBuilderTest.GroundIsNotGrownAcrossADropOff
+1: [       OK ] TraversabilityGridBuilderTest.GroundIsNotGrownAcrossADropOff (1 ms)
+1: [ RUN      ] TraversabilityGridBuilderTest.PorousVegetationIsNotCarvedFree
+1: [       OK ] TraversabilityGridBuilderTest.PorousVegetationIsNotCarvedFree (1 ms)
+1: [ RUN      ] TraversabilityGridBuilderTest.WriterRecordsTraversabilityMetadata
+1: [       OK ] TraversabilityGridBuilderTest.WriterRecordsTraversabilityMetadata (3 ms)
+1: [ RUN      ] TraversabilityGridBuilderTest.FollowerSeenOnlyUpCloseIsNotAnObstacle
+1: [       OK ] TraversabilityGridBuilderTest.FollowerSeenOnlyUpCloseIsNotAnObstacle (3 ms)
+1: [ RUN      ] TraversabilityGridBuilderTest.RejectsDivergedPoses
+1: [       OK ] TraversabilityGridBuilderTest.RejectsDivergedPoses (1 ms)
+1: [----------] 8 tests from TraversabilityGridBuilderTest (13 ms total)
+1: 
+1: [----------] 2 tests from TraversabilityParameterTest
+1: [ RUN      ] TraversabilityParameterTest.PointCloudProjectorRejectsTraversabilityMode
+1: [       OK ] TraversabilityParameterTest.PointCloudProjectorRejectsTraversabilityMode (0 ms)
+1: [ RUN      ] TraversabilityParameterTest.RejectsInvalidFootprint
+1: [       OK ] TraversabilityParameterTest.RejectsInvalidFootprint (0 ms)
+1: [----------] 2 tests from TraversabilityParameterTest (1 ms total)
+1: 
+1: [----------] Global test environment tear-down
+1: [==========] 18 tests from 5 test suites ran. (49 ms total)
+1: [  PASSED  ] 18 tests.
+1: -- run_test.py: return code 0
+1: -- run_test.py: inject classname prefix into gtest result file '/opt/mapping_ws/build/agt_pcd2grid_exporter/test_results/agt_pcd2grid_exporter/test_pcd2grid.gtest.xml'
+1: -- run_test.py: verify result file '/opt/mapping_ws/build/agt_pcd2grid_exporter/test_results/agt_pcd2grid_exporter/test_pcd2grid.gtest.xml'
+1/1 Test #1: test_pcd2grid ....................   Passed    0.13 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Label Time Summary:
+gtest    =   0.13 sec*proc (1 test)
+
+Total Test time (real) =   0.14 sec
+Finished <<< agt_pcd2grid_exporter [0.20s]
+Starting >>> agt_fastlio_backend
+UpdateCTestConfiguration  from :/opt/mapping_ws/build/agt_fastlio_backend/CTestConfiguration.ini
+Parse Config file:/opt/mapping_ws/build/agt_fastlio_backend/CTestConfiguration.ini
+   Site: 3551ff2bd1ae
+   Build name: (empty)
+ Add coverage exclude regular expressions.
+Create new tag: 20261007-1605 - Experimental
+UpdateCTestConfiguration  from :/opt/mapping_ws/build/agt_fastlio_backend/CTestConfiguration.ini
+Parse Config file:/opt/mapping_ws/build/agt_fastlio_backend/CTestConfiguration.ini
+Test project /opt/mapping_ws/build/agt_fastlio_backend
+Constructing a list of tests
+Done constructing a list of tests
+Updating test list for fixtures
+Added 0 tests to meet fixture requirements
+Checking test dependency graph...
+Checking test dependency graph end
+test 1
+    Start 1: test_fastlio_frontend_relay
+
+1: Test command: /usr/bin/python3 "-u" "/opt/ros/humble/share/ament_cmake_test/cmake/run_test.py" "/opt/mapping_ws/build/agt_fastlio_backend/test_results/agt_fastlio_backend/test_fastlio_frontend_relay.gtest.xml" "--package-name" "agt_fastlio_backend" "--output-file" "/opt/mapping_ws/build/agt_fastlio_backend/ament_cmake_gtest/test_fastlio_frontend_relay.txt" "--command" "/opt/mapping_ws/build/agt_fastlio_backend/test_fastlio_frontend_relay" "--gtest_output=xml:/opt/mapping_ws/build/agt_fastlio_backend/test_results/agt_fastlio_backend/test_fastlio_frontend_relay.gtest.xml"
+1: Test timeout computed to be: 60
+1: -- run_test.py: invoking following command in '/opt/mapping_ws/build/agt_fastlio_backend':
+1:  - /opt/mapping_ws/build/agt_fastlio_backend/test_fastlio_frontend_relay --gtest_output=xml:/opt/mapping_ws/build/agt_fastlio_backend/test_results/agt_fastlio_backend/test_fastlio_frontend_relay.gtest.xml
+1: Running main() from /opt/ros/humble/src/gtest_vendor/src/gtest_main.cc
+1: [==========] Running 3 tests from 1 test suite.
+1: [----------] Global test environment set-up.
+1: [----------] 3 tests from FastLioFrontendRelay
+1: [ RUN      ] FastLioFrontendRelay.MapsConfiguredNamespaceToFrontendTopics
+1: [       OK ] FastLioFrontendRelay.MapsConfiguredNamespaceToFrontendTopics (0 ms)
+1: [ RUN      ] FastLioFrontendRelay.PreservesOdometryTimestampFrameAndPayload
+1: [       OK ] FastLioFrontendRelay.PreservesOdometryTimestampFrameAndPayload (0 ms)
+1: [ RUN      ] FastLioFrontendRelay.PreservesCloudAndPathHeaders
+1: [       OK ] FastLioFrontendRelay.PreservesCloudAndPathHeaders (0 ms)
+1: [----------] 3 tests from FastLioFrontendRelay (1 ms total)
+1: 
+1: [----------] Global test environment tear-down
+1: [==========] 3 tests from 1 test suite ran. (1 ms total)
+1: [  PASSED  ] 3 tests.
+1: -- run_test.py: return code 0
+1: -- run_test.py: inject classname prefix into gtest result file '/opt/mapping_ws/build/agt_fastlio_backend/test_results/agt_fastlio_backend/test_fastlio_frontend_relay.gtest.xml'
+1: -- run_test.py: verify result file '/opt/mapping_ws/build/agt_fastlio_backend/test_results/agt_fastlio_backend/test_fastlio_frontend_relay.gtest.xml'
+1/1 Test #1: test_fastlio_frontend_relay ......   Passed    0.10 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Label Time Summary:
+gtest    =   0.10 sec*proc (1 test)
+
+Total Test time (real) =   0.10 sec
+Finished <<< agt_fastlio_backend [0.17s]
+Starting >>> agt_map_studio
+UpdateCTestConfiguration  from :/opt/mapping_ws/build/agt_map_studio/CTestConfiguration.ini
+Parse Config file:/opt/mapping_ws/build/agt_map_studio/CTestConfiguration.ini
+   Site: 3551ff2bd1ae
+   Build name: (empty)
+ Add coverage exclude regular expressions.
+Create new tag: 20261007-1605 - Experimental
+UpdateCTestConfiguration  from :/opt/mapping_ws/build/agt_map_studio/CTestConfiguration.ini
+Parse Config file:/opt/mapping_ws/build/agt_map_studio/CTestConfiguration.ini
+Test project /opt/mapping_ws/build/agt_map_studio
+Constructing a list of tests
+Done constructing a list of tests
+Updating test list for fixtures
+Added 0 tests to meet fixture requirements
+Checking test dependency graph...
+Checking test dependency graph end
+test 1
+    Start 1: test_pcd_loader
+
+1: Test command: /usr/bin/python3 "-u" "/opt/ros/humble/share/ament_cmake_test/cmake/run_test.py" "/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_pcd_loader.gtest.xml" "--package-name" "agt_map_studio" "--output-file" "/opt/mapping_ws/build/agt_map_studio/ament_cmake_gtest/test_pcd_loader.txt" "--command" "/opt/mapping_ws/build/agt_map_studio/test_pcd_loader" "--gtest_output=xml:/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_pcd_loader.gtest.xml"
+1: Test timeout computed to be: 60
+1: -- run_test.py: invoking following command in '/opt/mapping_ws/build/agt_map_studio':
+1:  - /opt/mapping_ws/build/agt_map_studio/test_pcd_loader --gtest_output=xml:/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_pcd_loader.gtest.xml
+1: Running main() from /opt/ros/humble/src/gtest_vendor/src/gtest_main.cc
+1: [==========] Running 3 tests from 3 test suites.
+1: [----------] Global test environment set-up.
+1: [----------] 1 test from PCDLoaderTest
+1: [ RUN      ] PCDLoaderTest.LoadsXyzAndPreservesSourceFields
+1: [       OK ] PCDLoaderTest.LoadsXyzAndPreservesSourceFields (0 ms)
+1: [----------] 1 test from PCDLoaderTest (0 ms total)
+1: 
+1: [----------] 1 test from PCDLoaderStandaloneTest
+1: [ RUN      ] PCDLoaderStandaloneTest.RejectsMissingCoordinates
+1: [       OK ] PCDLoaderStandaloneTest.RejectsMissingCoordinates (0 ms)
+1: [----------] 1 test from PCDLoaderStandaloneTest (0 ms total)
+1: 
+1: [----------] 1 test from PCDLoaderArtifactTest
+1: [ RUN      ] PCDLoaderArtifactTest.LoadsConfiguredMapArtifact
+1: [  SKIPPED ] PCDLoaderArtifactTest.LoadsConfiguredMapArtifact (0 ms)
+1: [----------] 1 test from PCDLoaderArtifactTest (0 ms total)
+1: 
+1: [----------] Global test environment tear-down
+1: [==========] 3 tests from 3 test suites ran. (2 ms total)
+1: [  PASSED  ] 2 tests.
+1: [  SKIPPED ] 1 test, listed below:
+1: [  SKIPPED ] PCDLoaderArtifactTest.LoadsConfiguredMapArtifact
+1: -- run_test.py: return code 0
+1: -- run_test.py: inject classname prefix into gtest result file '/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_pcd_loader.gtest.xml'
+1: -- run_test.py: verify result file '/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_pcd_loader.gtest.xml'
+1/7 Test #1: test_pcd_loader ..................   Passed    0.16 sec
+test 2
+    Start 2: test_selection_manager
+
+2: Test command: /usr/bin/python3 "-u" "/opt/ros/humble/share/ament_cmake_test/cmake/run_test.py" "/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_selection_manager.gtest.xml" "--package-name" "agt_map_studio" "--output-file" "/opt/mapping_ws/build/agt_map_studio/ament_cmake_gtest/test_selection_manager.txt" "--command" "/opt/mapping_ws/build/agt_map_studio/test_selection_manager" "--gtest_output=xml:/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_selection_manager.gtest.xml"
+2: Test timeout computed to be: 60
+2: -- run_test.py: invoking following command in '/opt/mapping_ws/build/agt_map_studio':
+2:  - /opt/mapping_ws/build/agt_map_studio/test_selection_manager --gtest_output=xml:/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_selection_manager.gtest.xml
+2: Running main() from /opt/ros/humble/src/gtest_vendor/src/gtest_main.cc
+2: [==========] Running 3 tests from 1 test suite.
+2: [----------] Global test environment set-up.
+2: [----------] 3 tests from SelectionManagerTest
+2: [ RUN      ] SelectionManagerTest.DeleteUndoRedoPreservesPointStates
+2: [       OK ] SelectionManagerTest.DeleteUndoRedoPreservesPointStates (0 ms)
+2: [ RUN      ] SelectionManagerTest.EmptyDeleteDoesNothing
+2: [       OK ] SelectionManagerTest.EmptyDeleteDoesNothing (0 ms)
+2: [ RUN      ] SelectionManagerTest.ExportKeepsOriginalPclFields
+2: [       OK ] SelectionManagerTest.ExportKeepsOriginalPclFields (1 ms)
+2: [----------] 3 tests from SelectionManagerTest (3 ms total)
+2: 
+2: [----------] Global test environment tear-down
+2: [==========] 3 tests from 1 test suite ran. (34 ms total)
+2: [  PASSED  ] 3 tests.
+2: -- run_test.py: return code 0
+2: -- run_test.py: inject classname prefix into gtest result file '/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_selection_manager.gtest.xml'
+2: -- run_test.py: verify result file '/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_selection_manager.gtest.xml'
+2/7 Test #2: test_selection_manager ...........   Passed    0.11 sec
+test 3
+    Start 3: test_occupancy_viewer
+
+3: Test command: /usr/bin/python3 "-u" "/opt/ros/humble/share/ament_cmake_test/cmake/run_test.py" "/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_occupancy_viewer.gtest.xml" "--package-name" "agt_map_studio" "--output-file" "/opt/mapping_ws/build/agt_map_studio/ament_cmake_gtest/test_occupancy_viewer.txt" "--command" "/opt/mapping_ws/build/agt_map_studio/test_occupancy_viewer" "--gtest_output=xml:/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_occupancy_viewer.gtest.xml"
+3: Test timeout computed to be: 60
+3: -- run_test.py: invoking following command in '/opt/mapping_ws/build/agt_map_studio':
+3:  - /opt/mapping_ws/build/agt_map_studio/test_occupancy_viewer --gtest_output=xml:/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_occupancy_viewer.gtest.xml
+3: Running main() from /opt/ros/humble/src/gtest_vendor/src/gtest_main.cc
+3: [==========] Running 3 tests from 2 test suites.
+3: [----------] Global test environment set-up.
+3: [----------] 1 test from GridMapTest
+3: [ RUN      ] GridMapTest.EmptyMapAndCoordinateRoundTrip
+3: [       OK ] GridMapTest.EmptyMapAndCoordinateRoundTrip (0 ms)
+3: [----------] 1 test from GridMapTest (0 ms total)
+3: 
+3: [----------] 2 tests from MapYamlLoaderTest
+3: [ RUN      ] MapYamlLoaderTest.LoadsP2AndFlipsIntoLowerLeftGrid
+3: [       OK ] MapYamlLoaderTest.LoadsP2AndFlipsIntoLowerLeftGrid (0 ms)
+3: [ RUN      ] MapYamlLoaderTest.LoadsP5Binary
+3: [       OK ] MapYamlLoaderTest.LoadsP5Binary (1 ms)
+3: [----------] 2 tests from MapYamlLoaderTest (1 ms total)
+3: 
+3: [----------] Global test environment tear-down
+3: [==========] 3 tests from 2 test suites ran. (1 ms total)
+3: [  PASSED  ] 3 tests.
+3: -- run_test.py: return code 0
+3: -- run_test.py: inject classname prefix into gtest result file '/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_occupancy_viewer.gtest.xml'
+3: -- run_test.py: verify result file '/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_occupancy_viewer.gtest.xml'
+3/7 Test #3: test_occupancy_viewer ............   Passed    0.10 sec
+test 4
+    Start 4: test_occupancy_refinement
+
+4: Test command: /usr/bin/python3 "-u" "/opt/ros/humble/share/ament_cmake_test/cmake/run_test.py" "/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_occupancy_refinement.gtest.xml" "--package-name" "agt_map_studio" "--output-file" "/opt/mapping_ws/build/agt_map_studio/ament_cmake_gtest/test_occupancy_refinement.txt" "--command" "/opt/mapping_ws/build/agt_map_studio/test_occupancy_refinement" "--gtest_output=xml:/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_occupancy_refinement.gtest.xml"
+4: Test timeout computed to be: 60
+4: -- run_test.py: invoking following command in '/opt/mapping_ws/build/agt_map_studio':
+4:  - /opt/mapping_ws/build/agt_map_studio/test_occupancy_refinement --gtest_output=xml:/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_occupancy_refinement.gtest.xml
+4: Running main() from /opt/ros/humble/src/gtest_vendor/src/gtest_main.cc
+4: [==========] Running 4 tests from 1 test suite.
+4: [----------] Global test environment set-up.
+4: [----------] 4 tests from RefinementModelTest
+4: [ RUN      ] RefinementModelTest.EraseUndoRedoUsesSparseCellChanges
+4: [       OK ] RefinementModelTest.EraseUndoRedoUsesSparseCellChanges (0 ms)
+4: [ RUN      ] RefinementModelTest.ObstacleLineChangesFreeCellsOnly
+4: [       OK ] RefinementModelTest.ObstacleLineChangesFreeCellsOnly (0 ms)
+4: [ RUN      ] RefinementModelTest.ForbiddenPolygonDoesNotChangeOccupancy
+4: [       OK ] RefinementModelTest.ForbiddenPolygonDoesNotChangeOccupancy (0 ms)
+4: [ RUN      ] RefinementModelTest.RefinementRoundTripAndExport
+4: [       OK ] RefinementModelTest.RefinementRoundTripAndExport (2 ms)
+4: [----------] 4 tests from RefinementModelTest (2 ms total)
+4: 
+4: [----------] Global test environment tear-down
+4: [==========] 4 tests from 1 test suite ran. (2 ms total)
+4: [  PASSED  ] 4 tests.
+4: -- run_test.py: return code 0
+4: -- run_test.py: inject classname prefix into gtest result file '/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_occupancy_refinement.gtest.xml'
+4: -- run_test.py: verify result file '/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_occupancy_refinement.gtest.xml'
+4/7 Test #4: test_occupancy_refinement ........   Passed    0.09 sec
+test 5
+    Start 5: test_patch_export
+
+5: Test command: /usr/bin/python3 "-u" "/opt/ros/humble/share/ament_cmake_test/cmake/run_test.py" "/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_patch_export.gtest.xml" "--package-name" "agt_map_studio" "--output-file" "/opt/mapping_ws/build/agt_map_studio/ament_cmake_gtest/test_patch_export.txt" "--command" "/opt/mapping_ws/build/agt_map_studio/test_patch_export" "--gtest_output=xml:/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_patch_export.gtest.xml"
+5: Test timeout computed to be: 60
+5: -- run_test.py: invoking following command in '/opt/mapping_ws/build/agt_map_studio':
+5:  - /opt/mapping_ws/build/agt_map_studio/test_patch_export --gtest_output=xml:/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_patch_export.gtest.xml
+5: Running main() from /opt/ros/humble/src/gtest_vendor/src/gtest_main.cc
+5: [==========] Running 4 tests from 2 test suites.
+5: [----------] Global test environment set-up.
+5: [----------] 2 tests from FillPolygonCommandTest
+5: [ RUN      ] FillPolygonCommandTest.FillsCellCentersInsidePolygon
+5: [       OK ] FillPolygonCommandTest.FillsCellCentersInsidePolygon (0 ms)
+5: [ RUN      ] FillPolygonCommandTest.NoOpPolygonReturnsNull
+5: [       OK ] FillPolygonCommandTest.NoOpPolygonReturnsNull (0 ms)
+5: [----------] 2 tests from FillPolygonCommandTest (0 ms total)
+5: 
+5: [----------] 2 tests from NavigationPatchExportTest
+5: [ RUN      ] NavigationPatchExportTest.WritesPatchNavMapSchema
+5: [       OK ] NavigationPatchExportTest.WritesPatchNavMapSchema (1 ms)
+5: [ RUN      ] NavigationPatchExportTest.FingerprintTracksActiveOperations
+5: [       OK ] NavigationPatchExportTest.FingerprintTracksActiveOperations (0 ms)
+5: [----------] 2 tests from NavigationPatchExportTest (1 ms total)
+5: 
+5: [----------] Global test environment tear-down
+5: [==========] 4 tests from 2 test suites ran. (1 ms total)
+5: [  PASSED  ] 4 tests.
+5: -- run_test.py: return code 0
+5: -- run_test.py: inject classname prefix into gtest result file '/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_patch_export.gtest.xml'
+5: -- run_test.py: verify result file '/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_patch_export.gtest.xml'
+5/7 Test #5: test_patch_export ................   Passed    0.09 sec
+test 6
+    Start 6: test_refinement_rules_export
+
+6: Test command: /usr/bin/python3 "-u" "/opt/ros/humble/share/ament_cmake_test/cmake/run_test.py" "/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_refinement_rules_export.gtest.xml" "--package-name" "agt_map_studio" "--output-file" "/opt/mapping_ws/build/agt_map_studio/ament_cmake_gtest/test_refinement_rules_export.txt" "--command" "/opt/mapping_ws/build/agt_map_studio/test_refinement_rules_export" "--gtest_output=xml:/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_refinement_rules_export.gtest.xml"
+6: Test timeout computed to be: 60
+6: -- run_test.py: invoking following command in '/opt/mapping_ws/build/agt_map_studio':
+6:  - /opt/mapping_ws/build/agt_map_studio/test_refinement_rules_export --gtest_output=xml:/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_refinement_rules_export.gtest.xml
+6: Running main() from /opt/ros/humble/src/gtest_vendor/src/gtest_main.cc
+6: [==========] Running 2 tests from 1 test suite.
+6: [----------] Global test environment set-up.
+6: [----------] 2 tests from RefinementRulesExportTest
+6: [ RUN      ] RefinementRulesExportTest.WritesRefinementCoreRulesForActiveDeletes
+6: [       OK ] RefinementRulesExportTest.WritesRefinementCoreRulesForActiveDeletes (2 ms)
+6: [ RUN      ] RefinementRulesExportTest.InvertSelectionFlipsVisibleOnly
+6: [       OK ] RefinementRulesExportTest.InvertSelectionFlipsVisibleOnly (0 ms)
+6: [----------] 2 tests from RefinementRulesExportTest (2 ms total)
+6: 
+6: [----------] Global test environment tear-down
+6: [==========] 2 tests from 1 test suite ran. (34 ms total)
+6: [  PASSED  ] 2 tests.
+6: -- run_test.py: return code 0
+6: -- run_test.py: inject classname prefix into gtest result file '/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_refinement_rules_export.gtest.xml'
+6: -- run_test.py: verify result file '/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_refinement_rules_export.gtest.xml'
+6/7 Test #6: test_refinement_rules_export .....   Passed    0.11 sec
+test 7
+    Start 7: test_workflow_session
+
+7: Test command: /usr/bin/python3 "-u" "/opt/ros/humble/share/ament_cmake_test/cmake/run_test.py" "/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_workflow_session.gtest.xml" "--package-name" "agt_map_studio" "--output-file" "/opt/mapping_ws/build/agt_map_studio/ament_cmake_gtest/test_workflow_session.txt" "--command" "/opt/mapping_ws/build/agt_map_studio/test_workflow_session" "--gtest_output=xml:/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_workflow_session.gtest.xml"
+7: Test timeout computed to be: 60
+7: -- run_test.py: invoking following command in '/opt/mapping_ws/build/agt_map_studio':
+7:  - /opt/mapping_ws/build/agt_map_studio/test_workflow_session --gtest_output=xml:/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_workflow_session.gtest.xml
+7: Running main() from /opt/ros/humble/src/gtest_vendor/src/gtest_main.cc
+7: [==========] Running 4 tests from 1 test suite.
+7: [----------] Global test environment set-up.
+7: [----------] 4 tests from WorkflowSessionTest
+7: [ RUN      ] WorkflowSessionTest.StagesStartMissingAndBecomeFresh
+7: [       OK ] WorkflowSessionTest.StagesStartMissingAndBecomeFresh (1 ms)
+7: [ RUN      ] WorkflowSessionTest.ThreeDEditsInvalidateDownstreamStages
+7: [       OK ] WorkflowSessionTest.ThreeDEditsInvalidateDownstreamStages (0 ms)
+7: [ RUN      ] WorkflowSessionTest.TwoDEditsOnlyInvalidatePatchAndPublish
+7: [       OK ] WorkflowSessionTest.TwoDEditsOnlyInvalidatePatchAndPublish (0 ms)
+7: [ RUN      ] WorkflowSessionTest.SaveAndLoadRoundTrip
+7: [       OK ] WorkflowSessionTest.SaveAndLoadRoundTrip (2 ms)
+7: [----------] 4 tests from WorkflowSessionTest (4 ms total)
+7: 
+7: [----------] Global test environment tear-down
+7: [==========] 4 tests from 1 test suite ran. (39 ms total)
+7: [  PASSED  ] 4 tests.
+7: -- run_test.py: return code 0
+7: -- run_test.py: inject classname prefix into gtest result file '/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_workflow_session.gtest.xml'
+7: -- run_test.py: verify result file '/opt/mapping_ws/build/agt_map_studio/test_results/agt_map_studio/test_workflow_session.gtest.xml'
+7/7 Test #7: test_workflow_session ............   Passed    0.10 sec
+
+100% tests passed, 0 tests failed out of 7
+
+Label Time Summary:
+gtest    =   0.77 sec*proc (7 tests)
+
+Total Test time (real) =   0.77 sec
+Finished <<< agt_map_studio [0.80s]
+Starting >>> agt_mapping_core
+
+----------------------------------------------------------------------
+Ran 0 tests in 0.000s
+
+OK
+--- stderr: agt_mapping_core
+
+----------------------------------------------------------------------
+Ran 0 tests in 0.000s
+
+OK
+---
+Finished <<< agt_mapping_core [0.40s]
+Starting >>> agt_mapping_exporter
+============================= test session starts ==============================
+platform linux -- Python 3.10.12, pytest-6.2.5, py-1.10.0, pluggy-0.13.0
+cachedir: /opt/mapping_ws/build/agt_mapping_exporter/.pytest_cache
+rootdir: /opt/mapping_ws/src/agt-lio-pgo-mapping/exporters/agt_mapping_exporter
+plugins: ament-pep257-0.12.15, ament-lint-0.12.15, ament-xmllint-0.12.15, launch-testing-1.0.15, launch-testing-ros-0.19.14, ament-copyright-0.12.15, ament-flake8-0.12.15, colcon-core-0.21.3
+collected 5 items
+
+test/test_exporter_lifecycle.py ....                                     [ 80%]
+test/test_exporter_node.py .                                             [100%]
+
+-- generated xml file: /opt/mapping_ws/build/agt_mapping_exporter/pytest.xml ---
+============================== 5 passed in 0.20s ===============================
+Finished <<< agt_mapping_exporter [0.93s]
+Starting >>> agt_mid360_adapter
+UpdateCTestConfiguration  from :/opt/mapping_ws/build/agt_mid360_adapter/CTestConfiguration.ini
+Parse Config file:/opt/mapping_ws/build/agt_mid360_adapter/CTestConfiguration.ini
+   Site: 3551ff2bd1ae
+   Build name: (empty)
+ Add coverage exclude regular expressions.
+Create new tag: 20261007-1605 - Experimental
+UpdateCTestConfiguration  from :/opt/mapping_ws/build/agt_mid360_adapter/CTestConfiguration.ini
+Parse Config file:/opt/mapping_ws/build/agt_mid360_adapter/CTestConfiguration.ini
+Test project /opt/mapping_ws/build/agt_mid360_adapter
+Constructing a list of tests
+Done constructing a list of tests
+Updating test list for fixtures
+Added 0 tests to meet fixture requirements
+Checking test dependency graph...
+Checking test dependency graph end
+test 1
+    Start 1: test_custommsg_to_pointcloud
+
+1: Test command: /usr/bin/python3 "-u" "/opt/ros/humble/share/ament_cmake_test/cmake/run_test.py" "/opt/mapping_ws/build/agt_mid360_adapter/test_results/agt_mid360_adapter/test_custommsg_to_pointcloud.gtest.xml" "--package-name" "agt_mid360_adapter" "--output-file" "/opt/mapping_ws/build/agt_mid360_adapter/ament_cmake_gtest/test_custommsg_to_pointcloud.txt" "--command" "/opt/mapping_ws/build/agt_mid360_adapter/test_custommsg_to_pointcloud" "--gtest_output=xml:/opt/mapping_ws/build/agt_mid360_adapter/test_results/agt_mid360_adapter/test_custommsg_to_pointcloud.gtest.xml"
+1: Test timeout computed to be: 60
+1: -- run_test.py: invoking following command in '/opt/mapping_ws/build/agt_mid360_adapter':
+1:  - /opt/mapping_ws/build/agt_mid360_adapter/test_custommsg_to_pointcloud --gtest_output=xml:/opt/mapping_ws/build/agt_mid360_adapter/test_results/agt_mid360_adapter/test_custommsg_to_pointcloud.gtest.xml
+1: Running main() from /opt/ros/humble/src/gtest_vendor/src/gtest_main.cc
+1: [==========] Running 2 tests from 1 test suite.
+1: [----------] Global test environment set-up.
+1: [----------] 2 tests from CustomMsgToPointCloud
+1: [ RUN      ] CustomMsgToPointCloud.PreservesHeaderCoordinatesAndIntensity
+1: [       OK ] CustomMsgToPointCloud.PreservesHeaderCoordinatesAndIntensity (0 ms)
+1: [ RUN      ] CustomMsgToPointCloud.OverridesFrameOnlyWhenConfigured
+1: [       OK ] CustomMsgToPointCloud.OverridesFrameOnlyWhenConfigured (0 ms)
+1: [----------] 2 tests from CustomMsgToPointCloud (0 ms total)
+1: 
+1: [----------] Global test environment tear-down
+1: [==========] 2 tests from 1 test suite ran. (0 ms total)
+1: [  PASSED  ] 2 tests.
+1: -- run_test.py: return code 0
+1: -- run_test.py: inject classname prefix into gtest result file '/opt/mapping_ws/build/agt_mid360_adapter/test_results/agt_mid360_adapter/test_custommsg_to_pointcloud.gtest.xml'
+1: -- run_test.py: verify result file '/opt/mapping_ws/build/agt_mid360_adapter/test_results/agt_mid360_adapter/test_custommsg_to_pointcloud.gtest.xml'
+1/1 Test #1: test_custommsg_to_pointcloud .....   Passed    0.09 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Label Time Summary:
+gtest    =   0.09 sec*proc (1 test)
+
+Total Test time (real) =   0.10 sec
+Finished <<< agt_mid360_adapter [0.16s]
+Starting >>> agt_pgo_backend
+UpdateCTestConfiguration  from :/opt/mapping_ws/build/agt_pgo_backend/CTestConfiguration.ini
+Parse Config file:/opt/mapping_ws/build/agt_pgo_backend/CTestConfiguration.ini
+   Site: 3551ff2bd1ae
+   Build name: (empty)
+ Add coverage exclude regular expressions.
+Create new tag: 20261007-1605 - Experimental
+UpdateCTestConfiguration  from :/opt/mapping_ws/build/agt_pgo_backend/CTestConfiguration.ini
+Parse Config file:/opt/mapping_ws/build/agt_pgo_backend/CTestConfiguration.ini
+Test project /opt/mapping_ws/build/agt_pgo_backend
+Constructing a list of tests
+Done constructing a list of tests
+Updating test list for fixtures
+Added 0 tests to meet fixture requirements
+Checking test dependency graph...
+Checking test dependency graph end
+test 1
+    Start 1: test_pgo_backend_bridge
+
+1: Test command: /usr/bin/python3 "-u" "/opt/ros/humble/share/ament_cmake_test/cmake/run_test.py" "/opt/mapping_ws/build/agt_pgo_backend/test_results/agt_pgo_backend/test_pgo_backend_bridge.gtest.xml" "--package-name" "agt_pgo_backend" "--output-file" "/opt/mapping_ws/build/agt_pgo_backend/ament_cmake_gtest/test_pgo_backend_bridge.txt" "--command" "/opt/mapping_ws/build/agt_pgo_backend/test_pgo_backend_bridge" "--gtest_output=xml:/opt/mapping_ws/build/agt_pgo_backend/test_results/agt_pgo_backend/test_pgo_backend_bridge.gtest.xml"
+1: Test timeout computed to be: 60
+1: -- run_test.py: invoking following command in '/opt/mapping_ws/build/agt_pgo_backend':
+1:  - /opt/mapping_ws/build/agt_pgo_backend/test_pgo_backend_bridge --gtest_output=xml:/opt/mapping_ws/build/agt_pgo_backend/test_results/agt_pgo_backend/test_pgo_backend_bridge.gtest.xml
+1: Running main() from /opt/ros/humble/src/gtest_vendor/src/gtest_main.cc
+1: [==========] Running 3 tests from 1 test suite.
+1: [----------] Global test environment set-up.
+1: [----------] 3 tests from PgoBackendBridge
+1: [ RUN      ] PgoBackendBridge.DeclaresStableFrontendAndBackendTopics
+1: [       OK ] PgoBackendBridge.DeclaresStableFrontendAndBackendTopics (0 ms)
+1: [ RUN      ] PgoBackendBridge.MockFrontendOdometryProducesPoseAndKeyframe
+1: [       OK ] PgoBackendBridge.MockFrontendOdometryProducesPoseAndKeyframe (0 ms)
+1: [ RUN      ] PgoBackendBridge.ArtifactTriggerPublishesRequestState
+1: [       OK ] PgoBackendBridge.ArtifactTriggerPublishesRequestState (0 ms)
+1: [----------] 3 tests from PgoBackendBridge (0 ms total)
+1: 
+1: [----------] Global test environment tear-down
+1: [==========] 3 tests from 1 test suite ran. (0 ms total)
+1: [  PASSED  ] 3 tests.
+1: -- run_test.py: return code 0
+1: -- run_test.py: inject classname prefix into gtest result file '/opt/mapping_ws/build/agt_pgo_backend/test_results/agt_pgo_backend/test_pgo_backend_bridge.gtest.xml'
+1: -- run_test.py: verify result file '/opt/mapping_ws/build/agt_pgo_backend/test_results/agt_pgo_backend/test_pgo_backend_bridge.gtest.xml'
+1/1 Test #1: test_pgo_backend_bridge ..........   Passed    0.09 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Label Time Summary:
+gtest    =   0.09 sec*proc (1 test)
+
+Total Test time (real) =   0.09 sec
+Finished <<< agt_pgo_backend [0.13s]
+Starting >>> agt_mapping_bringup
+============================= test session starts ==============================
+platform linux -- Python 3.10.12, pytest-6.2.5, py-1.10.0, pluggy-0.13.0
+cachedir: /opt/mapping_ws/build/agt_mapping_bringup/.pytest_cache
+rootdir: /opt/mapping_ws/src/agt-lio-pgo-mapping/bringup/agt_mapping_bringup
+plugins: ament-pep257-0.12.15, ament-lint-0.12.15, ament-xmllint-0.12.15, launch-testing-1.0.15, launch-testing-ros-0.19.14, ament-copyright-0.12.15, ament-flake8-0.12.15, colcon-core-0.21.3
+collected 97 items
+
+test/test_cli.py ........                                                [  8%]
+test/test_external_calibration.py ..                                     [ 10%]
+test/test_launch_contract.py ............                                [ 22%]
+test/test_live_mode.py ............                                      [ 35%]
+test/test_map_release.py ................                                [ 51%]
+test/test_review.py .....                                                [ 56%]
+test/test_ros_launch_sdk.py ...                                          [ 59%]
+test/test_runtime_contract.py .........                                  [ 69%]
+test/test_workflow.py ..............................                     [100%]
+
+--- generated xml file: /opt/mapping_ws/build/agt_mapping_bringup/pytest.xml ---
+============================== 97 passed in 1.09s ==============================
+Finished <<< agt_mapping_bringup [1.97s]
+
+Summary: 13 packages finished [7.02s]
+  1 package had stderr output: agt_mapping_core
+Summary: 30 tests, 0 errors, 0 failures, 0 skipped
+Summary: 19 tests, 0 errors, 0 failures, 0 skipped

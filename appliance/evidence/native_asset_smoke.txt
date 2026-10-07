@@ -1,0 +1,13 @@
+RELOCALIZATION ASSETS BUILT
+output=/tmp/pytest-of-root/pytest-1/test_native_assets0/localization
+points=252
+map=/tmp/pytest-of-root/pytest-1/test_native_assets0/localization/global_map_downsampled.pcd
+bbs=/tmp/pytest-of-root/pytest-1/test_native_assets0/localization/voxelmaps_coords
+RELOCALIZATION CANDIDATES BUILT
+map_dir=/tmp/pytest-of-root/pytest-1/test_native_assets0/mapping
+output=/tmp/pytest-of-root/pytest-1/test_native_assets0/localization
+entries=1
+skipped=0
+database=/tmp/pytest-of-root/pytest-1/test_native_assets0/localization/polar_context.db
+.
+1 passed in 1.20s

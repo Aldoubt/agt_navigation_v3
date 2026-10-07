@@ -265,6 +265,13 @@ class RosRuntime:
                 and status.state == LocalizationStatus.STATE_LOCALIZED
                 and status.local_odom_fresh
                 and status.global_correction_valid
+                and (
+                    not self.c.mission.binding
+                    or (
+                        status.map_id == self.c.mission.binding["map_bundle_id"]
+                        and status.map_version == self.c.mission.binding["map_version"]
+                    )
+                )
             )
             self.c.localization = "READY" if ready else ("LOST" if status else "STARTING")
             gateway = now - self.gateway_rx < 0.5 and not self.estop

@@ -25,3 +25,7 @@ map_data_manager/agt_map_manager/.../map_package.py validates metadata schema_ve
 runtime_binding.py checks active_state schema/generation and exact metadata paths/identity. map_registry.py and map_manager.py own selection. Appliance writes compatible metadata at bundle root and one validated active pointer; consumers receive paths from the same binding. An active bundle is immutable; edits create a new version. Bundle additionally seals navigation PGM, review, mapping provenance and per-file hashes, which legacy V3 metadata alone does not fully enforce.
 
 No native builder currently validates software commit/source map hash itself. Appliance wrapper performs full input verification, exact pose/patch correspondence, mandatory output hashes and provenance, then validates via V3 before use. Mock DB/index is marked mock and forbidden in real runtime; mock acceptance does not attest actual BBS/GICP quality.
+
+## YHS composition fix
+
+The existing global relocalizer's query frame contract has old Bunker mapping-body/Livox defaults independent of `body_to_base_calibration_file`. The field launch explicitly loads `mapping/calibration.yaml`, verifies its FAST-LIO internal transform agrees numerically with the mounted navigation FAST-LIO configuration, and supplies `mapping_body_livox_translation` and `mapping_body_livox_quaternion_xyzw`. This retains the original relocalizer/tracker and sole Localization Manager map→odom publisher. A different calibration requires a new mapping/bundle version, never an in-place edit.

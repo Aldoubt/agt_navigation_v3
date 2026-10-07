@@ -116,3 +116,16 @@ def test_mapping_mode_and_route_start_semantics(tmp_path):
         assert c.localization == "STOPPED"
     finally:
         c.shutdown()
+
+
+def test_stop_all_cancels_mapping_build(tmp_path):
+    c = Appliance(tmp_path, Path(__file__).resolve().parents[2] / "profiles/mock_yhs", mock=True)
+    try:
+        c.command(dict(command="START_MAPPING", map_bundle_id="m", map_version="1"))
+        c.command(dict(command="STOP_MAPPING"))
+        c.command(dict(command="STOP_ALL"))
+        wait(lambda: not c.busy())
+        assert c.mapping == "CANCELLED"
+        assert not (c.bundle / "manifest.yaml").exists()
+    finally:
+        c.shutdown()

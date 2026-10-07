@@ -43,7 +43,7 @@ def calibration_errors(profile):
     errors = []
     for name in ("lidar_extrinsics", "imu_extrinsics", "base_geometry", "calibration_version"):
         d = read_yaml(root / "calibration" / (name + ".yaml"))
-        if d.get("status") != "VERIFIED" or not d.get("verified_by"):
+        if d.get("status") != "VERIFIED" or not d.get("verified_by") or not d.get("values"):
             errors.append(f"CALIBRATION_REQUIRED: {name}")
     for name, section in (
         ("urdf", "robot"),
@@ -65,13 +65,53 @@ def calibration_errors(profile):
     for key in ["self_center_xyz", "self_size_xyz", "sensor_ground_z_m"]:
         if perception.get(key) is None:
             errors.append("CONFIG_REQUIRED: perception." + key)
-    for key in ["lidar_frame", "imu_frame"]:
+    for key in ["lidar_frame", "imu_frame", "rotation_frame"]:
         if not profile["robot"].get(key):
             errors.append("CONFIG_REQUIRED: " + key)
     for key in ["interface", "host_ip", "sensor_ip"]:
         if not profile["sensors"].get(key):
             errors.append("CONFIG_REQUIRED: " + key)
+    footprint = profile["navigation"].get("footprint")
+    if isinstance(footprint, list) and len(footprint) >= 3:
+        for point in footprint:
+            if not isinstance(point, list) or len(point) != 2:
+                errors.append("invalid footprint point")
+            else:
+                for coordinate in point:
+                    number(coordinate)
+    padding = profile["navigation"].get("footprint_padding")
+    if padding is not None:
+        number(padding, nonnegative=True)
+    for key in ["self_center_xyz", "self_size_xyz"]:
+        value = perception.get(key)
+        if value is not None:
+            if not isinstance(value, list) or len(value) != 3:
+                errors.append("invalid perception." + key)
+            else:
+                for coordinate in value:
+                    number(coordinate)
+                    if key == "self_size_xyz" and coordinate <= 0:
+                        errors.append("self filter dimensions must be positive")
+    if perception.get("sensor_ground_z_m") is not None:
+        number(perception["sensor_ground_z_m"])
     return errors
+
+
+MOTION_KEYS = (
+    "angular_accel_radps2",
+    "angular_decel_radps2",
+    "angular_radps",
+    "controller_approach_mps",
+    "controller_bootstrap_angular_accel",
+    "controller_cruise_mps",
+    "controller_regulated_min_mps",
+    "forward_mps",
+    "linear_accel_mps2",
+    "linear_decel_mps2",
+    "reverse_mps",
+    "rotate_to_heading_radps",
+    "min_rotational_radps",
+)
 
 
 def require_real(profile, *, motion=False):
@@ -93,7 +133,8 @@ def require_real(profile, *, motion=False):
         for k in ("ros1_cmd_vel", "ros1_odom", "ros1_chassis", "ros1_estop"):
             if not profile["topics"].get(k):
                 errors.append("CONFIG_REQUIRED: " + k)
-        for k, v in profile["navigation"].get("motion_limits", {}).items():
+        for k in MOTION_KEYS:
+            v = profile["navigation"].get("motion_limits", {}).get(k)
             if v is None or number(v, nonnegative=True) <= 0:
                 errors.append("CONFIG_REQUIRED: motion limit " + k)
     if errors:

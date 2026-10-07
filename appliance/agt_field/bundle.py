@@ -234,6 +234,9 @@ def seal(root, identity, versions, *, mock=False):
     if (root / "manifest.yaml").exists():
         raise ContractError("bundle already sealed; create a new version")
     validate_mapping(root / "mapping")
+    expected_mock = mock
+    if bool(read_yaml(root / "mapping/metadata.yaml").get("mock")) != expected_mock:
+        raise ContractError("mock mapping artifacts cannot be relabeled")
     navigation_check(root / "navigation")
     review = read_yaml(root / "navigation/review_status.yaml")
     if review.get("status") != "confirmed":
@@ -247,6 +250,11 @@ def seal(root, identity, versions, *, mock=False):
         raise ContractError("localization keyframe provenance mismatch")
     if loc.get("mock") != mock:
         raise ContractError("mock assets cannot be relabeled")
+    for record in poses(root / "mapping"):
+        if sha(root / "localization" / record["output_patch"]) != record["sha256"]:
+            raise ContractError("localization patch differs from mapping keyframe")
+    if sha(root / "localization/poses.txt") != sha(root / "mapping/poses.txt"):
+        raise ContractError("localization poses differ from optimized mapping poses")
     assets = {
         "localization_map": dict(path="mapping/map.pcd", sha256=sha(root / "mapping/map.pcd")),
         "navigation_map": dict(
@@ -283,6 +291,11 @@ def seal(root, identity, versions, *, mock=False):
     manifest["bundle_sha256"] = digest_data(manifest)
     atomic_yaml(root / "manifest.yaml", manifest)
     validate_bundle(root, allow_mock=mock)
+    # Keep frozen map producers protected from accidental editor writes.
+    # User-controlled versions can still be removed explicitly, never changed by runtime.
+    for p in root.rglob("*"):
+        if p.is_file():
+            p.chmod(0o444)
     return manifest
 
 
@@ -306,6 +319,9 @@ def validate_bundle(root, *, allow_mock=False):
     identifier(m.get("map_bundle_id"))
     identifier(m.get("map_version"))
     validate_mapping(root / "mapping")
+    expected_mock = bool(m.get("mock"))
+    if bool(read_yaml(root / "mapping/metadata.yaml").get("mock")) != expected_mock:
+        raise ContractError("mock mapping artifacts cannot be relabeled")
     navigation_check(root / "navigation")
     if not LOCALIZATION_FILES <= files(root / "localization").keys() or not list(
         (root / "localization/voxelmaps_coords").glob("*.pcd")

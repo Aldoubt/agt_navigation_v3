@@ -1,6 +1,7 @@
 footprint: null
 footprint_padding: null
 motion_limits:
+  min_rotational_radps: null
   angular_accel_radps2: null
   angular_decel_radps2: null
   angular_radps: null

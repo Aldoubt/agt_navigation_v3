@@ -44,7 +44,7 @@ def write_navigation_params(profile, destination, config_dir=None):
     behavior = params["behavior_server"]["ros__parameters"]
     behavior.update(
         max_rotational_vel=limits["rotate_to_heading_radps"],
-        min_rotational_vel=limits["controller_regulated_min_mps"],
+        min_rotational_vel=limits["min_rotational_radps"],
         rotational_acc_lim=limits["angular_accel_radps2"],
     )
     smoother = params["velocity_smoother"]["ros__parameters"]

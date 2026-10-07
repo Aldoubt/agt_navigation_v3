@@ -40,6 +40,8 @@ class Appliance:
         self.versions = versions or {}
         self.mapping_history = ["STOPPED"]
         self.last_error = ""
+        self.build_cancel = threading.Event()
+        self.tool_counter = 0
         self.worker = None
         self.record_started = 0
         self.record_path = ""
@@ -91,9 +93,10 @@ class Appliance:
             try:
                 function()
             except Exception as exc:
+                self.processes.stop("mapping")
                 with self.lock:
                     self.last_error = str(exc)
-                    self.mapping = "ERROR"
+                    self.mapping = "CANCELLED" if self.build_cancel.is_set() else "ERROR"
 
         self.worker = threading.Thread(target=execute, daemon=True)
         self.worker.start()
@@ -175,6 +178,9 @@ class Appliance:
                 base=self.profile["base"],
                 last_error=self.last_error,
                 profiles=str(self.profile["root"]),
+                tf={child: sorted(parents) for child, parents in self.runtime.tf.items()}
+                if not self.mock and self.runtime
+                else {},
                 busy=self.busy(),
             )
 
@@ -205,6 +211,7 @@ class Appliance:
         target = self.data / "maps" / map_id / version
         if target.exists():
             raise ContractError("map/version already exists")
+        self.build_cancel.clear()
         self.identity = dict(map_bundle_id=map_id, map_version=version)
         self.bundle = target
         self.run_dir = (
@@ -233,6 +240,8 @@ class Appliance:
                 "yhs_v1",
                 "--livox-config",
                 str(p["root"] / p["sensors"]["livox_config"]),
+                "--frame-id",
+                self.profile["robot"]["lidar_frame"],
                 "--fastlio-config",
                 str(cfg),
                 "--setup",
@@ -248,6 +257,20 @@ class Appliance:
             raise ContractError("mapping not running")
         self.mapping = "FINISH"
         self.task(self.build_mapping)
+
+    def run_checked(self, argv, check=True):
+        if self.build_cancel.is_set():
+            raise ContractError("map build cancelled")
+        self.tool_counter += 1
+        name = "build_tool_" + str(self.tool_counter)
+        process = self.processes.start(name, argv)
+        try:
+            code = process.wait(timeout=600)
+        except subprocess.TimeoutExpired:
+            self.processes.stop(name)
+            raise ContractError("map build tool timeout")
+        if code != 0 or self.build_cancel.is_set():
+            raise ContractError("map build tool failed/cancelled: " + str(code))
 
     def build_mapping(self):
         if self.mock:
@@ -270,6 +293,8 @@ class Appliance:
             self.bundle.mkdir(parents=True, exist_ok=False)
             shutil.copytree(source, self.bundle / "mapping")
         self.mapping_history.extend(["FINISH", "PROCESSING", "VERIFY"])
+        if self.build_cancel.is_set():
+            raise ContractError("map build cancelled")
         self.mapping = "VERIFY"
         validate_mapping(self.bundle / "mapping")
         self.mapping = "LOCALIZATION_ASSET_BUILD"
@@ -285,13 +310,14 @@ class Appliance:
                 self.identity,
                 self.versions,
                 self.profile["localization"],
+                run=self.run_checked,
             )
         self.mapping = "GRID_BUILD"
         self.mapping_history.append(self.mapping)
         if self.mock:
             navigation_fixture(self.bundle / "navigation", self.bundle / "mapping", confirmed=False)
         else:
-            subprocess.run(
+            self.run_checked(
                 overlay_command(
                     "/opt/mapping_ws/install/setup.bash",
                     [
@@ -309,6 +335,8 @@ class Appliance:
                 ),
                 check=True,
             )
+        if self.build_cancel.is_set():
+            raise ContractError("map build cancelled")
         self.mapping = "REVIEW_REQUIRED"
         self.mapping_history.append(self.mapping)
 
@@ -409,15 +437,10 @@ class Appliance:
             [
                 "ros2",
                 "launch",
-                "agt_system_bringup",
-                "localization.launch.py",
-                "global_map:=" + str(self.bundle / "mapping/map.pcd"),
-                "relocalization_assets:=" + str(self.bundle / "localization"),
-                "lio_backend:=fastlio2",
-                "fastlio_config:="
-                + str(self.profile["root"] / self.profile["localization"]["fastlio_config"]),
-                "enable_map_tracking:=true",
-                "auto_relocalize:=true",
+                "agt_mission_executor",
+                "field_localization.launch.py",
+                "profile:=" + str(self.profile["root"]),
+                "active_state_file:=" + str(self.data / "run/active_map.yaml"),
             ],
         )
         # Nav2 retains V3 configuration/controller. Start action server without sending goals.
@@ -468,7 +491,7 @@ class Appliance:
                 "user_config_path:="
                 + str(self.profile["root"] / self.profile["sensors"]["livox_config"]),
                 "-p",
-                "frame_id:=livox_frame",
+                "frame_id:=" + self.profile["robot"]["lidar_frame"],
             ],
         )
 
@@ -511,9 +534,13 @@ class Appliance:
 
     def command(self, request):
         if request.get("command") == "DOCTOR":
-            from .diagnostics import diagnostic_zip
+            from .diagnostics import diagnostic_zip, report
 
-            return dict(report_path=str(diagnostic_zip(self.data, self.profile, self.status())))
+            snapshot = self.status()
+            result = dict(diagnostic=report(self.data, self.profile, snapshot))
+            if request.get("report", True):
+                result["report_path"] = str(diagnostic_zip(self.data, self.profile, snapshot))
+            return result
         with self.lock:
             command = request.get("command")
             if command == "STATUS":
@@ -568,6 +595,7 @@ class Appliance:
                 self.processes.stop("recorder")
                 self.recording = "STOPPED"
             elif command == "STOP_ALL":
+                self.build_cancel.set()
                 self.mission.stop()
                 self.processes.shutdown()
                 self.localization = "STOPPED"
@@ -613,6 +641,7 @@ class Appliance:
     def shutdown(self):
         with self.lock:
             self.mission.stop()
+            self.build_cancel.set()
             self.stop_event.set()
         self.processes.shutdown()
         if self.runtime:
