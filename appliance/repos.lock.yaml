@@ -9,7 +9,7 @@ mapping:
   commit: 539352d309deef4f0acfe5f2bd783d5e72623a88
 hmi:
   url: https://github.com/Aldoubt/agt_robot_hmi.git
-  commit: 5ab45cc2cd4415e1d41329c23ab02877559340a9
+  commit: 035b6ac7bfab24be63abea979741f1a6a7185206
   integration_branch: feature/yhs-field-appliance-v1
   upstream_url: https://github.com/chengyangkj/Ros_Qt5_Gui_App.git
   upstream_commit: b0825e3cba3e7186cba8a6b83ff230be37c8b1fb

@@ -10,5 +10,5 @@ RUN --mount=type=secret,id=proxy_ca \
       ros-humble-navigation2 ros-humble-nav2-bringup ros-humble-robot-state-publisher ros-humble-tf2-tools \
       ros-humble-gtsam ros-humble-sophus ros-humble-pcl-ros ros-humble-pcl-conversions ros-humble-cv-bridge \
       ros-humble-image-transport ros-humble-diagnostic-msgs ros-humble-xacro ros-humble-rviz2 \
-      iproute2 iputils-ping can-utils xauth zip && \
+      fonts-noto-cjk fontconfig iproute2 iputils-ping can-utils xauth zip && \
     rm -f /usr/local/share/ca-certificates/session-proxy.crt && update-ca-certificates && rm -rf /var/lib/apt/lists/*

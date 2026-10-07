@@ -74,7 +74,7 @@ Native runtime 完整 clean 构建日志来自 Dockerfile 的两阶段 candidate
 |---|---|---|---|
 | agt_navigation_v3 | https://github.com/Aldoubt/agt_navigation_v3.git | e27abeb3fd63280ee8e48a47966e06588f8eebd8 | 7ac545cf5179e01857aaf40389ca454a67df24e9，后续 commit 补验收脚本/证据/本交接文档 |
 | agt-lio-pgo-mapping | https://github.com/Aldoubt/agt-lio-pgo-mapping.git | 6c40ff8bedab472b5cb0b914088fec1ecd566630 | 539352d309deef4f0acfe5f2bd783d5e72623a88 |
-| Ros_Qt5_Gui_App | https://github.com/Aldoubt/agt_robot_hmi.git（origin；upstream 保留） | b0825e3cba3e7186cba8a6b83ff230be37c8b1fb | 5ab45cc2cd4415e1d41329c23ab02877559340a9 |
+| Ros_Qt5_Gui_App | https://github.com/Aldoubt/agt_robot_hmi.git（origin；upstream 保留） | b0825e3cba3e7186cba8a6b83ff230be37c8b1fb | 035b6ac7bfab24be63abea979741f1a6a7185206 |
 
 Navigation commits：81e4054 audit；a6b5b22 bundle/native assets；1bc4bb4 mission/gateway contracts；113177e lifecycle/review/recording；44aa33a calibrated localization/native tests；2442b4c Docker/CLI/Qt/doctor；eaa366f motion gates/ROS overlay；8239582 archive pins/native layers；7ac545c ordinary-UID startup/package validation。Qt：75e6d7e integration/dwell；8c53ede archive pins/controlled manual mode；5ab45cc 中文现场说明。Mapping：539352d external FAST-LIO mounted calibration。
 
@@ -99,10 +99,20 @@ Navigation commits：81e4054 audit；a6b5b22 bundle/native assets；1bc4bb4 miss
 | DOCTOR | runtime + host probes、节点/topics/TF/CAN/profile/bundle/hash、诊断 zip（不带大型 bag） |
 | MOCK_ACCEPTANCE | Python unit/mock + 实际最终 Docker RPC 完整链路及异常、Qt offscreen、实际 Noetic/Humble fixture |
 
-## Qt fork 更新说明
+## Qt fork 初次独立发布记录（历史）
 
 独立仓库：https://github.com/Aldoubt/agt_robot_hmi/tree/feature/yhs-field-appliance-v1 。中文使用说明涵盖安装、Mock、真实配置、建图、MapStudio、激活、定位、多航点停顿、任务控制、录制、诊断与 R0–R13。Qt 新 commit 仅增加文档，C++ 与前述编译/CTest/offscreen 验证内容相同。
 
 repos.lock.yaml 现在直接 pin fork `5ab45cc`，不把已包含的 patch 再应用一次。旧的、精确匹配已验证补丁的 sources/hmi 会保留到 sources/hmi.upstream-patch-<base> 再取得 fork；未知修改不覆盖。不影响 maps/routes/bags/profiles。源准备的直 pin、重复运行、旧缓存迁移和 dirty 拒绝已自动测试。
 
 当前云端已运行镜像仍是前述验收版本；此更新未重建巨大 native image。安装器准备 fork 已实测，CLI wheel 构建/45 unit tests 已验证。现场首次 install.sh 使用新 fork pin；新 fork 没有改变已验证的 Qt C++ 行为。apt snapshot / 实车验收边界不变。
+
+## 中文 Qt 界面更新
+
+控制面板与航点表已中文化，并与原上位机浅色、蓝色按钮、圆角边框风格一致。五页为系统、建图、导航、录制、诊断。底部“停止全部任务”固定显示；长页面滚动，旧 dock 布局过窄时启动自动修复。实际主程序截图与独立 fork 中文使用说明已更新。
+
+Qt 完整主程序增量构建、Qt CTest 与 45 appliance tests 通过。实际 UID 1000 offscreen 截图通过；真实 X11 交互与实车验收仍为 PENDING。具体证据与镜像限制见 [中文界面验证](appliance/evidence/HMI_CHINESE_STYLE.md)。
+
+取得最新集成分支后执行 `./install.sh` 再 `./agt up --mock`；正式安装会编译新的固定 Qt fork 并安装中文字体。当前旧镜像未重建，不能用 `--skip-build` 获取这次界面更新。当前运行容器已增量编译新界面用于验证。
+
+当前 Qt fork pin：`035b6ac7bfab24be63abea979741f1a6a7185206`（中文界面与建图阶段标签测试）。
