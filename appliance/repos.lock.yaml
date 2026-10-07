@@ -8,10 +8,14 @@ mapping:
   url: https://github.com/Aldoubt/agt-lio-pgo-mapping.git
   commit: 539352d309deef4f0acfe5f2bd783d5e72623a88
 hmi:
-  url: https://github.com/chengyangkj/Ros_Qt5_Gui_App.git
-  commit: b0825e3cba3e7186cba8a6b83ff230be37c8b1fb
-  patch: third_party/qt-field.patch
-  patch_sha256: c900f9a1a91d9a71db8eb788f0da244e0cb5ae14b711447740a08d7d57f6ca33
+  url: https://github.com/Aldoubt/agt_robot_hmi.git
+  commit: 5ab45cc2cd4415e1d41329c23ab02877559340a9
+  integration_branch: feature/yhs-field-appliance-v1
+  upstream_url: https://github.com/chengyangkj/Ros_Qt5_Gui_App.git
+  upstream_commit: b0825e3cba3e7186cba8a6b83ff230be37c8b1fb
+  legacy_patch:
+    commit: b0825e3cba3e7186cba8a6b83ff230be37c8b1fb
+    patch_sha256: c900f9a1a91d9a71db8eb788f0da244e0cb5ae14b711447740a08d7d57f6ca33
 base_image: ros:humble-ros-base-jammy@sha256:860e53793ccf575e5369b5e9a19939de2bfcfb46a299954d06f54f2af54fed19
 native_manifest: dependencies/agt_navigation.repos
 mapping_manifest: .repos

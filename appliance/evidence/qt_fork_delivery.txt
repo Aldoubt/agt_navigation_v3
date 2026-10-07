@@ -1,0 +1,15 @@
+Independent writable Qt fork: https://github.com/Aldoubt/agt_robot_hmi
+Parent: https://github.com/chengyangkj/Ros_Qt5_Gui_App
+New branch: feature/yhs-field-appliance-v1
+Pinned fork commit: 5ab45cc2cd4415e1d41329c23ab02877559340a9
+Existing fork master/main/other branches: untouched
+Qt change since validated 8c53ede: README.md and docs/YHS_FIELD_USER_GUIDE_ZH.md only; C++ unchanged
+Source preparation against actual GitHub fork: PASS clean exact SHA
+Source preparation second run: PASS unchanged
+Old exact upstream-patch checkout: preserved as hmi.upstream-patch-b0825e3cba3e
+Tests: direct fork pin/repeat, matching legacy migration, unknown dirty legacy/fork refusal
+45 appliance unit tests: PASS
+CLI wheel build: PASS; no pycache/pyc payload
+Current running V1 image remains previous acceptance image; no claim of a new full native Docker rebuild
+First install from updated integration branch uses the direct fork pin; historical patch is provenance only
+Real robot hardware and interactive field desktop acceptance: PENDING

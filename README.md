@@ -14,7 +14,7 @@
 ./agt up
 ```
 
-或双击桌面 **AGT YHS Control**。首次实车配置见 [交接文档](HANDOFF.md)。数据保存在宿主机 `~/agt/`，删除容器不会删除地图、路线或录包。
+或双击桌面 **AGT YHS Control**。首次实车配置见 [交接文档](HANDOFF.md)；操作步骤见 [中文使用说明](https://github.com/Aldoubt/agt_robot_hmi/blob/feature/yhs-field-appliance-v1/docs/YHS_FIELD_USER_GUIDE_ZH.md)。数据保存在宿主机 `~/agt/`，删除容器不会删除地图、路线或录包。
 
 无硬件软件演示：`./agt up --mock`；无显示服务器：`./agt up --mock --headless`。
 

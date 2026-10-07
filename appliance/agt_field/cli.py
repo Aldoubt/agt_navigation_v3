@@ -188,7 +188,7 @@ def install(args):
                 ).strip(),
                 "--build-arg",
                 "HMI_PATCH_SHA256="
-                + read_yaml(ROOT / "appliance/repos.lock.yaml")["hmi"]["patch_sha256"],
+                + read_yaml(ROOT / "appliance/repos.lock.yaml")["hmi"].get("patch_sha256", "none"),
                 "--build-context",
                 "mapping=" + str(DATA / "sources/mapping"),
                 "--build-context",

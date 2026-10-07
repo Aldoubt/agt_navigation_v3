@@ -6,7 +6,7 @@ Source changes to pure appliance Python can be tested with PYTHONPATH=appliance 
 
 Incremental core builds: source /opt/ros/humble/setup.bash; cd /opt/nav_ws; colcon build --packages-select <changed package>; source install/setup.bash. Mapping is a separate workspace; never source both FAST-LIO/interface overlays into one mapping process. The controlled with_overlay.sh wrapper resets the process into the intended mapping overlay. A debugger/VS Code/Codex can attach to Dockerfile.dev without rebuilding native dependencies.
 
-Regenerate appliance/third_party/qt-field.patch from the pinned Qt base with git diff --binary; update patch_sha256 in repos.lock.yaml and rerun patch-apply test. Preserve upstream LICENSE/notices and modification dates. No pushing to Qt upstream is assumed.
+Qt source now lives in Aldoubt/agt_robot_hmi on feature/yhs-field-appliance-v1. Commit Qt changes there, update hmi.commit in repos.lock.yaml, and rerun source-preparation/relevant Qt tests. Historical qt-field.patch stays as provenance; do not apply it onto a fork that already contains it. Preserve upstream LICENSE/notices. No pushing to Qt upstream is assumed.
 
 ROS2 adapter integration fixture: PYTHONPATH=appliance python3 -m pytest appliance/tests_ros -s inside the Humble navigation overlay. It runs a real NavigateToPose action server/client, localized/LOST messages, measured odom and a mock explicit gateway socket. The default fixture publishes only zero velocity. The optional AGT_TEST_GATEWAY_ROOT path uses an isolated actual Noetic standard-message fixture and a 0.1 m/s command under /test/driver/cmd_vel, with no CAN or hardware; it verifies transfer and timeout, never real Nav2 planning or BBS/GICP hardware validation.
 

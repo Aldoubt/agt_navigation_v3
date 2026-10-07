@@ -41,3 +41,7 @@ LICENSE file is GNU GPL Version 2, June 1991 text; record facts and distribution
 ## ROS1 YHS
 
 No YHS driver exists in these cloned trees or the initial workspace. Do not reuse Bunker ROS2 driver. Driver model, topic/status type, CAN, bitrate, watchdog and ROS master remain CONFIG_REQUIRED. Explicit gateway uses typed standard-message contracts, status adapter parameterization and no TF publishing. Physical driver remains ROS1.
+
+## 后续 Qt fork 补充核查
+
+用户要求独立 Qt fork 后，通过已认证 GitHub canonical URL 确认 `Aldoubt/agt_robot_hmi` 已是 Ros_Qt5_Gui_App 的可写 fork，默认 master 及其他已有分支含独立开发工作。P0 的“未找到 fork”只代表当时查询结果，当前已更正为使用该 fork。新增 feature/yhs-field-appliance-v1，以本轮验证的 upstream b0825e3 + 两个 Qt implementation commits 为基础，未覆盖其已有分支。当前 pin 5ab45cc（中文说明），LICENSE/attribution 保留。

@@ -1,6 +1,6 @@
 # YHS Field Appliance V1 — 交接
 
-软件交付入口是 Navigation feature branch。Mapping 仍是独立地图生产仓库，Qt 仍是独立 upstream + 固定补丁；没有复制算法源码形成新的大一统仓库。真实硬件项目全部 PENDING。
+软件交付入口是 Navigation feature branch。Mapping 仍是独立地图生产仓库，Qt 使用独立可写 fork + 固定 commit；没有复制算法源码形成新的大一统仓库。真实硬件项目全部 PENDING。
 
 ## 明天第一步：按这 12 步执行
 
@@ -9,7 +9,7 @@
    git clone --branch feature/yhs-field-appliance-v1 https://github.com/Aldoubt/agt_navigation_v3.git
    cd agt_navigation_v3
    ```
-   已有干净 checkout 则 fetch 后切换同名分支。Mapping 分支为 `Aldoubt/agt-lio-pgo-mapping:feature/yhs-field-appliance-v1`，安装器会取得锁定 commit。Qt 安装器取得 `chengyangkj/Ros_Qt5_Gui_App` 的固定 upstream commit，再应用本仓库补丁；不需要向 Qt upstream 推送。
+   已有干净 checkout 则 fetch 后切换同名分支。Mapping 分支为 `Aldoubt/agt-lio-pgo-mapping:feature/yhs-field-appliance-v1`，安装器会取得锁定 commit。Qt 安装器取得独立 fork `Aldoubt/agt_robot_hmi` 的固定 commit `5ab45cc2cd4415e1d41329c23ab02877559340a9`；无需修改 Qt upstream。中文操作说明见 [Qt 中文使用说明](https://github.com/Aldoubt/agt_robot_hmi/blob/feature/yhs-field-appliance-v1/docs/YHS_FIELD_USER_GUIDE_ZH.md)。
 2. 首次运行 `./install.sh`。先确保 Docker Engine/Compose 可用、操作员能执行 docker info，且宿主机有 python3-yaml/xauth。安装器保留已有数据/profile，写安装日志并建立桌面入口。详见 [安装说明](appliance/docs/installation.md)。
 3. 启动：`./agt up`。先验纯软件可用 `./agt up --mock`，无显示服务器用 `./agt up --mock --headless`。
 4. Qt：双击 **AGT YHS Control**，或从 Linux 桌面终端执行 `./agt up`；launcher 封装 X11 cookie、Compose 与运行检查。失败看 `~/agt/logs/desktop-launch.log`，不需要手工 xhost/source。
@@ -53,7 +53,7 @@ AGENTS.md 是后续 AI 修改规则。开发模式使用 Dockerfile.dev、独立
 | 项目 | 状态与证据 |
 |---|---|
 | SOFTWARE_BUILD | PASS：Navigation 18 packages、Mapping 17 packages、完整 ROS2 Qt5、Python wheel |
-| UNIT_TESTS | PASS：42 appliance tests；Qt CTest 1；V3 map regression 32；Mapping workflow 109 passed/4 skipped/18 subtests |
+| UNIT_TESTS | PASS：45 appliance tests（含 fork pin/migration/dirty preservation）；Qt CTest 1；V3 map regression 32；Mapping workflow 109 passed/4 skipped/18 subtests |
 | MOCK_INTEGRATION | PASS：建图到三点 dwell 完成，定位丢失/Nav2失败/断连/取消 fail safely；最终 Docker RPC 记录见 evidence/docker_mock_runtime.txt |
 | DOCKER_RUNTIME | PASS：最终镜像/CLI 验收结果及 image ID 见 evidence/docker_runtime_acceptance.txt |
 | HMI | PASS 软件：Qt 完整编译、waypoint logic CTest、offscreen startup；云端没有实际 X11 桌面点击验收 |
@@ -68,15 +68,15 @@ Native runtime 完整 clean 构建日志来自 Dockerfile 的两阶段 candidate
 
 ## Git 交付记录
 
-所有初始 checkout 均 CLEAN，没有覆写用户 dirty 工作内容；三个仓库均建立 feature/yhs-field-appliance-v1。Navigation/Mapping 推送到用户可写 origin；Qt 无已确认可写 fork，保留 upstream remote、独立本地 branch，并将 upstream→feature 的完整补丁及 SHA256 存在集成仓库供安装器复现。
+所有初始 checkout 均 CLEAN，没有覆写用户 dirty 工作内容；三个仓库均建立 feature/yhs-field-appliance-v1。Navigation/Mapping 推送到用户可写 origin；后续 GitHub canonical URL 检查确认已有可写 fork `Aldoubt/agt_robot_hmi`。Qt 保留 upstream remote，在 fork 新增本任务 branch；未改动其 master/main/既有分支。安装器直接锁定 fork commit，历史 upstream 补丁保留作为 provenance，不重复应用。
 
 | Repository | Remote | BASE_HEAD | 验证过的实现 HEAD |
 |---|---|---|---|
 | agt_navigation_v3 | https://github.com/Aldoubt/agt_navigation_v3.git | e27abeb3fd63280ee8e48a47966e06588f8eebd8 | 7ac545cf5179e01857aaf40389ca454a67df24e9，后续 commit 补验收脚本/证据/本交接文档 |
 | agt-lio-pgo-mapping | https://github.com/Aldoubt/agt-lio-pgo-mapping.git | 6c40ff8bedab472b5cb0b914088fec1ecd566630 | 539352d309deef4f0acfe5f2bd783d5e72623a88 |
-| Ros_Qt5_Gui_App | https://github.com/chengyangkj/Ros_Qt5_Gui_App.git（upstream） | b0825e3cba3e7186cba8a6b83ff230be37c8b1fb | 8c53ede2ba76736cf5a1b74688519d7be740bd91 |
+| Ros_Qt5_Gui_App | https://github.com/Aldoubt/agt_robot_hmi.git（origin；upstream 保留） | b0825e3cba3e7186cba8a6b83ff230be37c8b1fb | 5ab45cc2cd4415e1d41329c23ab02877559340a9 |
 
-Navigation commits：81e4054 audit；a6b5b22 bundle/native assets；1bc4bb4 mission/gateway contracts；113177e lifecycle/review/recording；44aa33a calibrated localization/native tests；2442b4c Docker/CLI/Qt/doctor；eaa366f motion gates/ROS overlay；8239582 archive pins/native layers；7ac545c ordinary-UID startup/package validation。Qt：75e6d7e integration/dwell；8c53ede archive pins/controlled manual mode。Mapping：539352d external FAST-LIO mounted calibration。
+Navigation commits：81e4054 audit；a6b5b22 bundle/native assets；1bc4bb4 mission/gateway contracts；113177e lifecycle/review/recording；44aa33a calibrated localization/native tests；2442b4c Docker/CLI/Qt/doctor；eaa366f motion gates/ROS overlay；8239582 archive pins/native layers；7ac545c ordinary-UID startup/package validation。Qt：75e6d7e integration/dwell；8c53ede archive pins/controlled manual mode；5ab45cc 中文现场说明。Mapping：539352d external FAST-LIO mounted calibration。
 
 最终文档与证据 commit 本身不可能在自身内容中写入自己的 SHA；pull 后用 git rev-parse HEAD / git log --oneline BASE_HEAD..HEAD 查看最终交付 HEAD 与全部提交，最终回复同时给出实际 HEAD。所有仓库最终 dirty 状态见最终回复；appliance/evidence 是保留的可审查输出。HANDOFF 以现场步骤为入口，审计与详细结构后置。
 
@@ -88,7 +88,7 @@ Navigation commits：81e4054 audit；a6b5b22 bundle/native assets；1bc4bb4 miss
 | MAP_BUNDLE | 已实现 sealed identity/hash/version/review 与 fail-closed activation |
 | LOCALIZATION_ASSETS | 原生 V3 descriptor + BBS builder、原始 body patches 与最终 optimized poses、逐 keyframe provenance |
 | NAVIGATION_V3 | 原有 3D-BBS/GICP/tracker/LocalizationManager/Nav2/Guard 保留，YHS launch/profile composition |
-| QT_HMI | 独立 upstream commit + 可复现 patch；5 tabs、runtime/device/mapping/map/mission/recording 控制 |
+| QT_HMI | 独立 writable fork + 固定 commit；upstream attribution/历史 patch 保留；5 tabs、runtime/device/mapping/map/mission/recording 控制 |
 | WAYPOINT_DWELL | Qt add/delete/reorder/yaw/dwell/save/load，绑定 bundle，ROS2 executor 等待 Nav2 success 后 dwell |
 | MISSION_EXECUTOR | 状态/命令、action cancellation barrier、定位/断连失败停止推进，不发布速度/TF |
 | ROS1_GATEWAY | 标准 typed ROS1/ROS2 endpoints，50Hz 软件验证、freshness/estop/timeout、monitor-only |
@@ -98,3 +98,11 @@ Navigation commits：81e4054 audit；a6b5b22 bundle/native assets；1bc4bb4 miss
 | DESKTOP_LAUNCHER | AGT YHS Control 已生成、固定 launcher；真实桌面 X11/双击作为 R0 验收 |
 | DOCTOR | runtime + host probes、节点/topics/TF/CAN/profile/bundle/hash、诊断 zip（不带大型 bag） |
 | MOCK_ACCEPTANCE | Python unit/mock + 实际最终 Docker RPC 完整链路及异常、Qt offscreen、实际 Noetic/Humble fixture |
+
+## Qt fork 更新说明
+
+独立仓库：https://github.com/Aldoubt/agt_robot_hmi/tree/feature/yhs-field-appliance-v1 。中文使用说明涵盖安装、Mock、真实配置、建图、MapStudio、激活、定位、多航点停顿、任务控制、录制、诊断与 R0–R13。Qt 新 commit 仅增加文档，C++ 与前述编译/CTest/offscreen 验证内容相同。
+
+repos.lock.yaml 现在直接 pin fork `5ab45cc`，不把已包含的 patch 再应用一次。旧的、精确匹配已验证补丁的 sources/hmi 会保留到 sources/hmi.upstream-patch-<base> 再取得 fork；未知修改不覆盖。不影响 maps/routes/bags/profiles。源准备的直 pin、重复运行、旧缓存迁移和 dirty 拒绝已自动测试。
+
+当前云端已运行镜像仍是前述验收版本；此更新未重建巨大 native image。安装器准备 fork 已实测，CLI wheel 构建/45 unit tests 已验证。现场首次 install.sh 使用新 fork pin；新 fork 没有改变已验证的 Qt C++ 行为。apt snapshot / 实车验收边界不变。
