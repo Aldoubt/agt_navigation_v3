@@ -18,12 +18,9 @@ colcon build --executor sequential --packages-select livox_ros_driver2 interface
   agt_mapping_backend_api agt_mapping_frontend_api agt_mapping_interfaces agt_map_refinement_core agt_mapping_core agt_mid360_adapter agt_fastlio_backend agt_pgo_backend \
   agt_mapping_artifacts agt_mapping_exporter agt_pcd2grid_exporter agt_map_studio agt_mapping_bringup \
   --cmake-args -DROS_EDITION=ROS2 -DDISTRO_ROS=humble -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
-source /opt/nav_ws/install/setup.bash
-cmake -S /opt/hmi -B /opt/hmi_build -DCMAKE_BUILD_TYPE=Release -DBUILD_WITH_TEST=OFF
-cmake --build /opt/hmi_build --parallel 2
-cmake -S /opt/hmi/tests/field -B /opt/hmi_field_tests
-cmake --build /opt/hmi_field_tests --parallel 2
-ctest --test-dir /opt/hmi_field_tests --output-on-failure
+if [[ "${AGT_SKIP_HMI:-0}" != "1" ]]; then
+  bash /opt/nav_ws/src/agt_navigation_v3/appliance/scripts/build_hmi.sh
+fi
 # Numeric native dependencies must be present; missing BBS is not a valid appliance build.
 test -x /opt/nav_ws/install/agt_global_relocalization_native/lib/agt_global_relocalization_native/candidate_bbs_gicp_localizer
 test -x /opt/mapping_ws/install/agt_map_studio/lib/agt_map_studio/map_viewer

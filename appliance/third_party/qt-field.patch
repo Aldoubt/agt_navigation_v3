@@ -1,45 +1,48 @@
 diff --git a/cmake/GetDockWidget.cmake b/cmake/GetDockWidget.cmake
-index 3b63ada..7c928e7 100644
+index 3b63ada..fa6d883 100644
 --- a/cmake/GetDockWidget.cmake
 +++ b/cmake/GetDockWidget.cmake
-@@ -8,8 +8,8 @@ set(dockwidget_GIT_REPOSITORY
+@@ -7,9 +7,8 @@ set(dockwidget_GIT_REPOSITORY
+ 
  FetchContent_Declare(
      dockwidget
-     GIT_REPOSITORY ${dockwidget_GIT_REPOSITORY}
+-    GIT_REPOSITORY ${dockwidget_GIT_REPOSITORY}
 -    GIT_TAG "4.4.0"
 -    GIT_SHALLOW TRUE)
-+    GIT_TAG "a16d17a8bf375127847ac8f40af1ebcdb841b13c"
-+    GIT_SHALLOW FALSE)
++    URL "https://codeload.github.com/githubuser0xFFFF/Qt-Advanced-Docking-System/tar.gz/a16d17a8bf375127847ac8f40af1ebcdb841b13c"
++    URL_HASH SHA256=3a18ad2b2cfa521882f942ec02031718c0efad7f62ad3d39749bce7984974b13)
  
  FetchContent_GetProperties(dockwidget)
  if(NOT dockwidget_POPULATED)
 diff --git a/cmake/GetYamlCpp.cmake b/cmake/GetYamlCpp.cmake
-index b8b07fa..119ef46 100644
+index b8b07fa..58513bc 100644
 --- a/cmake/GetYamlCpp.cmake
 +++ b/cmake/GetYamlCpp.cmake
-@@ -8,8 +8,8 @@ set(yaml-cpp_GIT_REPOSITORY
+@@ -7,9 +7,8 @@ set(yaml-cpp_GIT_REPOSITORY
+ 
  FetchContent_Declare(
      yaml-cpp
-     GIT_REPOSITORY ${yaml-cpp_GIT_REPOSITORY}
+-    GIT_REPOSITORY ${yaml-cpp_GIT_REPOSITORY}
 -    GIT_TAG "0.8.0"
 -    GIT_SHALLOW TRUE)
-+    GIT_TAG "f7320141120f720aecc4c32be25586e7da9eb978"
-+    GIT_SHALLOW FALSE)
++    URL "https://codeload.github.com/jbeder/yaml-cpp/tar.gz/f7320141120f720aecc4c32be25586e7da9eb978"
++    URL_HASH SHA256=2fd3bf695ccc056835a70dd6d3046312cc1004e8338b8b5c91646918a27b7ef6)
  
  FetchContent_GetProperties(yaml-cpp)
  if(NOT yaml-cpp_POPULATED)
 diff --git a/cmake/Getnlohmann.cmake b/cmake/Getnlohmann.cmake
-index 2d5e133..7b115ea 100644
+index 2d5e133..10861b4 100644
 --- a/cmake/Getnlohmann.cmake
 +++ b/cmake/Getnlohmann.cmake
-@@ -8,8 +8,8 @@ set(nlohmann_json_GIT_REPOSITORY
+@@ -7,9 +7,8 @@ set(nlohmann_json_GIT_REPOSITORY
+ 
  FetchContent_Declare(
      nlohmann_json
-     GIT_REPOSITORY ${nlohmann_json_GIT_REPOSITORY}
+-    GIT_REPOSITORY ${nlohmann_json_GIT_REPOSITORY}
 -    GIT_TAG "v3.12.0"
 -    GIT_SHALLOW TRUE)
-+    GIT_TAG "55f93686c01528224f448c19128836e7df245f72"
-+    GIT_SHALLOW FALSE)
++    URL "https://codeload.github.com/nlohmann/json/tar.gz/55f93686c01528224f448c19128836e7df245f72"
++    URL_HASH SHA256=67f4cdd9ca930c9c1e130af4a437c7fc98fab77a2846fc2d2a14b4943831f8ef)
  
  FetchContent_GetProperties(nlohmann_json)
  if(NOT nlohmann_json_POPULATED)
@@ -157,12 +160,13 @@ index 0000000..ab053a9
 +};
 diff --git a/src/app/widgets/field_panel.h b/src/app/widgets/field_panel.h
 new file mode 100644
-index 0000000..6bf08f8
+index 0000000..c37e4f0
 --- /dev/null
 +++ b/src/app/widgets/field_panel.h
-@@ -0,0 +1,212 @@
+@@ -0,0 +1,243 @@
 +// AGT modification, 2026-10-07. See upstream LICENSE (GPL v2 text).
 +#pragma once
++#include <QComboBox>
 +#include <QFormLayout>
 +#include <QJsonDocument>
 +#include <QJsonObject>
@@ -181,10 +185,10 @@ index 0000000..6bf08f8
 +class FieldPanel : public QWidget {
 +  Q_OBJECT
 + signals:
-+  void mapActivated(const QString &path);
++  void mapActivated(const QString& path);
 +
 + public:
-+  explicit FieldPanel(NavGoalTableView *table, QWidget *parent = nullptr) : QWidget(parent), table_(table), client_(this) {
++  explicit FieldPanel(NavGoalTableView* table, QWidget* parent = nullptr) : QWidget(parent), table_(table), client_(this) {
 +    auto layout = new QVBoxLayout(this);
 +    layout->addWidget(new QLabel("AGT YHS CONTROL"));
 +    status_ = new QLabel("Runtime OFFLINE");
@@ -202,6 +206,12 @@ index 0000000..6bf08f8
 +    button(system, "Activate CAN", "CAN_UP");
 +    button(system, "Deactivate CAN", "CAN_DOWN");
 +    button(system, "IDLE", "IDLE");
++    auto manual = new QPushButton("Manual Control (Motion Guard)");
++    system->addWidget(manual);
++    connect(manual, &QPushButton::clicked, this, [this]() { client_.request({{"command", "CONTROL_MODE"}, {"mode", "manual"}}, [this](QJsonObject r) { details_->setPlainText(QJsonDocument(r).toJson()); if (!r["ok"].toBool()) QMessageBox::warning(this, "AGT", r["error"].toString()); }); });
++    auto automatic = new QPushButton("Return to Navigation Control");
++    system->addWidget(automatic);
++    connect(automatic, &QPushButton::clicked, this, [this]() { client_.request({{"command", "CONTROL_MODE"}, {"mode", "navigation"}}, [this](QJsonObject r) { details_->setPlainText(QJsonDocument(r).toJson()); if (!r["ok"].toBool()) QMessageBox::warning(this, "AGT", r["error"].toString()); }); });
 +    auto mapping = page(tabs, "Mapping");
 +    auto form = new QFormLayout();
 +    map_id_ = new QLineEdit("field_map");
@@ -209,6 +219,29 @@ index 0000000..6bf08f8
 +    form->addRow("Map Bundle ID", map_id_);
 +    form->addRow("Version", version_);
 +    mapping->addLayout(form);
++    auto bundles = new QComboBox();
++    mapping->addWidget(bundles);
++    auto refresh = new QPushButton("Refresh Map Bundles");
++    mapping->addWidget(refresh);
++    connect(refresh, &QPushButton::clicked, this, [this, bundles]() {
++      client_.request({{"command", "LIST_MAPS"}}, [this, bundles](QJsonObject response) {
++        if (!response["ok"].toBool()) {
++          QMessageBox::warning(this, "AGT", response["error"].toString());
++          return;
++        }
++        bundles->clear();
++        for (auto item : response["result"].toArray()) {
++          auto map = item.toObject();
++          bundles->addItem(map["map_bundle_id"].toString() + " / " + map["map_version"].toString() + " (" + map["status"].toString() + ")", map);
++        }
++      });
++    });
++    connect(bundles, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this, bundles](int index) {
++      if (index < 0) return;
++      auto map = bundles->itemData(index).toJsonObject();
++      map_id_->setText(map["map_bundle_id"].toString());
++      version_->setText(map["map_version"].toString());
++    });
 +    button(mapping, "Preflight", "PREFLIGHT");
 +    button(mapping, "Start Mapping", "START_MAPPING");
 +    button(mapping, "Stop & Build Map", "STOP_MAPPING");
@@ -270,21 +303,21 @@ index 0000000..6bf08f8
 +  }
 +
 + private:
-+  NavGoalTableView *table_;
++  NavGoalTableView* table_;
 +  FieldClient client_;
 +  QLabel *status_, *devices_, *mapping_status_, *record_status_;
 +  QLineEdit *map_id_, *version_, *route_id_;
-+  QPlainTextEdit *details_;
-+  QPushButton *start_;
-+  QTimer *timer_;
++  QPlainTextEdit* details_;
++  QPushButton* start_;
++  QTimer* timer_;
 +  bool polling_ = false;
-+  QVBoxLayout *page(QTabWidget *tabs, QString title) {
++  QVBoxLayout* page(QTabWidget* tabs, QString title) {
 +    auto w = new QWidget();
 +    auto layout = new QVBoxLayout(w);
 +    tabs->addTab(w, title);
 +    return layout;
 +  }
-+  QPushButton *button(QVBoxLayout *layout, QString label, QString cmd) {
++  QPushButton* button(QVBoxLayout* layout, QString label, QString cmd) {
 +    auto b = new QPushButton(label);
 +    layout->addWidget(b);
 +    connect(b, &QPushButton::clicked, this, [this, cmd]() { command(cmd); });
@@ -295,7 +328,7 @@ index 0000000..6bf08f8
 +    if (name == "SAVE_ROUTE") {
 +      try {
 +        request["route"] = table_->field_model_->toRoute(route_id_->text(), table_->field_binding_);
-+      } catch (const std::exception &e) {
++      } catch (const std::exception& e) {
 +        QMessageBox::warning(this, "Route", e.what());
 +        return;
 +      }
@@ -358,14 +391,15 @@ index 0000000..6bf08f8
 +      }
 +      auto sensor = s["sensors"].toObject();
 +      auto base = s["base"].toObject();
-+      text += QString("MID360 Ethernet/UDP\nInterface: %1 | Host: %2 | Sensor: %3\nDriver: Livox | Topic: /livox/lidar\nCAN: %4 | bitrate: %5\nROS1 master: %6\nProfile: %7")
++      text += QString("MID360 Ethernet/UDP\nInterface: %1 | Host: %2 | Sensor: %3\nDriver: Livox | Topic: %8\nCAN: %4 | bitrate: %5\nROS1 master: %6\nProfile: %7")
 +                  .arg(sensor["interface"].toString("CONFIG_REQUIRED"))
 +                  .arg(sensor["host_ip"].toString("CONFIG_REQUIRED"))
 +                  .arg(sensor["sensor_ip"].toString("CONFIG_REQUIRED"))
 +                  .arg(base["can_interface"].toString("CONFIG_REQUIRED"))
 +                  .arg(base["can_bitrate"].isNull() ? "CONFIG_REQUIRED" : QString::number(base["can_bitrate"].toInt()))
 +                  .arg(base["ros1_master_uri"].toString("CONFIG_REQUIRED"))
-+                  .arg(s["profiles"].toString());
++                  .arg(s["profiles"].toString())
++                  .arg(s["topics"].toObject()["lidar"].toString());
 +      devices_->setText(text);
 +      QString stage = s["mapping"].toString();
 +      mapping_status_->setText("Mapping: " + stage + "\nDuration: " + QString::number(s["mapping_duration"].toDouble(), 'f', 1) + " s\n" + (stage == "READY" ? "3D Mapping PASS\nLocalization Assets PASS\n2D Navigation PASS\nMap Review CONFIRMED" : "Finish → Verify → Localization Assets → Grid → Review → Ready"));
@@ -611,7 +645,7 @@ index 28f516f..8bb79ae 100644
        GET_TOPIC_NAME(DISPLAY_MAP),
        rclcpp::QoS(rclcpp::KeepLast(1)).reliable().transient_local(),
 diff --git a/src/channel/rosbridge/cmake/GetWsCpp.cmake b/src/channel/rosbridge/cmake/GetWsCpp.cmake
-index ceed773..1fa76b1 100644
+index ceed773..998796f 100644
 --- a/src/channel/rosbridge/cmake/GetWsCpp.cmake
 +++ b/src/channel/rosbridge/cmake/GetWsCpp.cmake
 @@ -3,7 +3,7 @@ include(FetchContent)
@@ -623,12 +657,17 @@ index ceed773..1fa76b1 100644
      CACHE STRING "websocketpp git tag")
  
  set(websocketpp_GIT_REPOSITORY 
-@@ -14,7 +14,7 @@ FetchContent_Declare(
-   websocketpp
-   GIT_REPOSITORY ${websocketpp_GIT_REPOSITORY}
-   GIT_TAG ${websocketpp_GIT_TAG}
+@@ -11,10 +11,9 @@ set(websocketpp_GIT_REPOSITORY
+    CACHE STRING "websocketpp git repository")
+ 
+ FetchContent_Declare(
+-  websocketpp
+-  GIT_REPOSITORY ${websocketpp_GIT_REPOSITORY}
+-  GIT_TAG ${websocketpp_GIT_TAG}
 -  GIT_SHALLOW TRUE)
-+  GIT_SHALLOW FALSE)
++    websocketpp
++    URL "https://codeload.github.com/zaphoyd/websocketpp/tar.gz/56123c87598f8b1dd471be83ca841ceae07f95ba"
++    URL_HASH SHA256=56a040dd99e7e58e0513204030e5af5e94750a3d80b176b16bf8e3a837b40f0a)
  
  FetchContent_GetProperties(websocketpp)
  if(NOT websocketpp_POPULATED)

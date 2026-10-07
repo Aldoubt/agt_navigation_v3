@@ -8,3 +8,8 @@ appliance/build
 build
 install
 log
+HANDOFF.md
+README.md
+AGENTS.md
+appliance/docs
+appliance/evidence
