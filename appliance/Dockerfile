@@ -13,6 +13,8 @@ RUN --mount=type=bind,source=.,target=/run/navigation,ro \
     python3 /opt/nav_ws/src/agt_navigation_v3/appliance/scripts/build_sources.py && \
     AGT_SKIP_HMI=1 bash /opt/nav_ws/src/agt_navigation_v3/appliance/scripts/build_runtime.sh && \
     python3 -m pip install --no-deps /opt/nav_ws/src/agt_navigation_v3/appliance && \
+    python3 -c "from agt_field.server import main; assert callable(main)" && \
+    chmod -R a+rX /opt/nav_ws /opt/mapping_ws /opt/agt && \
     rm -f /usr/local/share/ca-certificates/session-proxy.crt && update-ca-certificates
 FROM native-runtime
 RUN --mount=type=bind,from=hmi,source=.,target=/run/hmi,ro \
@@ -20,6 +22,7 @@ RUN --mount=type=bind,from=hmi,source=.,target=/run/hmi,ro \
     if [ -f /run/secrets/proxy_ca ]; then cp /run/secrets/proxy_ca /usr/local/share/ca-certificates/session-proxy.crt; update-ca-certificates; fi; \
     mkdir -p /opt/hmi && cp -a /run/hmi/. /opt/hmi/ && \
     bash /opt/nav_ws/src/agt_navigation_v3/appliance/scripts/build_hmi.sh && \
+    chmod -R a+rX /opt/hmi /opt/hmi_build /opt/hmi_field_tests && \
     rm -f /usr/local/share/ca-certificates/session-proxy.crt && update-ca-certificates
 ARG NAVIGATION_COMMIT=unknown
 ARG HMI_PATCH_SHA256=unknown

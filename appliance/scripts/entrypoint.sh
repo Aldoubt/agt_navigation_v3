@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 set -eo pipefail
+# Runtime logs/caches must remain writable for the operator UID on the host volume.
+export ROS_HOME=/data/logs/ros ROS_LOG_DIR=/data/logs/ros XDG_CACHE_HOME=/data/logs/cache XDG_RUNTIME_DIR=/data/run/xdg
+mkdir -p "$ROS_LOG_DIR" "$XDG_CACHE_HOME" "$XDG_RUNTIME_DIR"
+chmod 700 "$XDG_RUNTIME_DIR"
 source /opt/ros/humble/setup.bash
 source /opt/nav_ws/install/setup.bash
 export LD_LIBRARY_PATH="/usr/local/lib:${LD_LIBRARY_PATH:-}"
