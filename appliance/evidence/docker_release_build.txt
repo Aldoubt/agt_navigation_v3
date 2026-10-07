@@ -64,7 +64,7 @@
 #8 56.20 Installing mission_executor script to /opt/nav_ws/install/agt_mission_executor/lib/agt_mission_executor
 #8 56.20 writing list of installed files to '/opt/nav_ws/build/agt_mission_executor/install.log'
 #8 56.23 Finished <<< agt_mission_executor [0.80s]
-#8 56.26 
+#8 56.26
 #8 56.26 Summary: 1 package finished [1.19s]
 #8 56.51 -- get nlohmann_json ...
 #8 56.59 -- Using the multi-header code from /opt/hmi_build/_deps/nlohmann_json-src/include/
@@ -107,35 +107,35 @@
 #8 58.84 -- Found sensor_msgs: 4.9.2 (/opt/ros/humble/share/sensor_msgs/cmake)
 #8 58.86 -- Found diagnostic_msgs: 4.9.2 (/opt/ros/humble/share/diagnostic_msgs/cmake)
 #8 58.88 -- Found cv_bridge: 3.2.1 (/opt/ros/humble/share/cv_bridge/cmake)
-#8 58.90 -- Found Boost: /usr/lib/x86_64-linux-gnu/cmake/Boost-1.74.0/BoostConfig.cmake (found version "1.74.0") found components: thread 
+#8 58.90 -- Found Boost: /usr/lib/x86_64-linux-gnu/cmake/Boost-1.74.0/BoostConfig.cmake (found version "1.74.0") found components: thread
 #8 58.90 build ROSBridge channel
-#8 58.92 -- Found Boost: /usr/lib/x86_64-linux-gnu/cmake/Boost-1.74.0/BoostConfig.cmake (found version "1.74.0") found components: thread system 
+#8 58.92 -- Found Boost: /usr/lib/x86_64-linux-gnu/cmake/Boost-1.74.0/BoostConfig.cmake (found version "1.74.0") found components: thread system
 #8 58.92 -- get websocketpp ...
 #8 59.00 CMake Deprecation Warning at /opt/hmi_build/_deps/websocketpp-src/CMakeLists.txt:5 (cmake_minimum_required):
 #8 59.00   Compatibility with CMake < 2.8.12 will be removed from a future version of
 #8 59.00   CMake.
-#8 59.00 
+#8 59.00
 #8 59.00   Update the VERSION argument <min> value or use a ...<max> suffix to tell
 #8 59.00   CMake that the project does not need compatibility with older versions.
-#8 59.00 
-#8 59.00 
+#8 59.00
+#8 59.00
 #8 59.00 CMake Warning (dev) at /opt/hmi_build/_deps/websocketpp-src/CMakeLists.txt:37 (project):
 #8 59.00   Policy CMP0048 is not set: project() command manages VERSION variables.
 #8 59.00   Run "cmake --help-policy CMP0048" for policy details.  Use the cmake_policy
 #8 59.00   command to set the policy and suppress this warning.
-#8 59.00 
+#8 59.00
 #8 59.00   The following variable(s) would be set to empty:
-#8 59.00 
+#8 59.00
 #8 59.00     PROJECT_VERSION
 #8 59.00     PROJECT_VERSION_MAJOR
 #8 59.00     PROJECT_VERSION_MINOR
 #8 59.00     PROJECT_VERSION_PATCH
 #8 59.00 This warning is for project developers.  Use -Wno-dev to suppress it.
-#8 59.00 
+#8 59.00
 #8 59.00 ** websocketpp
-#8 59.00 
+#8 59.00
 #8 59.00 =========== Used Build Configuration =============
-#8 59.00 
+#8 59.00
 #8 59.00 -- ENABLE_CPP11        = ON
 #8 59.00 -- BUILD_EXAMPLES      = OFF
 #8 59.00 -- BUILD_TESTS         = OFF
@@ -143,18 +143,18 @@
 #8 59.00 -- WEBSOCKETPP_BIN     = /opt/hmi_build/_deps/websocketpp-build/bin
 #8 59.00 -- WEBSOCKETPP_LIB     = /opt/hmi_build/_deps/websocketpp-build/lib
 #8 59.00 -- Install prefix      = /usr/local
-#8 59.00 -- WEBSOCKETPP_BOOST_LIBS        = 
-#8 59.00 -- WEBSOCKETPP_PLATFORM_LIBS     = 
-#8 59.00 -- WEBSOCKETPP_PLATFORM_TLS_LIBS = 
-#8 59.00 -- OPENSSL_FOUND        = 
+#8 59.00 -- WEBSOCKETPP_BOOST_LIBS        =
+#8 59.00 -- WEBSOCKETPP_PLATFORM_LIBS     =
+#8 59.00 -- WEBSOCKETPP_PLATFORM_TLS_LIBS =
+#8 59.00 -- OPENSSL_FOUND        =
 #8 59.00 -- OPENSSL_INCLUDE_DIR     = /usr/include
-#8 59.00 -- OPENSSL_LIBRARIES = 
-#8 59.00 -- OPENSSL_VERSION = 
-#8 59.00 
-#8 59.00 
-#8 59.00 
-#8 59.00 
-#8 59.01 -- Found Boost: /usr/lib/x86_64-linux-gnu/cmake/Boost-1.74.0/BoostConfig.cmake (found version "1.74.0") found components: filesystem 
+#8 59.00 -- OPENSSL_LIBRARIES =
+#8 59.00 -- OPENSSL_VERSION =
+#8 59.00
+#8 59.00
+#8 59.00
+#8 59.00
+#8 59.01 -- Found Boost: /usr/lib/x86_64-linux-gnu/cmake/Boost-1.74.0/BoostConfig.cmake (found version "1.74.0") found components: filesystem
 #8 59.05 -- Configuring done
 #8 59.27 -- Generating done
 #8 59.29 -- Build files have been written to: /opt/hmi_build
@@ -466,9 +466,9 @@
 #8 128.7 Test project /opt/hmi_field_tests
 #8 128.7     Start 1: field_hmi_logic
 #8 128.8 1/1 Test #1: field_hmi_logic ..................   Passed    0.02 sec
-#8 128.8 
+#8 128.8
 #8 128.8 100% tests passed, 0 tests failed out of 1
-#8 128.8 
+#8 128.8
 #8 128.8 Total Test time (real) =   0.02 sec
 #8 DONE 128.8s
 

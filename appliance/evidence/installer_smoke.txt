@@ -1,4 +1,4 @@
 Docker Compose version v2.40.3
-Installed launcher: /home/agent/.local/share/applications/agt-yhs-control.desktop 
-Data root: /workspace/scratch/final-appliance 
+Installed launcher: /home/agent/.local/share/applications/agt-yhs-control.desktop
+Data root: /workspace/scratch/final-appliance
 Fill profile: /workspace/scratch/final-appliance/profiles/yhs

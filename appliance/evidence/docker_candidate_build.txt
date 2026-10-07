@@ -50,7 +50,7 @@
 #12 34.29 Updating certificates in /etc/ssl/certs...
 #12 34.63 0 added, 0 removed; done.
 #12 34.63 Running hooks in /etc/ca-certificates/update.d...
-#12 34.64 
+#12 34.64
 #12 34.83 done.
 #12 34.83 done.
 #12 35.28 Cloning into '/opt/nav_ws/src/external/Livox-SDK2'...
@@ -78,7 +78,7 @@
 #12 72.90 -- Detecting CXX compile features
 #12 72.90 -- Detecting CXX compile features - done
 #12 72.90 -- CMake version: 3.22.1
-#12 72.90 -- Found Eigen3: /usr/include/eigen3 (Required is at least version "3.3.0") 
+#12 72.90 -- Found Eigen3: /usr/include/eigen3 (Required is at least version "3.3.0")
 #12 72.90 -- Turning basic logging OFF
 #12 72.91 -- Configuring done
 #12 72.91 -- Generating done
@@ -550,9 +550,9 @@
 #12 176.2 -- Detecting CXX compile features
 #12 176.2 -- Detecting CXX compile features - done
 #12 176.2 -- num_entries in thirdparty/Eigen: 0
-#12 176.4 -- Found OpenMP_C: -fopenmp (found version "4.5") 
-#12 176.4 -- Found OpenMP_CXX: -fopenmp (found version "4.5") 
-#12 176.4 -- Found OpenMP: TRUE (found version "4.5")  
+#12 176.4 -- Found OpenMP_C: -fopenmp (found version "4.5")
+#12 176.4 -- Found OpenMP_CXX: -fopenmp (found version "4.5")
+#12 176.4 -- Found OpenMP: TRUE (found version "4.5")
 #12 176.4 -- Use EIGEN3_INCLUDE_DIR
 #12 176.4 -- Configuring done
 #12 176.4 -- Generating done
@@ -594,9 +594,9 @@
 #12 181.4 -- Check for working CXX compiler: /usr/bin/c++ - skipped
 #12 181.4 -- Detecting CXX compile features
 #12 181.4 -- Detecting CXX compile features - done
-#12 181.6 -- Found OpenMP_C: -fopenmp (found version "4.5") 
-#12 181.6 -- Found OpenMP_CXX: -fopenmp (found version "4.5") 
-#12 181.6 -- Found OpenMP: TRUE (found version "4.5")  
+#12 181.6 -- Found OpenMP_C: -fopenmp (found version "4.5")
+#12 181.6 -- Found OpenMP_CXX: -fopenmp (found version "4.5")
+#12 181.6 -- Found OpenMP: TRUE (found version "4.5")
 #12 181.6 -- Configuring done
 #12 181.6 -- Generating done
 #12 181.6 -- Build files have been written to: /opt/nav_ws/src/external/small_gicp/build-agt
@@ -685,11 +685,11 @@
 #12 238.7 ** WARNING ** io features related to png will be disabled
 #12 238.7 CMake Warning:
 #12 238.7   Manually-specified variables were not used by the project:
-#12 238.7 
+#12 238.7
 #12 238.7     DISTRO_ROS
 #12 238.7     ROS_EDITION
-#12 238.7 
-#12 238.7 
+#12 238.7
+#12 238.7
 #12 238.7 ---
 #12 238.7 Starting >>> agt_map_converter
 #12 239.5 Finished <<< agt_map_converter [0.75s]
@@ -698,43 +698,43 @@
 #12 240.0 --- stderr: agt_nav2_bringup
 #12 240.0 CMake Warning:
 #12 240.0   Manually-specified variables were not used by the project:
-#12 240.0 
+#12 240.0
 #12 240.0     DISTRO_ROS
 #12 240.0     ROS_EDITION
-#12 240.0 
-#12 240.0 
+#12 240.0
+#12 240.0
 #12 240.0 ---
 #12 240.0 Starting >>> agt_pointcloud_preprocessor
 #12 253.7 --- stderr: agt_pointcloud_preprocessor
 #12 253.7 CMake Warning:
 #12 253.7   Manually-specified variables were not used by the project:
-#12 253.7 
+#12 253.7
 #12 253.7     DISTRO_ROS
 #12 253.7     ROS_EDITION
-#12 253.7 
-#12 253.7 
+#12 253.7
+#12 253.7
 #12 253.7 ---
 #12 253.7 Finished <<< agt_pointcloud_preprocessor [13.7s]
 #12 253.7 Starting >>> agt_robot_interfaces
 #12 290.8 --- stderr: agt_robot_interfaces
 #12 290.8 CMake Warning:
 #12 290.8   Manually-specified variables were not used by the project:
-#12 290.8 
+#12 290.8
 #12 290.8     DISTRO_ROS
 #12 290.8     ROS_EDITION
-#12 290.8 
-#12 290.8 
+#12 290.8
+#12 290.8
 #12 290.8 ---
 #12 290.8 Finished <<< agt_robot_interfaces [37.0s]
 #12 290.8 Starting >>> interface
 #12 300.4 --- stderr: interface
 #12 300.4 CMake Warning:
 #12 300.4   Manually-specified variables were not used by the project:
-#12 300.4 
+#12 300.4
 #12 300.4     DISTRO_ROS
 #12 300.4     ROS_EDITION
-#12 300.4 
-#12 300.4 
+#12 300.4
+#12 300.4
 #12 300.4 ---
 #12 300.4 Finished <<< interface [9.56s]
 #12 300.4 Starting >>> livox_ros_driver2
@@ -753,11 +753,11 @@
 #12 344.0 --- stderr: agt_livox_tools
 #12 344.0 CMake Warning:
 #12 344.0   Manually-specified variables were not used by the project:
-#12 344.0 
+#12 344.0
 #12 344.0     DISTRO_ROS
 #12 344.0     ROS_EDITION
-#12 344.0 
-#12 344.0 
+#12 344.0
+#12 344.0
 #12 344.0 ---
 #12 344.0 Finished <<< agt_livox_tools [17.6s]
 #12 344.1 Starting >>> agt_localization_manager
@@ -773,21 +773,21 @@
 #12 386.3   Policy CMP0074 is not set: find_package uses <PackageName>_ROOT variables.
 #12 386.3   Run "cmake --help-policy CMP0074" for policy details.  Use the cmake_policy
 #12 386.3   command to set the policy and suppress this warning.
-#12 386.3 
+#12 386.3
 #12 386.3   CMake variable PCL_ROOT is set to:
-#12 386.3 
+#12 386.3
 #12 386.3     /usr
-#12 386.3 
+#12 386.3
 #12 386.3   For compatibility, CMake is ignoring the variable.
 #12 386.3 This warning is for project developers.  Use -Wno-dev to suppress it.
-#12 386.3 
+#12 386.3
 #12 386.3 CMake Warning:
 #12 386.3   Manually-specified variables were not used by the project:
-#12 386.3 
+#12 386.3
 #12 386.3     DISTRO_ROS
 #12 386.3     ROS_EDITION
-#12 386.3 
-#12 386.3 
+#12 386.3
+#12 386.3
 #12 386.3 /opt/nav_ws/src/external/fast_lio2_mapping/fastlio2/src/map_builder/ikd_Tree.cpp: In instantiation of ‘void KD_TREE<PointType>::multi_thread_rebuild() [with PointType = pcl::PointXYZ]’:
 #12 386.3 /opt/nav_ws/src/external/fast_lio2_mapping/fastlio2/src/map_builder/ikd_Tree.cpp:1730:16:   required from here
 #12 386.3 /opt/nav_ws/src/external/fast_lio2_mapping/fastlio2/src/map_builder/ikd_Tree.cpp:329:17: warning: unused variable ‘valid_old’ [-Wunused-variable]
@@ -1040,7 +1040,7 @@
 #12 388.3 Finished <<< agt_mission_executor [0.68s]
 #12 388.3 Starting >>> agt_navigation_runtime
 #12 389.0 Finished <<< agt_navigation_runtime [0.71s]
-#12 389.0 
+#12 389.0
 #12 389.0 Summary: 18 packages finished [3min 0s]
 #12 389.0   8 packages had stderr output: agt_global_relocalization_native agt_livox_tools agt_nav2_bringup agt_pointcloud_preprocessor agt_robot_interfaces fastlio2 interface livox_ros_driver2
 #12 389.5 Starting >>> agt_map_refinement_core
@@ -1051,33 +1051,33 @@
 #12 396.4 --- stderr: agt_mapping_backend_api
 #12 396.4 CMake Warning:
 #12 396.4   Manually-specified variables were not used by the project:
-#12 396.4 
+#12 396.4
 #12 396.4     DISTRO_ROS
 #12 396.4     ROS_EDITION
-#12 396.4 
-#12 396.4 
+#12 396.4
+#12 396.4
 #12 396.4 ---
 #12 396.4 Finished <<< agt_mapping_backend_api [5.47s]
 #12 396.4 Starting >>> agt_mapping_frontend_api
 #12 396.9 --- stderr: agt_mapping_frontend_api
 #12 396.9 CMake Warning:
 #12 396.9   Manually-specified variables were not used by the project:
-#12 396.9 
+#12 396.9
 #12 396.9     DISTRO_ROS
 #12 396.9     ROS_EDITION
-#12 396.9 
-#12 396.9 
+#12 396.9
+#12 396.9
 #12 396.9 ---Finished <<< agt_mapping_frontend_api [0.54s]
-#12 396.9 
+#12 396.9
 #12 396.9 Starting >>> agt_mapping_interfaces
 #12 397.5 --- stderr: agt_mapping_interfaces
 #12 397.5 CMake Warning:
 #12 397.5   Manually-specified variables were not used by the project:
-#12 397.5 
+#12 397.5
 #12 397.5     DISTRO_ROS
 #12 397.5     ROS_EDITION
-#12 397.5 
-#12 397.5 
+#12 397.5
+#12 397.5
 #12 397.5 ---
 #12 397.5 Finished <<< agt_mapping_interfaces [0.55s]
 #12 397.5 Starting >>> agt_pcd2grid_exporter
@@ -1086,22 +1086,22 @@
 #12 422.7 ** WARNING ** io features related to png will be disabled
 #12 422.7 CMake Warning:
 #12 422.7   Manually-specified variables were not used by the project:
-#12 422.7 
+#12 422.7
 #12 422.7     DISTRO_ROS
 #12 422.7     ROS_EDITION
-#12 422.7 
-#12 422.7 
+#12 422.7
+#12 422.7
 #12 422.7 ---
 #12 422.7 Finished <<< agt_pcd2grid_exporter [25.2s]
 #12 422.7 Starting >>> interface
 #12 432.0 --- stderr: interface
 #12 432.0 CMake Warning:
 #12 432.0   Manually-specified variables were not used by the project:
-#12 432.0 
+#12 432.0
 #12 432.0     DISTRO_ROS
 #12 432.0     ROS_EDITION
-#12 432.0 
-#12 432.0 
+#12 432.0
+#12 432.0
 #12 432.0 ---
 #12 432.0 Finished <<< interface [9.28s]
 #12 432.0 Starting >>> livox_ros_driver2
@@ -1110,11 +1110,11 @@
 #12 477.8 --- stderr: agt_fastlio_backend
 #12 477.8 CMake Warning:
 #12 477.8   Manually-specified variables were not used by the project:
-#12 477.8 
+#12 477.8
 #12 477.8     DISTRO_ROS
 #12 477.8     ROS_EDITION
-#12 477.8 
-#12 477.8 
+#12 477.8
+#12 477.8
 #12 477.8 ---
 #12 477.8 Finished <<< agt_fastlio_backend [20.4s]
 #12 477.8 Starting >>> agt_map_studio
@@ -1123,31 +1123,31 @@
 #12 544.9   Policy CMP0072 is not set: FindOpenGL prefers GLVND by default when
 #12 544.9   available.  Run "cmake --help-policy CMP0072" for policy details.  Use the
 #12 544.9   cmake_policy command to set the policy and suppress this warning.
-#12 544.9 
+#12 544.9
 #12 544.9   FindOpenGL found both a legacy GL library:
-#12 544.9 
+#12 544.9
 #12 544.9     OPENGL_gl_LIBRARY: /usr/lib/x86_64-linux-gnu/libGL.so
-#12 544.9 
+#12 544.9
 #12 544.9   and GLVND libraries for OpenGL and GLX:
-#12 544.9 
+#12 544.9
 #12 544.9     OPENGL_opengl_LIBRARY: /usr/lib/x86_64-linux-gnu/libOpenGL.so
 #12 544.9     OPENGL_glx_LIBRARY: /usr/lib/x86_64-linux-gnu/libGLX.so
-#12 544.9 
+#12 544.9
 #12 544.9   OpenGL_GL_PREFERENCE has not been set to "GLVND" or "LEGACY", so for
 #12 544.9   compatibility with CMake 3.10 and below the legacy GL library will be used.
 #12 544.9 Call Stack (most recent call first):
 #12 544.9   CMakeLists.txt:14 (find_package)
 #12 544.9 This warning is for project developers.  Use -Wno-dev to suppress it.
-#12 544.9 
+#12 544.9
 #12 544.9 ** WARNING ** io features related to pcap will be disabled
 #12 544.9 ** WARNING ** io features related to png will be disabled
 #12 544.9 CMake Warning:
 #12 544.9   Manually-specified variables were not used by the project:
-#12 544.9 
+#12 544.9
 #12 544.9     DISTRO_ROS
 #12 544.9     ROS_EDITION
-#12 544.9 
-#12 544.9 
+#12 544.9
+#12 544.9
 #12 544.9 /opt/mapping_ws/src/agt-lio-pgo-mapping/apps/agt_map_studio/src/occupancy/OccupancyViewer.cpp: In member function ‘virtual void agt_map_studio::OccupancyViewer::wheelEvent(QWheelEvent*)’:
 #12 544.9 /opt/mapping_ws/src/agt-lio-pgo-mapping/apps/agt_map_studio/src/occupancy/OccupancyViewer.cpp:323:34: warning: ‘QPoint QWheelEvent::pos() const’ is deprecated: Use position() [-Wdeprecated-declarations]
 #12 544.9   323 |   const QPointF cursor(event->pos());
@@ -1168,11 +1168,11 @@
 #12 561.6 --- stderr: agt_mid360_adapter
 #12 561.6 CMake Warning:
 #12 561.6   Manually-specified variables were not used by the project:
-#12 561.6 
+#12 561.6
 #12 561.6     DISTRO_ROS
 #12 561.6     ROS_EDITION
-#12 561.6 
-#12 561.6 
+#12 561.6
+#12 561.6
 #12 561.6 ---
 #12 561.6 Finished <<< agt_mid360_adapter [15.3s]
 #12 561.6 Starting >>> fastlio2
@@ -1181,21 +1181,21 @@
 #12 629.5   Policy CMP0074 is not set: find_package uses <PackageName>_ROOT variables.
 #12 629.5   Run "cmake --help-policy CMP0074" for policy details.  Use the cmake_policy
 #12 629.5   command to set the policy and suppress this warning.
-#12 629.5 
+#12 629.5
 #12 629.5   CMake variable PCL_ROOT is set to:
-#12 629.5 
+#12 629.5
 #12 629.5     /usr
-#12 629.5 
+#12 629.5
 #12 629.5   For compatibility, CMake is ignoring the variable.
 #12 629.5 This warning is for project developers.  Use -Wno-dev to suppress it.
-#12 629.5 
+#12 629.5
 #12 629.5 CMake Warning:
 #12 629.5   Manually-specified variables were not used by the project:
-#12 629.5 
+#12 629.5
 #12 629.5     DISTRO_ROS
 #12 629.5     ROS_EDITION
-#12 629.5 
-#12 629.5 
+#12 629.5
+#12 629.5
 #12 629.5 /opt/mapping_ws/src/external/fast_lio2_mapping/fastlio2/src/map_builder/ikd_Tree.cpp: In instantiation of ‘void KD_TREE<PointType>::multi_thread_rebuild() [with PointType = pcl::PointXYZ]’:
 #12 629.5 /opt/mapping_ws/src/external/fast_lio2_mapping/fastlio2/src/map_builder/ikd_Tree.cpp:1730:16:   required from here
 #12 629.5 /opt/mapping_ws/src/external/fast_lio2_mapping/fastlio2/src/map_builder/ikd_Tree.cpp:329:17: warning: unused variable ‘valid_old’ [-Wunused-variable]
@@ -1447,37 +1447,37 @@
 #12 675.2   Policy CMP0074 is not set: find_package uses <PackageName>_ROOT variables.
 #12 675.2   Run "cmake --help-policy CMP0074" for policy details.  Use the cmake_policy
 #12 675.2   command to set the policy and suppress this warning.
-#12 675.2 
+#12 675.2
 #12 675.2   CMake variable PCL_ROOT is set to:
-#12 675.2 
+#12 675.2
 #12 675.2     /usr
-#12 675.2 
+#12 675.2
 #12 675.2   For compatibility, CMake is ignoring the variable.
 #12 675.2 This warning is for project developers.  Use -Wno-dev to suppress it.
-#12 675.2 
+#12 675.2
 #12 675.2 CMake Warning:
 #12 675.2   Manually-specified variables were not used by the project:
-#12 675.2 
+#12 675.2
 #12 675.2     DISTRO_ROS
 #12 675.2     ROS_EDITION
-#12 675.2 
-#12 675.2 
+#12 675.2
+#12 675.2
 #12 675.2 ---
 #12 675.2 Finished <<< pgo [45.7s]
 #12 675.2 Starting >>> agt_pgo_backend
 #12 696.0 --- stderr: agt_pgo_backend
 #12 696.0 CMake Warning:
 #12 696.0   Manually-specified variables were not used by the project:
-#12 696.0 
+#12 696.0
 #12 696.0     DISTRO_ROS
 #12 696.0     ROS_EDITION
-#12 696.0 
-#12 696.0 
+#12 696.0
+#12 696.0
 #12 696.0 ---
 #12 696.0 Finished <<< agt_pgo_backend [20.8s]
 #12 696.0 Starting >>> agt_mapping_bringup
 #12 697.0 Finished <<< agt_mapping_bringup [0.94s]
-#12 697.0 
+#12 697.0
 #12 697.0 Summary: 17 packages finished [5min 8s]
 #12 697.0   11 packages had stderr output: agt_fastlio_backend agt_map_studio agt_mapping_backend_api agt_mapping_frontend_api agt_mapping_interfaces agt_mid360_adapter agt_pcd2grid_exporter agt_pgo_backend fastlio2 interface pgo
 #12 697.5 Processing /opt/nav_ws/src/agt_navigation_v3/appliance
@@ -1501,7 +1501,7 @@
 #12 712.2 Updating certificates in /etc/ssl/certs...
 #12 712.6 0 added, 0 removed; done.
 #12 712.6 Running hooks in /etc/ca-certificates/update.d...
-#12 712.6 
+#12 712.6
 #12 712.8 done.
 #12 712.8 done.
 #12 DONE 712.8s
@@ -1510,7 +1510,7 @@
 #13 49.02 Updating certificates in /etc/ssl/certs...
 #13 49.41 0 added, 0 removed; done.
 #13 49.41 Running hooks in /etc/ca-certificates/update.d...
-#13 49.41 
+#13 49.41
 #13 49.69 done.
 #13 49.69 done.
 #13 50.52 -- The C compiler identification is GNU 11.4.0
@@ -1530,8 +1530,8 @@
 #13 62.63 -- get dockwidget ...
 #13 77.43 -- Forced to use Qt version 5
 #13 77.46 -- get yaml-cpp ...
-#13 78.85 -- Found Boost: /usr/lib/x86_64-linux-gnu/cmake/Boost-1.74.0/BoostConfig.cmake (found version "1.74.0") found components: filesystem 
-#13 78.86 -- Found PkgConfig: /usr/bin/pkg-config (found version "0.29.2") 
+#13 78.85 -- Found Boost: /usr/lib/x86_64-linux-gnu/cmake/Boost-1.74.0/BoostConfig.cmake (found version "1.74.0") found components: filesystem
+#13 78.86 -- Found PkgConfig: /usr/bin/pkg-config (found version "0.29.2")
 #13 78.86 -- Checking for module 'sdl2'
 #13 78.87 --   Found sdl2, version 2.0.20
 #13 78.89 -- Checking for module 'SDL2_image'
@@ -1540,7 +1540,7 @@
 #13 78.93 Auto USE ROS2 channel
 #13 78.93 -- get topology_msgs ...
 #13 81.82 -- Found ament_cmake: 1.3.14 (/opt/ros/humble/share/ament_cmake/cmake)
-#13 81.95 -- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter 
+#13 81.95 -- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter
 #13 82.07 -- Found rosidl_default_generators: 1.2.1 (/opt/ros/humble/share/rosidl_default_generators/cmake)
 #13 82.08 -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
 #13 82.09 -- Found rosidl_adapter: 3.1.9 (/opt/ros/humble/share/rosidl_adapter/cmake)
@@ -1548,13 +1548,13 @@
 #13 82.47 -- Found ament_cmake_ros: 0.10.1 (/opt/ros/humble/share/ament_cmake_ros/cmake)
 #13 82.63 -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
 #13 82.84 -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
-#13 82.86 -- Found PythonInterp: /usr/bin/python3 (found suitable version "3.10.12", minimum required is "3.6") 
+#13 82.86 -- Found PythonInterp: /usr/bin/python3 (found suitable version "3.10.12", minimum required is "3.6")
 #13 82.86 -- Found python_cmake_module: 0.10.0 (/opt/ros/humble/share/python_cmake_module/cmake)
-#13 82.88 -- Found PythonLibs: /usr/lib/x86_64-linux-gnu/libpython3.10.so (found suitable version "3.10.12", minimum required is "3.5") 
+#13 82.88 -- Found PythonLibs: /usr/lib/x86_64-linux-gnu/libpython3.10.so (found suitable version "3.10.12", minimum required is "3.5")
 #13 82.88 -- Using PYTHON_EXECUTABLE: /usr/bin/python3
 #13 82.88 -- Using PYTHON_INCLUDE_DIRS: /usr/include/python3.10
 #13 82.88 -- Using PYTHON_LIBRARIES: /usr/lib/x86_64-linux-gnu/libpython3.10.so
-#13 82.90 -- Found PythonExtra: .so  
+#13 82.90 -- Found PythonExtra: .so
 #13 83.29 -- Found ament_cmake: 1.3.14 (/opt/ros/humble/share/ament_cmake/cmake)
 #13 83.41 -- Found rclcpp: 16.0.21 (/opt/ros/humble/share/rclcpp/cmake)
 #13 83.45 -- Found rosidl_generator_c: 3.1.9 (/opt/ros/humble/share/rosidl_generator_c/cmake)
@@ -1564,52 +1564,52 @@
 #13 83.48 -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
 #13 83.54 -- Found rmw_implementation_cmake: 6.1.4 (/opt/ros/humble/share/rmw_implementation_cmake/cmake)
 #13 83.54 -- Found rmw_fastrtps_cpp: 6.2.10 (/opt/ros/humble/share/rmw_fastrtps_cpp/cmake)
-#13 83.62 -- Found OpenSSL: /usr/lib/x86_64-linux-gnu/libcrypto.so (found version "3.0.2")  
-#13 83.64 -- Found FastRTPS: /opt/ros/humble/include  
+#13 83.62 -- Found OpenSSL: /usr/lib/x86_64-linux-gnu/libcrypto.so (found version "3.0.2")
+#13 83.64 -- Found FastRTPS: /opt/ros/humble/include
 #13 83.67 -- Using RMW implementation 'rmw_fastrtps_cpp' as default
 #13 83.69 -- Looking for pthread.h
 #13 83.76 -- Looking for pthread.h - found
 #13 83.76 -- Performing Test CMAKE_HAVE_LIBC_PTHREAD
 #13 83.82 -- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
-#13 83.82 -- Found Threads: TRUE  
+#13 83.82 -- Found Threads: TRUE
 #13 83.89 -- Found rclcpp_action: 16.0.21 (/opt/ros/humble/share/rclcpp_action/cmake)
 #13 83.94 -- Found nav_msgs: 4.9.2 (/opt/ros/humble/share/nav_msgs/cmake)
 #13 83.99 -- Found tf2: 0.25.23 (/opt/ros/humble/share/tf2/cmake)
 #13 84.00 -- Found tf2_ros: 0.25.23 (/opt/ros/humble/share/tf2_ros/cmake)
 #13 84.07 -- Found tf2_kdl: 0.25.23 (/opt/ros/humble/share/tf2_kdl/cmake)
 #13 84.08 -- Found eigen3_cmake_module: 0.1.1 (/opt/ros/humble/share/eigen3_cmake_module/cmake)
-#13 84.08 -- Found Eigen3: TRUE (found version "3.4.0") 
+#13 84.08 -- Found Eigen3: TRUE (found version "3.4.0")
 #13 84.08 -- Ensuring Eigen3 include directory is part of orocos-kdl CMake target
 #13 84.09 -- Found tf2_geometry_msgs: 0.25.23 (/opt/ros/humble/share/tf2_geometry_msgs/cmake)
 #13 84.09 -- Found sensor_msgs: 4.9.2 (/opt/ros/humble/share/sensor_msgs/cmake)
 #13 84.12 -- Found diagnostic_msgs: 4.9.2 (/opt/ros/humble/share/diagnostic_msgs/cmake)
 #13 84.14 -- Found cv_bridge: 3.2.1 (/opt/ros/humble/share/cv_bridge/cmake)
-#13 84.16 -- Found Boost: /usr/lib/x86_64-linux-gnu/cmake/Boost-1.74.0/BoostConfig.cmake (found version "1.74.0") found components: thread 
+#13 84.16 -- Found Boost: /usr/lib/x86_64-linux-gnu/cmake/Boost-1.74.0/BoostConfig.cmake (found version "1.74.0") found components: thread
 #13 84.16 build ROSBridge channel
-#13 84.17 -- Found OpenCV: /usr (found version "4.5.4") 
-#13 84.18 -- Found Boost: /usr/lib/x86_64-linux-gnu/cmake/Boost-1.74.0/BoostConfig.cmake (found version "1.74.0") found components: thread system 
+#13 84.17 -- Found OpenCV: /usr (found version "4.5.4")
+#13 84.18 -- Found Boost: /usr/lib/x86_64-linux-gnu/cmake/Boost-1.74.0/BoostConfig.cmake (found version "1.74.0") found components: thread system
 #13 84.19 -- get websocketpp ...
 #13 85.47 CMake Deprecation Warning at /opt/hmi_build/_deps/websocketpp-src/CMakeLists.txt:5 (cmake_minimum_required):
 #13 85.47   Compatibility with CMake < 2.8.12 will be removed from a future version of
 #13 85.47   CMake.
-#13 85.47 
+#13 85.47
 #13 85.47   Update the VERSION argument <min> value or use a ...<max> suffix to tell
 #13 85.47   CMake that the project does not need compatibility with older versions.
-#13 85.47 
-#13 85.47 
+#13 85.47
+#13 85.47
 #13 85.47 CMake Warning (dev) at /opt/hmi_build/_deps/websocketpp-src/CMakeLists.txt:37 (project):
 #13 85.47   Policy CMP0048 is not set: project() command manages VERSION variables.
 #13 85.47   Run "cmake --help-policy CMP0048" for policy details.  Use the cmake_policy
 #13 85.47   command to set the policy and suppress this warning.
-#13 85.47 
+#13 85.47
 #13 85.47   The following variable(s) would be set to empty:
-#13 85.47 
+#13 85.47
 #13 85.47     PROJECT_VERSION
 #13 85.47     PROJECT_VERSION_MAJOR
 #13 85.47     PROJECT_VERSION_MINOR
 #13 85.47     PROJECT_VERSION_PATCH
 #13 85.47 This warning is for project developers.  Use -Wno-dev to suppress it.
-#13 85.47 
+#13 85.47
 #13 85.48 ** websocketpp
 #13 85.48 -- ENABLE_CPP11        = ON
 #13 85.48 -- BUILD_EXAMPLES      = OFF
@@ -1618,21 +1618,21 @@
 #13 85.48 -- WEBSOCKETPP_BIN     = /opt/hmi_build/_deps/websocketpp-build/bin
 #13 85.48 -- WEBSOCKETPP_LIB     = /opt/hmi_build/_deps/websocketpp-build/lib
 #13 85.48 -- Install prefix      = /usr/local
-#13 85.48 -- WEBSOCKETPP_BOOST_LIBS        = 
-#13 85.48 -- WEBSOCKETPP_PLATFORM_LIBS     = 
-#13 85.48 -- WEBSOCKETPP_PLATFORM_TLS_LIBS = 
-#13 85.48 -- OPENSSL_FOUND        = 
+#13 85.48 -- WEBSOCKETPP_BOOST_LIBS        =
+#13 85.48 -- WEBSOCKETPP_PLATFORM_LIBS     =
+#13 85.48 -- WEBSOCKETPP_PLATFORM_TLS_LIBS =
+#13 85.48 -- OPENSSL_FOUND        =
 #13 85.48 -- OPENSSL_INCLUDE_DIR     = /usr/include
-#13 85.48 -- OPENSSL_LIBRARIES = 
-#13 85.48 -- OPENSSL_VERSION = 
-#13 85.48 
+#13 85.48 -- OPENSSL_LIBRARIES =
+#13 85.48 -- OPENSSL_VERSION =
+#13 85.48
 #13 85.48 =========== Used Build Configuration =============
-#13 85.48 
-#13 85.48 
-#13 85.48 
-#13 85.48 
-#13 85.48 
-#13 85.48 -- Found Boost: /usr/lib/x86_64-linux-gnu/cmake/Boost-1.74.0/BoostConfig.cmake (found version "1.74.0") found components: filesystem 
+#13 85.48
+#13 85.48
+#13 85.48
+#13 85.48
+#13 85.48
+#13 85.48 -- Found Boost: /usr/lib/x86_64-linux-gnu/cmake/Boost-1.74.0/BoostConfig.cmake (found version "1.74.0") found components: filesystem
 #13 85.53 -- Configuring done
 #13 85.68 -- Generating done
 #13 85.69 -- Build files have been written to: /opt/hmi_build
@@ -2247,14 +2247,14 @@
 #13 299.9 Test project /opt/hmi_field_tests
 #13 299.9     Start 1: field_hmi_logic
 #13 300.0 1/1 Test #1: field_hmi_logic ..................   Passed    0.02 sec
-#13 300.0 
+#13 300.0
 #13 300.0 100% tests passed, 0 tests failed out of 1
-#13 300.0 
+#13 300.0
 #13 300.0 Total Test time (real) =   0.02 sec
 #13 300.0 Updating certificates in /etc/ssl/certs...
 #13 300.3 0 added, 0 removed; done.
 #13 300.3 Running hooks in /etc/ca-certificates/update.d...
-#13 300.3 
+#13 300.3
 #13 300.5 done.
 #13 300.5 done.
 #13 DONE 300.5s
