@@ -129,3 +129,27 @@ def test_stop_all_cancels_mapping_build(tmp_path):
         assert not (c.bundle / "manifest.yaml").exists()
     finally:
         c.shutdown()
+
+
+def test_guard_control_mode_and_existing_bundle_selection(tmp_path):
+    from agt_field.mock import bundle_fixture
+
+    c = Appliance(tmp_path, Path(__file__).resolve().parents[2] / "profiles/mock_yhs", mock=True)
+    try:
+        with pytest.raises(ContractError):
+            c.command(dict(command="CONTROL_MODE", mode="manual"))
+        bundle_fixture(tmp_path / "maps/mock_field/1")
+        assert c.command(dict(command="LIST_MAPS"))[0]["map_bundle_id"] == "mock_field"
+        c.command(dict(command="ACTIVATE_MAP", map_bundle_id="mock_field", map_version="1"))
+        c.command(dict(command="START_NAVIGATION"))
+        wait(lambda: c.mission.localization_ready)
+        c.command(dict(command="CONTROL_MODE", mode="manual"))
+        assert c.status()["control_mode"] == "manual"
+        data = route_data(c.mission.binding)
+        c.command(dict(command="SAVE_ROUTE", route=data))
+        c.command(dict(command="START"))
+        assert c.control_mode == "navigation"
+        with pytest.raises(ContractError):
+            c.command(dict(command="CONTROL_MODE", mode="manual"))
+    finally:
+        c.shutdown()

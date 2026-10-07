@@ -95,6 +95,10 @@ def report(data, profile, status=None):
         runtime=status or {},
         active_map=binding,
         profile_errors=calibration_errors(profile),
+        build_commits=dict(
+            navigation=os.environ.get("AGT_NAVIGATION_COMMIT", "unknown"),
+            hmi_patch_sha256=os.environ.get("AGT_HMI_PATCH_SHA256", "unknown"),
+        ),
         configuration_hashes=profile_hashes,
     )
 

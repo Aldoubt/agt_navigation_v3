@@ -11,7 +11,7 @@ import subprocess
 import sys
 
 from .contracts import ContractError, read_yaml, atomic_yaml
-from .profile import load_profile, require_real
+from .profile import load_profile
 from .server import rpc
 from .diagnostics import report, diagnostic_zip
 
@@ -74,33 +74,42 @@ def display():
 
 def host_services():
     pidfile = DATA / "run/host_control.pid"
+    alive = False
     if pidfile.exists():
         try:
             os.kill(int(pidfile.read_text()), 0)
+            alive = True
+        except (ProcessLookupError, ValueError):
+            pass
+    if not alive:
+        with (DATA / "logs/host-control.log").open("ab") as log:
+            proc = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-m",
+                    "agt_field.host_control",
+                    "--data-root",
+                    str(DATA),
+                    "--profile",
+                    str(DATA / "profiles/yhs"),
+                ],
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
+        pidfile.write_text(str(proc.pid))
+    profile = load_profile(DATA / "profiles/yhs")
+    if not profile["base"].get("ros1_master_uri") or any(
+        not profile["topics"].get(k) for k in ["ros1_odom", "ros1_chassis", "ros1_estop"]
+    ):
+        return
+    gateway_pid = DATA / "run/ros1_gateway.pid"
+    if gateway_pid.exists():
+        try:
+            os.kill(int(gateway_pid.read_text()), 0)
             return
         except (ProcessLookupError, ValueError):
             pass
-    with (DATA / "logs/host-control.log").open("ab") as log:
-        proc = subprocess.Popen(
-            [
-                sys.executable,
-                "-m",
-                "agt_field.host_control",
-                "--data-root",
-                str(DATA),
-                "--profile",
-                str(DATA / "profiles/yhs"),
-            ],
-            stdout=log,
-            stderr=subprocess.STDOUT,
-            start_new_session=True,
-        )
-    pidfile.write_text(str(proc.pid))
-    profile = load_profile(DATA / "profiles/yhs")
-    try:
-        require_real(profile, motion=True)
-    except ContractError:
-        return
     if Path("/opt/ros/noetic/setup.bash").is_file():
         env = dict(os.environ)
         if profile["base"].get("ros1_master_uri"):

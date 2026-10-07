@@ -41,13 +41,16 @@ class RosRuntime:
         self.localization_rx = 0
         self.telemetry = {}
         self.tf = {}
+        self.can_observation = dict(state="UNKNOWN")
         self.goal_queue = deque()
         self.cancel_queue = deque()
         self.running = True
         self.gateway_rx = 0
+        self.gateway_status = dict(motion_enabled=False, reason="disconnected")
         self.estop = True
         self.command = (0.0, 0.0, 0.0)
         self.state_pub = self.node.create_publisher(String, "/agt/mission/status", 10)
+        self.mode_pub = self.node.create_publisher(String, "/agt/control/mode", 10)
         self.wheel_pub = self.node.create_publisher(
             Odometry, self.c.profile["topics"]["wheel_odom"], 20
         )
@@ -113,6 +116,18 @@ class RosRuntime:
         self.thread.start()
         self.gateway_thread = threading.Thread(target=self.gateway, daemon=True)
         self.gateway_thread.start()
+        self.host_thread = threading.Thread(target=self.observe_host, daemon=True)
+        self.host_thread.start()
+
+    def observe_host(self):
+        from .host_control import request
+
+        while self.running:
+            try:
+                self.can_observation = request(self.c.data, "CAN_STATUS")
+            except ContractError as exc:
+                self.can_observation = dict(state="UNKNOWN", reason=str(exc))
+            time.sleep(1)
 
     def sample(self, name, message):
         now = time.monotonic()
@@ -188,6 +203,7 @@ class RosRuntime:
                         ],
                     )
                 )
+                self.c.control_mode = "navigation"
                 self.c.mission.start()
         except Exception as exc:
             self.node.get_logger().error(str(exc))
@@ -255,11 +271,16 @@ class RosRuntime:
         from agt_robot_interfaces.msg import LocalizationStatus
         from std_msgs.msg import String
 
+        self.mode_pub.publish(String(data=getattr(self.c, "control_mode", "navigation")))
+
         with self.c.lock:
             now = time.monotonic()
             status = self.local_status
             ready = bool(
                 status
+                and self.c.mode == "NAVIGATION"
+                and self.c.localization != "ERROR"
+                and self.c.mission.binding
                 and now - self.localization_rx
                 < self.c.profile["localization"]["status_timeout_sec"]
                 and status.state == LocalizationStatus.STATE_LOCALIZED
@@ -273,8 +294,33 @@ class RosRuntime:
                     )
                 )
             )
-            self.c.localization = "READY" if ready else ("LOST" if status else "STARTING")
+            if self.c.localization == "ERROR":
+                pass
+            elif self.c.mode != "NAVIGATION":
+                self.c.localization = "STOPPED"
+            elif ready:
+                self.c.localization = "READY"
+            elif not status:
+                self.c.localization = "STARTING"
+            elif now - self.localization_rx >= self.c.profile["localization"]["status_timeout_sec"]:
+                self.c.localization = "LOST"
+            elif status.state in {
+                LocalizationStatus.STATE_BOOT,
+                LocalizationStatus.STATE_WAIT_LOCAL_ODOM,
+            }:
+                self.c.localization = "STARTING"
+            elif status.state in {
+                LocalizationStatus.STATE_WAIT_GLOBAL,
+                LocalizationStatus.STATE_RELOCALIZING,
+            }:
+                self.c.localization = "RELOCALIZING"
+            elif status.state == LocalizationStatus.STATE_DEGRADED:
+                self.c.localization = "DEGRADED"
+            else:
+                self.c.localization = "LOST"
             gateway = now - self.gateway_rx < 0.5 and not self.estop
+            if self.c.profile["robot"]["profile"] == "yhs":
+                gateway = gateway and self.can_observation.get("state") == "ACTIVE"
             self.c.gateway_ready = gateway
             self.c.mission.readiness(ready, gateway)
             while self.goal_queue:
@@ -333,6 +379,7 @@ class RosRuntime:
                                 or now - stamp > timeout
                                 or now - self.gateway_rx > 0.5
                                 or self.estop
+                                or not self.c.gateway_ready
                             ):
                                 x = z = 0.0
                         sequence += 1
@@ -347,7 +394,9 @@ class RosRuntime:
                                 )
                             )
                         )
-                        next_send = now + 0.02
+                        next_send = (next_send or now) + 0.02
+                        if next_send < now - 0.02:
+                            next_send = now + 0.02
                     try:
                         raw = sock.recv(16384)
                     except socket.timeout:
@@ -362,6 +411,8 @@ class RosRuntime:
                                 set_message_fields(msg, row["message"])
                                 self.wheel_pub.publish(msg)
                                 self.sample("Wheel Odom", msg)
+                            elif row["type"] == "gateway_status":
+                                self.gateway_status = row
                             elif row["type"] == "chassis":
                                 self.chassis_pub.publish(String(data=row["message"]))
                                 self.c.chassis_rx = time.monotonic()
@@ -392,6 +443,8 @@ class RosRuntime:
 
     def shutdown(self):
         self.running = False
+        # Stop message forwarding before invalidating the ROS publisher context.
+        self.gateway_thread.join(timeout=3)
+        self.host_thread.join(timeout=2)
         self.rclpy.shutdown()
         self.thread.join(timeout=3)
-        self.gateway_thread.join(timeout=3)

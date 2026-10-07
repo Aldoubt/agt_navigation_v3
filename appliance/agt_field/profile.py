@@ -15,6 +15,8 @@ def load_profile(root):
     data["root"] = root
     if data["robot"].get("profile") not in {"yhs", "mock_yhs"}:
         raise ContractError("unknown robot profile")
+    if data["robot"].get("map_frame") != "map" or data["robot"].get("odom_frame") != "odom":
+        raise ContractError("V3 frame contract requires map/odom")
     base = data["base"]
     interface = base.get("can_interface")
     if interface is not None and (

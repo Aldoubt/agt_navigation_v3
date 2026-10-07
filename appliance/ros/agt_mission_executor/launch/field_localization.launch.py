@@ -100,6 +100,7 @@ def nodes(context):
                     "map_id": package.map_id,
                     "map_version": package.map_version,
                     "debug_identity_map_odom": False,
+                    "base_frame": base,
                 },
             ],
             output="screen",
@@ -113,6 +114,7 @@ def nodes(context):
                 {
                     "global_map": package.asset_path("localization_map"),
                     "apply_correction": True,
+                    "base_frame": base,
                     "debug_directory": str(active.parent.parent / "logs/map_tracker"),
                 },
             ],

@@ -19,8 +19,20 @@ def can(profile, operation):
     base = p["base"]
     interface = base.get("can_interface")
     bitrate = base.get("can_bitrate")
-    if not interface or not bitrate:
+    if not interface or operation == "up" and not bitrate:
         raise ContractError("CONFIG_REQUIRED: CAN interface/bitrate in base.yaml")
+    observed = subprocess.run(
+        ["ip", "-details", "-json", "link", "show", interface],
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+    if observed.returncode:
+        raise ContractError("CAN interface unavailable: " + observed.stderr.strip())
+    link = json.loads(observed.stdout)[0]
+    kind = link.get("linkinfo", {}).get("info_kind")
+    if kind not in {"can", "vcan"} or operation == "up" and kind != "can":
+        raise ContractError("refusing to modify a non-CAN interface")
     if operation == "up":
         commands = [
             ["ip", "link", "set", interface, "down"],
@@ -58,7 +70,28 @@ class Handler(socketserver.StreamRequestHandler):
         try:
             request = json.loads(self.rfile.readline(4096))
             command = request["command"]
-            if command == "HOST_DIAGNOSTICS":
+            if command == "CAN_STATUS":
+                from .diagnostics import probe
+
+                interface = load_profile(self.server.profile)["base"].get("can_interface")
+                result = dict(state="CONFIG_REQUIRED", interface=interface, bitrate=None)
+                if interface:
+                    observation = probe(["ip", "-details", "-json", "link", "show", interface])
+                    if observation["exit_code"] == 0:
+                        link = json.loads(observation["stdout"])[0]
+                        info = link.get("linkinfo", {}).get("info_data", {})
+                        result.update(
+                            state="ACTIVE"
+                            if link.get("linkinfo", {}).get("info_kind") == "can"
+                            and "UP" in link.get("flags", [])
+                            and info.get("state") != "BUS-OFF"
+                            else "DOWN",
+                            bitrate=info.get("bitrate"),
+                            can_state=info.get("state"),
+                        )
+                    else:
+                        result.update(state="DOWN", observation=observation)
+            elif command == "HOST_DIAGNOSTICS":
                 from .diagnostics import probe
                 import platform
 
@@ -85,7 +118,7 @@ class Handler(socketserver.StreamRequestHandler):
 
 def request(data, command):
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    sock.settimeout(30)
+    sock.settimeout(7 if command == "CAN_STATUS" else 30)
     try:
         sock.connect(str(Path(data) / "run/host_control.sock"))
         sock.sendall(json.dumps(dict(command=command)).encode() + b"\n")

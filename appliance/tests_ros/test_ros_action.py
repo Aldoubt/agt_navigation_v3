@@ -2,6 +2,7 @@
 """Software-only ROS2 action/gateway integration; no physical TF or motion."""
 
 import json
+import os
 from pathlib import Path
 import socket
 import threading
@@ -106,12 +107,13 @@ def test_real_ros2_action_results_dwell_pause_cancel_and_lost(tmp_path):
     gt = threading.Thread(target=gateway)
     gt.start()
     c = SimpleNamespace(
-        data=tmp_path,
+        data=Path(os.environ.get("AGT_TEST_GATEWAY_ROOT", str(tmp_path))),
         profile=profile,
         lock=threading.RLock(),
         gateway_ready=False,
         chassis_rx=0,
         localization="STOPPED",
+        mode="NAVIGATION",
         check_processes=lambda: None,
     )
     c.mission = Mission(lambda p, e: c.runtime.send(p, e), lambda e: c.runtime.cancel(e))
@@ -132,6 +134,8 @@ def test_real_ros2_action_results_dwell_pause_cancel_and_lost(tmp_path):
             if control["localized"]
             else LocalizationStatus.STATE_LOST
         )
+        if "status_state" in control:
+            msg.state = control["status_state"]
         msg.map_id = "ros_mock"
         msg.map_version = "1"
         msg.local_odom_fresh = True
@@ -181,7 +185,18 @@ def test_real_ros2_action_results_dwell_pause_cancel_and_lost(tmp_path):
             dict(id="P2", x=1.0, y=0.0, yaw=0.0, dwell_seconds=0.1),
         ],
     )
+    c.mission.bind(binding)
     try:
+        until(lambda: c.mission.localization_ready and c.gateway_ready)
+        for state, expected in [
+            (LocalizationStatus.STATE_BOOT, "STARTING"),
+            (LocalizationStatus.STATE_WAIT_GLOBAL, "RELOCALIZING"),
+            (LocalizationStatus.STATE_DEGRADED, "DEGRADED"),
+        ]:
+            control["status_state"] = state
+            until(lambda: c.localization == expected)
+            assert not c.mission.localization_ready
+        del control["status_state"]
         until(lambda: c.mission.localization_ready and c.gateway_ready)
         with c.lock:
             c.mission.bind(binding)
@@ -223,8 +238,44 @@ def test_real_ros2_action_results_dwell_pause_cancel_and_lost(tmp_path):
             c.mission.start()
         until(lambda: c.mission.state == "ERROR")
         assert "Nav2 action failed" in c.mission.detail
-        assert any(row.get("type") == "cmd_vel" for row in received)
-        assert all(row.get("linear", 0) == 0 for row in received)
+        if not os.environ.get("AGT_TEST_GATEWAY_ROOT"):
+            assert any(row.get("type") == "cmd_vel" for row in received)
+            assert all(row.get("linear", 0) == 0 for row in received)
+        else:
+            from geometry_msgs.msg import Twist
+
+            command_pub = node.create_publisher(Twist, profile["topics"]["guarded_cmd_vel"], 10)
+            # Isolated software fixture: Noetic subscriber is /test/driver/cmd_vel, no CAN.
+            trace = c.data / "driver_twist.jsonl"
+            until(lambda: trace.exists())
+            for _ in range(10):
+                command_pub.publish(Twist())
+                time.sleep(0.02)
+            started_command = time.time()
+            message = Twist()
+            message.linear.x = 0.1
+            for _ in range(10):
+                command_pub.publish(message)
+                time.sleep(0.02)
+            until(
+                lambda: any(
+                    json.loads(line)["linear"] > 0 and json.loads(line)["time"] >= started_command
+                    for line in trace.read_text().splitlines()
+                )
+            )
+            until(lambda: json.loads(trace.read_text().splitlines()[-1])["linear"] == 0)
+            frequency = c.runtime.sensor_status("Wheel Odom")["frequency"]
+            assert 35 < frequency < 65
+            print(
+                json.dumps(
+                    dict(
+                        noetic_to_humble_odom_hz=frequency,
+                        command_transfer=True,
+                        stale_command_zero=True,
+                        physical_hardware="PENDING",
+                    )
+                )
+            )
         print(
             json.dumps(
                 dict(

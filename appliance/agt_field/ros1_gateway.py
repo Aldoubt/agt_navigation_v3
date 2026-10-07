@@ -34,16 +34,32 @@ def main(argv=None):
     parser.add_argument("--data-root", required=True)
     args = parser.parse_args(argv)
     p = load_profile(args.profile)
-    require_real(p, motion=True)
+    motion_enabled = True
+    motion_error = ""
+    try:
+        require_real(p, motion=True)
+    except ContractError as exc:
+        motion_enabled = False
+        motion_error = str(exc)
+    for key in ["ros1_odom", "ros1_chassis", "ros1_estop"]:
+        if not p["topics"].get(key):
+            raise ContractError("CONFIG_REQUIRED: " + key)
     import rospy
     from geometry_msgs.msg import Twist
     from nav_msgs.msg import Odometry
     from std_msgs.msg import String, Bool
 
     rospy.init_node("agt_yhs_ros1_gateway", disable_signals=True)
-    publisher = rospy.Publisher(p["topics"]["ros1_cmd_vel"], Twist, queue_size=1)
+    publisher = (
+        rospy.Publisher(p["topics"]["ros1_cmd_vel"], Twist, queue_size=1)
+        if p["topics"].get("ros1_cmd_vel")
+        else None
+    )
+    if not motion_enabled:
+        rospy.logwarn("Monitoring only; motion disabled: " + motion_error)
     lock = threading.RLock()
-    w = Watchdog(p["base"]["command_timeout_sec"])
+    # In monitor mode every output is zero; this housekeeping timer is NOT a hardware safety threshold.
+    w = Watchdog(p["base"]["command_timeout_sec"] or 0.1)
     latest = {}
     estop_rx = [0.0]
     chassis_rx = [0.0]
@@ -126,14 +142,22 @@ def main(argv=None):
                 with lock:
                     if now - estop_rx[0] > 0.5 or now - chassis_rx[0] > 0.5:
                         w.estop = True
-                    x, z = w.output()
+                    x, z = w.output() if motion_enabled else (0.0, 0.0)
                     msg = Twist()
                     msg.linear.x = x
                     msg.angular.z = z
-                    publisher.publish(msg)
-                    pending = list(latest.values())
+                    if publisher:
+                        publisher.publish(msg)
+                    pending = [row for row in latest.values() if row["type"] != "estop"]
                     latest.clear()
-                    pending.append(dict(type="estop", value=w.estop))
+                    pending.append(dict(type="estop", value=w.estop or not motion_enabled))
+                    pending.append(
+                        dict(
+                            type="gateway_status",
+                            motion_enabled=motion_enabled,
+                            reason=motion_error,
+                        )
+                    )
                 if client:
                     try:
                         client.sendall(b"".join(encode(row) for row in pending))
@@ -142,11 +166,14 @@ def main(argv=None):
                             w.disconnect()
                         client.close()
                         client = None
-                next_tick = now + 0.02
+                next_tick += 0.02
+                if next_tick < now - 0.02:
+                    next_tick = now + 0.02
             time.sleep(0.001)
     finally:
         for _ in range(5):
-            publisher.publish(Twist())
+            if publisher:
+                publisher.publish(Twist())
             time.sleep(0.02)
         if client:
             client.close()

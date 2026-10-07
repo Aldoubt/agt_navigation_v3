@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -30,6 +31,7 @@ class Appliance:
         self.lock = threading.RLock()
         self.processes = Processes(self.data / "logs")
         self.mode = "IDLE"
+        self.control_mode = "navigation"
         self.mapping = "STOPPED"
         self.localization = "STOPPED"
         self.recording = "STOPPED"
@@ -43,11 +45,11 @@ class Appliance:
         self.versions["mapping_commit"] = self.versions.get("mapping", {}).get(
             "commit", "mock" if mock else "unknown"
         )
-        self.versions["localization_builder_commit"] = commits.get(
-            "navigation_commit", "mock" if mock else "unknown"
+        self.versions["localization_builder_commit"] = os.environ.get(
+            "AGT_NAVIGATION_COMMIT", commits.get("navigation_commit", "mock" if mock else "unknown")
         )
-        self.versions["navigation_commit"] = commits.get(
-            "navigation_commit", "mock" if mock else "unknown"
+        self.versions["navigation_commit"] = os.environ.get(
+            "AGT_NAVIGATION_COMMIT", commits.get("navigation_commit", "mock" if mock else "unknown")
         )
         self.versions["navigation_map_config_hashes"] = files(self.profile["root"])
         self.mapping_history = ["STOPPED"]
@@ -142,7 +144,7 @@ class Appliance:
             errors=errors,
             warnings=[]
             if self.gateway_ready
-            else ["wheel odom/CAN not ready; mapping does not depend on wheel odom"],
+            else ["base motion gateway not enabled; mapping does not depend on wheel odom"],
             disk_free=disk.free,
             devices=sensors,
         )
@@ -158,7 +160,7 @@ class Appliance:
                 for k in ["LiDAR", "IMU", "CAN", "YHS", "Wheel Odom"]
             }
         result = {k: self.runtime.sensor_status(k) for k in ["LiDAR", "IMU", "Wheel Odom"]}
-        result["CAN"] = dict(state="ACTIVE" if self.gateway_ready else "DOWN")
+        result["CAN"] = dict(self.runtime.can_observation)
         result["YHS"] = dict(
             state="ONLINE" if time.monotonic() - self.chassis_rx < 0.5 else "OFFLINE"
         )
@@ -170,6 +172,7 @@ class Appliance:
                 robot="YHS",
                 mock=self.mock,
                 mode=self.mode,
+                control_mode=self.control_mode,
                 mapping=self.mapping,
                 localization=self.localization,
                 recording=self.recording,
@@ -187,6 +190,8 @@ class Appliance:
                 devices=self.devices(),
                 disk_free=shutil.disk_usage(self.data).free,
                 sensors=self.profile["sensors"],
+                topics=self.profile["topics"],
+                gateway_status=self.runtime.gateway_status if self.runtime else {"mock": True},
                 base=self.profile["base"],
                 last_error=self.last_error,
                 profiles=str(self.profile["root"]),
@@ -557,6 +562,14 @@ class Appliance:
             command = request.get("command")
             if command == "STATUS":
                 return self.status()
+            if command == "LIST_MAPS":
+                result = []
+                for path in sorted((self.data / "maps").glob("*/*/manifest.yaml")):
+                    manifest = read_yaml(path)
+                    result.append(
+                        {k: manifest.get(k) for k in ["map_bundle_id", "map_version", "status"]}
+                    )
+                return result
             if command == "PREFLIGHT":
                 return self.preflight()
             if command == "START_MAPPING":
@@ -569,6 +582,18 @@ class Appliance:
                 self.confirm()
             elif command == "ACTIVATE_MAP":
                 self.activate(request)
+            elif command == "CONTROL_MODE":
+                mode = request.get("mode")
+                if mode not in {"manual", "navigation"}:
+                    raise ContractError("invalid control mode")
+                self.no_mission()
+                if mode == "manual":
+                    self.validate_active()
+                    if self.mode != "NAVIGATION":
+                        raise ContractError("manual control requires appliance navigation runtime")
+                if mode == "manual" and (self.localization != "READY" or not self.gateway_ready):
+                    raise ContractError("manual control requires valid localization and gateway")
+                self.control_mode = mode
             elif command == "START_NAVIGATION":
                 self.navigation_start()
             elif command == "START_SENSOR":
@@ -593,6 +618,7 @@ class Appliance:
                 return d
             elif command == "START":
                 self.validate_active()
+                self.control_mode = "navigation"
                 self.mission.start()
             elif command == "PAUSE":
                 self.mission.pause()
