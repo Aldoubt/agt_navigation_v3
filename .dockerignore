@@ -1,0 +1,10 @@
+.git
+**/.git
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/*.egg-info
+appliance/build
+build
+install
+log

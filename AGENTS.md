@@ -150,3 +150,17 @@ Check `/agt/odometry/local` stop thresholds and vibration. Tune the measured-sto
 `agt_map_converter` projects the final 3D PCD into XY cells. For each cell it computes point count, `min_z`, `max_z`, vertical span, a locally filled elevation surface and gradient-derived slope. A valid cell becomes occupied when either vertical span exceeds `max_step` or slope exceeds `max_slope_deg`; valid non-obstacle cells are free and unsampled cells remain unknown. This is a first-pass traversability projection, not final semantic terrain understanding.
 
 See `docs/RVIZ_FIELD_ACCEPTANCE.md` for the current acceptance procedure and `README.md` for the whole system flow.
+
+## YHS Field Appliance (explicitly requested scope)
+
+The YHS appliance is in appliance/, profiles/yhs and profiles/mock_yhs. Its commands are ./agt and ./install.sh. Bunker numerical values above are not YHS defaults. This field appliance scope includes Qt HMI and wait-only missions; it does not change the existing camera mission.
+
+- Do not bypass Motion Guard.
+- Do not create a second map->odom publisher.
+- Do not modify frozen mapping artifacts in place.
+- Do not generate localization keyframes by slicing final map.pcd.
+- Do not mix map bundles. Validate bundle identity/hash before activation, START and RESUME.
+- Do not hard-code YHS hardware values. Unmeasured values must remain CONFIG_REQUIRED.
+- Do not store user maps/bags inside container writable layers.
+- Keep mapping, navigation and HMI source domains independent; use pinned dependencies and patches.
+- Always run relevant tests before claiming completion; distinguish mock/native build evidence from real hardware acceptance.

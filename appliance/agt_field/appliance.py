@@ -11,7 +11,7 @@ import time
 from datetime import datetime, timezone
 
 from .bundle import activate, build_localization_assets, seal, validate_bundle, validate_mapping
-from .contracts import ContractError, atomic_yaml, identifier, read_yaml, route
+from .contracts import ContractError, atomic_yaml, identifier, read_yaml, route, files
 from .mission import Mission
 from .mock import mapping_fixture, localization_fixture, navigation_fixture
 from .processes import Processes, overlay_command
@@ -37,7 +37,19 @@ class Appliance:
         self.identity = None
         self.gateway_ready = mock
         self.chassis_rx = 0
-        self.versions = versions or {}
+        self.versions = dict(versions or {})
+        commits_file = Path("/opt/agt/build_commits.yaml")
+        commits = read_yaml(commits_file) if commits_file.exists() else {}
+        self.versions["mapping_commit"] = self.versions.get("mapping", {}).get(
+            "commit", "mock" if mock else "unknown"
+        )
+        self.versions["localization_builder_commit"] = commits.get(
+            "navigation_commit", "mock" if mock else "unknown"
+        )
+        self.versions["navigation_commit"] = commits.get(
+            "navigation_commit", "mock" if mock else "unknown"
+        )
+        self.versions["navigation_map_config_hashes"] = files(self.profile["root"])
         self.mapping_history = ["STOPPED"]
         self.last_error = ""
         self.build_cancel = threading.Event()

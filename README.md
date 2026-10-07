@@ -1,3 +1,38 @@
+# AGT YHS Control — Field Appliance V1
+
+## Installation
+
+```bash
+./install.sh
+```
+
+要求 Linux、Docker Engine + Compose、Python3/PyYAML；安装程序不会自动更改 CAN 或猜测硬件参数。详细说明见 [安装说明](appliance/docs/installation.md)。
+
+## Start
+
+```bash
+./agt up
+```
+
+或双击桌面 **AGT YHS Control**。首次实车配置见 [交接文档](HANDOFF.md)。数据保存在宿主机 `~/agt/`，删除容器不会删除地图、路线或录包。
+
+无硬件软件演示：`./agt up --mock`；无显示服务器：`./agt up --mock --headless`。
+
+## Diagnostics
+
+```bash
+./agt doctor
+./agt doctor --report
+```
+
+[实车待补参数](appliance/docs/REAL_ROBOT_TODO.md) · [实车验收 R0–R13](appliance/docs/real_robot_acceptance.md) · [开发与测试](appliance/docs/development.md)
+
+所有真实 YHS/CAN/MID360/外参/安全与实车导航验收均为 **PENDING**。默认 YHS profile 未配置时禁止运动；mock 数据只允许在 mock 模式激活。
+
+---
+
+## Existing Navigation V3 documentation
+
 # AGT Navigation V3
 
 AGT Navigation V3 是面向 Bunker 类履带底盘与 Livox MID360 的 ROS 2 Humble

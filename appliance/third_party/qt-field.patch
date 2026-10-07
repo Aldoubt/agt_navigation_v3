@@ -1,0 +1,740 @@
+diff --git a/cmake/GetDockWidget.cmake b/cmake/GetDockWidget.cmake
+index 3b63ada..7c928e7 100644
+--- a/cmake/GetDockWidget.cmake
++++ b/cmake/GetDockWidget.cmake
+@@ -8,8 +8,8 @@ set(dockwidget_GIT_REPOSITORY
+ FetchContent_Declare(
+     dockwidget
+     GIT_REPOSITORY ${dockwidget_GIT_REPOSITORY}
+-    GIT_TAG "4.4.0"
+-    GIT_SHALLOW TRUE)
++    GIT_TAG "a16d17a8bf375127847ac8f40af1ebcdb841b13c"
++    GIT_SHALLOW FALSE)
+ 
+ FetchContent_GetProperties(dockwidget)
+ if(NOT dockwidget_POPULATED)
+diff --git a/cmake/GetYamlCpp.cmake b/cmake/GetYamlCpp.cmake
+index b8b07fa..119ef46 100644
+--- a/cmake/GetYamlCpp.cmake
++++ b/cmake/GetYamlCpp.cmake
+@@ -8,8 +8,8 @@ set(yaml-cpp_GIT_REPOSITORY
+ FetchContent_Declare(
+     yaml-cpp
+     GIT_REPOSITORY ${yaml-cpp_GIT_REPOSITORY}
+-    GIT_TAG "0.8.0"
+-    GIT_SHALLOW TRUE)
++    GIT_TAG "f7320141120f720aecc4c32be25586e7da9eb978"
++    GIT_SHALLOW FALSE)
+ 
+ FetchContent_GetProperties(yaml-cpp)
+ if(NOT yaml-cpp_POPULATED)
+diff --git a/cmake/Getnlohmann.cmake b/cmake/Getnlohmann.cmake
+index 2d5e133..7b115ea 100644
+--- a/cmake/Getnlohmann.cmake
++++ b/cmake/Getnlohmann.cmake
+@@ -8,8 +8,8 @@ set(nlohmann_json_GIT_REPOSITORY
+ FetchContent_Declare(
+     nlohmann_json
+     GIT_REPOSITORY ${nlohmann_json_GIT_REPOSITORY}
+-    GIT_TAG "v3.12.0"
+-    GIT_SHALLOW TRUE)
++    GIT_TAG "55f93686c01528224f448c19128836e7df245f72"
++    GIT_SHALLOW FALSE)
+ 
+ FetchContent_GetProperties(nlohmann_json)
+ if(NOT nlohmann_json_POPULATED)
+diff --git a/src/app/CMakeLists.txt b/src/app/CMakeLists.txt
+index ba5a81e..f7649fe 100644
+--- a/src/app/CMakeLists.txt
++++ b/src/app/CMakeLists.txt
+@@ -1,6 +1,6 @@
+ find_package(OpenCV REQUIRED)
+ include_directories(${OpenCV_INCLUDE_DIRS})
+-find_package(Qt5 COMPONENTS Widgets Concurrent Svg REQUIRED)
++find_package(Qt5 COMPONENTS Widgets Concurrent Svg Network REQUIRED)
+ 
+ file(GLOB_RECURSE SOURCE_FILE CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR} *.cpp *.cc)
+ list(FILTER SOURCE_FILE EXCLUDE REGEX "(.*_test\\.cpp$)|(.*_test\\.cc$)")
+@@ -35,7 +35,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
+   ${CMAKE_CURRENT_SOURCE_DIR}
+   ${CMAKE_CURRENT_BINARY_DIR}
+ )
+-target_link_libraries(${PROJECT_NAME} Qt5::Widgets Qt5::Core Qt5::Concurrent Qt5::Svg dockwidget::dockwidget nlohmann_json common basic framework channel ${OpenCV_LIBS})
++target_link_libraries(${PROJECT_NAME} Qt5::Network Qt5::Widgets Qt5::Core Qt5::Concurrent Qt5::Svg dockwidget::dockwidget nlohmann_json common basic framework channel ${OpenCV_LIBS})
+ set_target_properties(${PROJECT_NAME} PROPERTIES
+ RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+ LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+diff --git a/src/app/mainwindow.cpp b/src/app/mainwindow.cpp
+index 713bd19..19979fa 100644
+--- a/src/app/mainwindow.cpp
++++ b/src/app/mainwindow.cpp
+@@ -32,6 +32,7 @@
+ #include <QMessageBox>
+ 
+ #include "widgets/speed_ctrl.h"
++#include "widgets/field_panel.h"
+ #include "widgets/display_config_widget.h"
+ #include "widgets/diagnostic_dock_widget.h"
+ #include "msg/diagnostic_snapshot.h"
+@@ -722,6 +723,15 @@ void MainWindow::setupUi() {
+   /////////////////////////////////////////////////////////导航任务列表
+   QWidget *task_list_widget = new QWidget();
+   nav_goal_table_view_ = new NavGoalTableView();
++  if(nav_goal_table_view_->FieldMode()) {
++    auto field_dock=new ads::CDockWidget("AGT YHS CONTROL");
++    auto panel=new FieldPanel(nav_goal_table_view_,this);
++    field_dock->setWidget(panel);
++    connect(panel,&FieldPanel::mapActivated,this,[this](const QString &path){LoadMap(path.toStdString());});
++    dock_manager_->addDockWidget(ads::DockWidgetArea::RightDockWidgetArea,field_dock,center_docker_area_);
++    ui->menuView->addAction(field_dock->toggleViewAction());
++  }
++
+   QVBoxLayout *horizontalLayout_13 = new QVBoxLayout();
+   horizontalLayout_13->addWidget(nav_goal_table_view_);
+   task_list_widget->setLayout(horizontalLayout_13);
+@@ -807,7 +817,7 @@ void MainWindow::setupUi() {
+   nav_goal_list_dock_widget->setMaximumSize(480, 9999);
+   dock_manager_->addDockWidget(ads::DockWidgetArea::RightDockWidgetArea,
+                                nav_goal_list_dock_widget, center_docker_area_);
+-  nav_goal_list_dock_widget->toggleView(false);
++  nav_goal_list_dock_widget->toggleView(nav_goal_table_view_->FieldMode());
+   connect(nav_goal_table_view_, &NavGoalTableView::signalSendNavGoal,
+           [this](const RobotPose &pose) {
+             PUBLISH(MSG_ID_SET_NAV_GOAL_POSE, pose);
+@@ -848,6 +858,7 @@ void MainWindow::setupUi() {
+   connect(
+       btn_add_one_goal, &QPushButton::clicked,
+       [this, nav_goal_list_dock_widget]() { nav_goal_table_view_->AddItem(); });
++  if(nav_goal_table_view_->FieldMode()){btn_start_task_chain->hide();loop_task_checkbox->hide();btn_load_task_chain->hide();btn_save_task_chain->hide();}
+   connect(btn_start_task_chain, &QPushButton::clicked,
+           [this, btn_start_task_chain, loop_task_checkbox]() {
+             if (btn_start_task_chain->text() == "Start Task Chain") {
+diff --git a/src/app/widgets/field_client.h b/src/app/widgets/field_client.h
+new file mode 100644
+index 0000000..ab053a9
+--- /dev/null
++++ b/src/app/widgets/field_client.h
+@@ -0,0 +1,40 @@
++// AGT modification, 2026-10-07. Local control socket only; no arbitrary shell.
++#pragma once
++#include <QJsonDocument>
++#include <QJsonObject>
++#include <QLocalSocket>
++#include <QObject>
++#include <QTimer>
++#include <functional>
++#include <memory>
++
++class FieldClient : public QObject {
++ public:
++  using Callback = std::function<void(QJsonObject)>;
++  explicit FieldClient(QObject *parent = nullptr) : QObject(parent) {}
++  void request(QJsonObject request, Callback callback) {
++    auto socket = new QLocalSocket(this);
++    auto timer = new QTimer(socket);
++    timer->setSingleShot(true);
++    auto buffer = std::make_shared<QByteArray>();
++    auto done = std::make_shared<bool>(false);
++    auto finish = [socket, callback, done](QJsonObject response) {if(*done)return;*done=true;callback(response);socket->deleteLater(); };
++    connect(timer, &QTimer::timeout, socket, [finish]() { finish({{"ok", false}, {"error", "Runtime request timeout"}}); });
++    connect(socket, &QLocalSocket::connected, socket, [socket, request]() { socket->write(QJsonDocument(request).toJson(QJsonDocument::Compact) + "\n"); });
++    connect(socket, &QLocalSocket::readyRead, socket, [socket, buffer, finish]() {
++      buffer->append(socket->readAll());
++      if (buffer->size() > 1048576) {
++        finish({{"ok", false}, {"error", "Runtime response too large"}});
++        return;
++      }
++      int end = buffer->indexOf('\n');
++      if (end < 0) return;
++      QJsonParseError error;
++      auto doc = QJsonDocument::fromJson(buffer->left(end), &error);
++      finish(error.error == QJsonParseError::NoError ? doc.object() : QJsonObject{{"ok", false}, {"error", "Invalid runtime response"}});
++    });
++    connect(socket, QOverload<QLocalSocket::LocalSocketError>::of(&QLocalSocket::errorOccurred), socket, [finish, socket](auto) { finish({{"ok", false}, {"error", socket->errorString()}}); });
++    timer->start(request.value("command").toString() == "DOCTOR" ? 90000 : 10000);
++    socket->connectToServer(qEnvironmentVariable("AGT_FIELD_SOCKET"));
++  }
++};
+diff --git a/src/app/widgets/field_panel.h b/src/app/widgets/field_panel.h
+new file mode 100644
+index 0000000..6bf08f8
+--- /dev/null
++++ b/src/app/widgets/field_panel.h
+@@ -0,0 +1,212 @@
++// AGT modification, 2026-10-07. See upstream LICENSE (GPL v2 text).
++#pragma once
++#include <QFormLayout>
++#include <QJsonDocument>
++#include <QJsonObject>
++#include <QLabel>
++#include <QLineEdit>
++#include <QMessageBox>
++#include <QPlainTextEdit>
++#include <QPushButton>
++#include <QTabWidget>
++#include <QTimer>
++#include <QVBoxLayout>
++#include <QWidget>
++#include "widgets/field_client.h"
++#include "widgets/nav_goal_table_view.h"
++
++class FieldPanel : public QWidget {
++  Q_OBJECT
++ signals:
++  void mapActivated(const QString &path);
++
++ public:
++  explicit FieldPanel(NavGoalTableView *table, QWidget *parent = nullptr) : QWidget(parent), table_(table), client_(this) {
++    auto layout = new QVBoxLayout(this);
++    layout->addWidget(new QLabel("AGT YHS CONTROL"));
++    status_ = new QLabel("Runtime OFFLINE");
++    status_->setWordWrap(true);
++    layout->addWidget(status_);
++    auto tabs = new QTabWidget(this);
++    layout->addWidget(tabs);
++    auto system = page(tabs, "System");
++    devices_ = new QLabel();
++    devices_->setWordWrap(true);
++    system->addWidget(devices_);
++    button(system, "Test Connection / Preflight", "PREFLIGHT");
++    button(system, "Start MID360", "START_SENSOR");
++    button(system, "Stop MID360", "STOP_SENSOR");
++    button(system, "Activate CAN", "CAN_UP");
++    button(system, "Deactivate CAN", "CAN_DOWN");
++    button(system, "IDLE", "IDLE");
++    auto mapping = page(tabs, "Mapping");
++    auto form = new QFormLayout();
++    map_id_ = new QLineEdit("field_map");
++    version_ = new QLineEdit("1");
++    form->addRow("Map Bundle ID", map_id_);
++    form->addRow("Version", version_);
++    mapping->addLayout(form);
++    button(mapping, "Preflight", "PREFLIGHT");
++    button(mapping, "Start Mapping", "START_MAPPING");
++    button(mapping, "Stop & Build Map", "STOP_MAPPING");
++    button(mapping, "Review Map (MapStudio)", "REVIEW_MAP");
++    button(mapping, "Confirm & Seal Bundle", "CONFIRM_MAP");
++    button(mapping, "Activate Map", "ACTIVATE_MAP");
++    mapping_status_ = new QLabel("Mapping STOPPED");
++    mapping_status_->setWordWrap(true);
++    mapping->addWidget(mapping_status_);
++    auto navigation = page(tabs, "Navigation");
++    button(navigation, "Start Localization / Navigation Mode", "START_NAVIGATION");
++    route_id_ = new QLineEdit("field_route");
++    navigation->addWidget(new QLabel("Route ID"));
++    navigation->addWidget(route_id_);
++    auto edit = new QHBoxLayout();
++    navigation->addLayout(edit);
++    for (auto name : {"Add", "Delete", "Up", "Down"}) {
++      auto b = new QPushButton(name);
++      edit->addWidget(b);
++      connect(b, &QPushButton::clicked, this, [this, name]() {
++        auto m = table_->field_model_;
++        if (!m) return;
++        int row = table_->currentIndex().row();
++        if (QString(name) == "Add")
++          table_->AddItem();
++        else if (QString(name) == "Delete" && row >= 0)
++          m->removeRow(row);
++        else if (QString(name) == "Up" || QString(name) == "Down") {
++          int d = QString(name) == "Up" ? -1 : 1;
++          if (m->movePoint(row, d)) table_->selectRow(row + d);
++        }
++      });
++    }
++    button(navigation, "Save Route", "SAVE_ROUTE");
++    button(navigation, "Load Route", "LOAD_ROUTE");
++    start_ = button(navigation, "Start Mission", "START");
++    button(navigation, "Pause", "PAUSE");
++    button(navigation, "Resume", "RESUME");
++    button(navigation, "Cancel", "CANCEL");
++    navigation->addWidget(new QLabel("First waypoint is a route target.\n2D Pose Estimate remains a separate debug/fallback localization tool."));
++    auto recording = page(tabs, "Recording");
++    button(recording, "Start Recording", "START_RECORDING");
++    button(recording, "Stop Recording", "STOP_RECORDING");
++    record_status_ = new QLabel();
++    record_status_->setWordWrap(true);
++    recording->addWidget(record_status_);
++    auto diagnostics = page(tabs, "Diagnostics");
++    button(diagnostics, "Doctor / Report", "DOCTOR");
++    details_ = new QPlainTextEdit();
++    details_->setReadOnly(true);
++    diagnostics->addWidget(details_);
++    auto stop = new QPushButton("STOP ALL");
++    layout->addWidget(stop);
++    connect(stop, &QPushButton::clicked, this, [this]() { command("STOP_ALL"); });
++    timer_ = new QTimer(this);
++    connect(timer_, &QTimer::timeout, this, [this]() { poll(); });
++    timer_->start(500);
++    poll();
++  }
++
++ private:
++  NavGoalTableView *table_;
++  FieldClient client_;
++  QLabel *status_, *devices_, *mapping_status_, *record_status_;
++  QLineEdit *map_id_, *version_, *route_id_;
++  QPlainTextEdit *details_;
++  QPushButton *start_;
++  QTimer *timer_;
++  bool polling_ = false;
++  QVBoxLayout *page(QTabWidget *tabs, QString title) {
++    auto w = new QWidget();
++    auto layout = new QVBoxLayout(w);
++    tabs->addTab(w, title);
++    return layout;
++  }
++  QPushButton *button(QVBoxLayout *layout, QString label, QString cmd) {
++    auto b = new QPushButton(label);
++    layout->addWidget(b);
++    connect(b, &QPushButton::clicked, this, [this, cmd]() { command(cmd); });
++    return b;
++  }
++  void command(QString name) {
++    QJsonObject request{{"command", name}, {"map_bundle_id", map_id_->text()}, {"map_version", version_->text()}, {"route_id", route_id_->text()}};
++    if (name == "SAVE_ROUTE") {
++      try {
++        request["route"] = table_->field_model_->toRoute(route_id_->text(), table_->field_binding_);
++      } catch (const std::exception &e) {
++        QMessageBox::warning(this, "Route", e.what());
++        return;
++      }
++    }
++    client_.request(request, [this, name](QJsonObject response) {
++      if (!response["ok"].toBool()) {
++        QMessageBox::warning(this, "AGT", response["error"].toString());
++        return;
++      }
++      auto result = response["result"].toObject();
++      if (name == "LOAD_ROUTE") {
++        QString error;
++        if (!table_->field_model_->fromRoute(result, table_->field_binding_, &error)) QMessageBox::warning(this, "Route", error);
++      }
++      if (name == "DOCTOR" || name == "PREFLIGHT") {
++        details_->setPlainText(QJsonDocument(result).toJson(QJsonDocument::Indented));
++      }
++      poll();
++    });
++  }
++  void poll() {
++    if (polling_) return;
++    polling_ = true;
++    client_.request({{"command", "STATUS"}}, [this](QJsonObject response) {
++      polling_ = false;
++      if (!response["ok"].toBool()) {
++        status_->setText("Runtime OFFLINE: " + response["error"].toString());
++        start_->setEnabled(false);
++        table_->setEnabled(false);
++        return;
++      }
++      auto s = response["result"].toObject();
++      auto map = s["map"].toObject();
++      auto mission = s["mission"].toObject();
++      if (table_->field_binding_ != map) {
++        table_->field_model_->removeRows(0, table_->field_model_->rowCount());
++        if (!map.isEmpty()) emit mapActivated(s["bundle_path"].toString() + "/navigation/map.yaml");
++      }
++      table_->field_binding_ = map;
++      QString state = mission["state"].toString();
++      bool editable = state != "NAVIGATING" && state != "DWELLING" && state != "PAUSED";
++      table_->setEnabled(editable);
++      start_->setEnabled(s["localization"].toString() == "READY" && (state == "READY" || state == "COMPLETED" || state == "CANCELLED") && !mission["cancel_pending"].toBool());
++      status_->setText(QString("Robot: YHS %1\nMode: %2 | Map: %3 / %4\nLocalization: %5 | Mission: %6 P%7\nRoute: %8 | Dwell remaining: %9 s\n%10")
++                           .arg(s["mock"].toBool() ? "MOCK" : "")
++                           .arg(s["mode"].toString())
++                           .arg(map["map_bundle_id"].toString())
++                           .arg(map["map_version"].toString())
++                           .arg(s["localization"].toString())
++                           .arg(state)
++                           .arg(mission["waypoint_index"].toInt() + 1)
++                           .arg(mission["route_id"].toString())
++                           .arg(mission["dwell_remaining"].toDouble(), 0, 'f', 1)
++                           .arg(s["last_error"].toString()));
++      QString text;
++      auto devices = s["devices"].toObject();
++      for (auto it = devices.begin(); it != devices.end(); ++it) {
++        auto d = it.value().toObject();
++        text += QString("%1: %2 %3 Hz | last: %4\n").arg(it.key()).arg(d["state"].toString()).arg(d["frequency"].toDouble()).arg(d["last_timestamp"].toDouble());
++      }
++      auto sensor = s["sensors"].toObject();
++      auto base = s["base"].toObject();
++      text += QString("MID360 Ethernet/UDP\nInterface: %1 | Host: %2 | Sensor: %3\nDriver: Livox | Topic: /livox/lidar\nCAN: %4 | bitrate: %5\nROS1 master: %6\nProfile: %7")
++                  .arg(sensor["interface"].toString("CONFIG_REQUIRED"))
++                  .arg(sensor["host_ip"].toString("CONFIG_REQUIRED"))
++                  .arg(sensor["sensor_ip"].toString("CONFIG_REQUIRED"))
++                  .arg(base["can_interface"].toString("CONFIG_REQUIRED"))
++                  .arg(base["can_bitrate"].isNull() ? "CONFIG_REQUIRED" : QString::number(base["can_bitrate"].toInt()))
++                  .arg(base["ros1_master_uri"].toString("CONFIG_REQUIRED"))
++                  .arg(s["profiles"].toString());
++      devices_->setText(text);
++      QString stage = s["mapping"].toString();
++      mapping_status_->setText("Mapping: " + stage + "\nDuration: " + QString::number(s["mapping_duration"].toDouble(), 'f', 1) + " s\n" + (stage == "READY" ? "3D Mapping PASS\nLocalization Assets PASS\n2D Navigation PASS\nMap Review CONFIRMED" : "Finish → Verify → Localization Assets → Grid → Review → Ready"));
++      record_status_->setText(QString("%1 | %2 s\nDisk free: %3 GiB\n%4").arg(s["recording"].toString()).arg(s["recording_duration"].toDouble(), 0, 'f', 1).arg(s["disk_free"].toDouble() / 1073741824., 0, 'f', 1).arg(s["bag_path"].toString()));
++    });
++  }
++};
+diff --git a/src/app/widgets/field_route_model.h b/src/app/widgets/field_route_model.h
+new file mode 100644
+index 0000000..3b5b525
+--- /dev/null
++++ b/src/app/widgets/field_route_model.h
+@@ -0,0 +1,71 @@
++// AGT modification, 2026-10-07. See upstream LICENSE (GPL v2 text).
++#pragma once
++#include <QJsonArray>
++#include <QJsonObject>
++#include <QStandardItemModel>
++#include <cmath>
++#include <stdexcept>
++
++class FieldRouteModel : public QStandardItemModel {
++ public:
++  explicit FieldRouteModel(QObject *parent = nullptr) : QStandardItemModel(parent) {
++    setHorizontalHeaderLabels({"ID", "X", "Y", "Yaw (rad)", "Wait(s)", "Action"});
++  }
++  void addPoint(QString id, double x = 0, double y = 0, double yaw = 0, double dwell = 0) {
++    QList<QStandardItem *> items;
++    for (QString text : {id, QString::number(x, 'g', 15), QString::number(y, 'g', 15), QString::number(yaw, 'g', 15), QString::number(dwell, 'g', 15), QString("wait")}) items << new QStandardItem(text);
++    items[5]->setEditable(false);
++    appendRow(items);
++  }
++  bool setData(const QModelIndex &index, const QVariant &value, int role = Qt::EditRole) override {
++    if (role == Qt::EditRole && index.column() >= 1 && index.column() <= 4) {
++      bool ok = false;
++      double v = value.toDouble(&ok);
++      if (!ok || !std::isfinite(v) || (index.column() == 4 && v < 0)) return false;
++    }
++    if (role == Qt::EditRole && index.column() == 5 && value.toString() != "wait") return false;
++    return QStandardItemModel::setData(index, value, role);
++  }
++  bool movePoint(int row, int direction) {
++    int dest = row + direction;
++    if (row < 0 || row >= rowCount() || dest < 0 || dest >= rowCount()) return false;
++    auto values = takeRow(row);
++    insertRow(dest, values);
++    return true;
++  }
++  QJsonObject toRoute(QString id, QJsonObject binding) const {
++    QJsonArray points;
++    for (int row = 0; row < rowCount(); ++row) {
++      QJsonObject p{{"id", item(row, 0)->text()}, {"sequence", row}, {"action", "wait"}};
++      const QStringList names = {"x", "y", "yaw", "dwell_seconds"};
++      for (int col = 1; col <= 4; ++col) {
++        bool ok = false;
++        double value = item(row, col)->text().toDouble(&ok);
++        if (!ok || !std::isfinite(value) || (col == 4 && value < 0)) throw std::runtime_error("Invalid waypoint numeric value");
++        p[names[col - 1]] = value;
++      }
++      points.append(p);
++    }
++    return {{"schema_version", 1}, {"route_id", id}, {"map", binding}, {"waypoints", points}};
++  }
++  bool fromRoute(QJsonObject route, QJsonObject binding, QString *error = nullptr) {
++    if (route["schema_version"].toInt() != 1 || route["map"].toObject() != binding || route["waypoints"].toArray().isEmpty()) {
++      if (error) *error = "Route map binding/schema mismatch";
++      return false;
++    }
++    QJsonArray points = route["waypoints"].toArray();
++    for (const auto &entry : points) {
++      auto p = entry.toObject();
++      if (p["action"].toString("wait") != "wait" || !p["x"].isDouble() || !p["y"].isDouble() || !p["yaw"].isDouble() || p["dwell_seconds"].toDouble(0) < 0) {
++        if (error) *error = "Invalid waypoint";
++        return false;
++      }
++    }
++    removeRows(0, rowCount());
++    for (const auto &entry : points) {
++      auto p = entry.toObject();
++      addPoint(p["id"].toString(), p["x"].toDouble(), p["y"].toDouble(), p["yaw"].toDouble(), p["dwell_seconds"].toDouble(0));
++    }
++    return true;
++  }
++};
+diff --git a/src/app/widgets/nav_goal_table_view.cpp b/src/app/widgets/nav_goal_table_view.cpp
+index c9c1864..20e2783 100644
+--- a/src/app/widgets/nav_goal_table_view.cpp
++++ b/src/app/widgets/nav_goal_table_view.cpp
+@@ -1,8 +1,10 @@
++// AGT field-mode modification, 2026-10-07; retain upstream LICENSE.
+ #include "widgets/nav_goal_table_view.h"
+ #include <QComboBox>
+ #include <QFileDialog>
+ #include <QHeaderView>
+ #include <QLabel>
++#include <QFile>
+ #include <QPushButton>
+ #include <QtConcurrent>
+ #include <fstream>
+@@ -12,7 +14,13 @@
+ #include "logger/logger.h"
+ NavGoalTableView::NavGoalTableView(QWidget *_parent_widget)
+     : QTableView(_parent_widget) {
+-  table_model_ = new QStandardItemModel();
++  is_task_chain_running_ = false;
++  if (!qEnvironmentVariable("AGT_FIELD_SOCKET").isEmpty()) {
++    field_model_=new FieldRouteModel(this);table_model_=field_model_;setModel(field_model_);
++    horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
++    setSelectionBehavior(QAbstractItemView::SelectRows);setSelectionMode(QAbstractItemView::SingleSelection);return;
++  }
++  table_model_ = new QStandardItemModel(this);
+   setModel(table_model_);
+   QStringList table_h_headers;
+   table_h_headers << "点位名"
+@@ -45,6 +53,13 @@ void NavGoalTableView::UpdateTopologyMap(const TopologyMap &_topology_map) {
+   topologyMap_ = _topology_map;
+ }
+ void NavGoalTableView::UpdateSelectPoint(const TopologyMap::PointInfo &point) {
++  if (FieldMode()) {
++    if (!isEnabled())return;
++    if(field_model_->rowCount()==0)AddItem();int row=field_model_->rowCount()-1;
++    field_model_->setData(field_model_->index(row,0),QString::fromStdString(point.name));
++    field_model_->setData(field_model_->index(row,1),point.x);field_model_->setData(field_model_->index(row,2),point.y);
++    field_model_->setData(field_model_->index(row,3),point.theta);return;
++  }
+   if (!this->isEnabled())
+     return;
+ 
+@@ -57,6 +72,17 @@ void NavGoalTableView::UpdateSelectPoint(const TopologyMap::PointInfo &point) {
+   }
+ }
+ void NavGoalTableView::AddItem() {
++  if (FieldMode()) {
++    int next = 1;
++    while (true) {
++      const QString id = "P" + QString::number(next++);
++      bool found = false;
++      for (int row = 0; row < field_model_->rowCount(); ++row)
++        if (field_model_->item(row, 0)->text() == id) found = true;
++      if (!found) { field_model_->addPoint(id); break; }
++    }
++    return;
++  }
+   QComboBox *comboBox = new QComboBox();
+   for (auto point : topologyMap_.points) {
+     comboBox->addItem(point.name.c_str());
+@@ -82,6 +108,7 @@ void NavGoalTableView::AddItem() {
+   setIndexWidget(table_model_->index(row, 3), button_run);
+ }
+ void NavGoalTableView::StartTaskChain(bool is_loop) {
++  if(FieldMode()){auto client=new FieldClient(this);client->request({{"command","START"}},[this,client](auto response){if(!response["ok"].toBool())qWarning()<<response["error"].toString();client->deleteLater();emit signalTaskFinish();});return;}
+   is_task_chain_running_ = true;
+   QtConcurrent::run([this, is_loop]() {
+     do {
+@@ -119,6 +146,7 @@ void NavGoalTableView::StartTaskChain(bool is_loop) {
+   });
+ }
+ bool NavGoalTableView::LoadTaskChain(const std::string &name) {
++  if(FieldMode()){QFile file(QString::fromStdString(name));if(!file.open(QIODevice::ReadOnly))return false;return field_model_->fromRoute(QJsonDocument::fromJson(file.readAll()).object(),field_binding_);}
+   // 清空模型
+   table_model_->removeRows(0, table_model_->rowCount());
+   std::ifstream file(name);
+@@ -169,6 +197,8 @@ bool NavGoalTableView::LoadTaskChain(const std::string &name) {
+   return true;
+ }
+ bool NavGoalTableView::SaveTaskChain(const std::string &name) {
++  if(FieldMode()){QFile file(QString::fromStdString(name));if(!file.open(QIODevice::WriteOnly))return false;file.write(QJsonDocument(field_model_->toRoute("field_route",field_binding_)).toJson());return true;}
++  task_chain_.points.clear();
+   for (int row = 0; row < table_model_->rowCount(); ++row) {
+     QComboBox *comboBoxName =
+         static_cast<QComboBox *>(indexWidget(model()->index(row, 0)));
+@@ -188,6 +218,7 @@ bool NavGoalTableView::SaveTaskChain(const std::string &name) {
+   return Config::ConfigManager::writeStringToFile(name, pretty_json);
+ }
+ void NavGoalTableView::StopTaskChain() {
++  if(FieldMode()){auto client=new FieldClient(this);client->request({{"command","CANCEL"}},[client](auto){client->deleteLater();});return;}
+   if (is_task_chain_running_) {
+     is_task_chain_running_ = false;
+   }
+diff --git a/src/app/widgets/nav_goal_table_view.h b/src/app/widgets/nav_goal_table_view.h
+index 564cb2d..caac758 100644
+--- a/src/app/widgets/nav_goal_table_view.h
++++ b/src/app/widgets/nav_goal_table_view.h
+@@ -1,3 +1,5 @@
++#pragma once
++// AGT field-mode modification, 2026-10-07; retain upstream LICENSE.
+ #include <QDebug>
+ #include <QHeaderView>
+ #include <QPainter>
+@@ -5,6 +7,8 @@
+ #include <QTableView>
+ #include <mutex>
+ #include "config/task_chain.h"
++#include "widgets/field_route_model.h"
++#include "widgets/field_client.h"
+ #include "map/topology_map.h"
+ using namespace basic;
+ class NavGoalTableView : public QTableView {
+@@ -13,6 +17,10 @@ class NavGoalTableView : public QTableView {
+   explicit NavGoalTableView(QWidget *_parent_widget = nullptr);
+   ~NavGoalTableView() override;
+ 
++ public:
++  FieldRouteModel *field_model_{nullptr};
++  QJsonObject field_binding_;
++  bool FieldMode() const { return field_model_!=nullptr; }
+  private:
+   QStandardItemModel *table_model_;
+   TopologyMap topologyMap_;
+diff --git a/src/channel/ros2/cmake/GetTopologyMsg.cmake b/src/channel/ros2/cmake/GetTopologyMsg.cmake
+index 6930c42..da5ac3a 100644
+--- a/src/channel/ros2/cmake/GetTopologyMsg.cmake
++++ b/src/channel/ros2/cmake/GetTopologyMsg.cmake
+@@ -3,7 +3,7 @@ include(FetchContent)
+ message(STATUS "get topology_msgs ...")
+ 
+ set(topology_msgs_DOWNLOAD_URL
+-    "https://github.com/chengyangkj/topology_msgs/archive/refs/heads/main.zip"
++    "https://github.com/chengyangkj/topology_msgs/archive/7ba0d2a3ea0de9e8c416c64d1dab10e5299a5acb.zip"
+     CACHE STRING "")
+ 
+ FetchContent_Declare(
+diff --git a/src/channel/ros2/rclcomm.cpp b/src/channel/ros2/rclcomm.cpp
+index 28f516f..8bb79ae 100644
+--- a/src/channel/ros2/rclcomm.cpp
++++ b/src/channel/ros2/rclcomm.cpp
+@@ -25,7 +25,7 @@ rclcomm::rclcomm() {
+   SET_DEFAULT_TOPIC_NAME(DISPLAY_GLOBAL_PATH, "/plan")
+   SET_DEFAULT_TOPIC_NAME(DISPLAY_LOCAL_PATH, "/local_plan")
+   SET_DEFAULT_TOPIC_NAME(DISPLAY_ROBOT, "/odom")
+-  SET_DEFAULT_TOPIC_NAME(MSG_ID_SET_ROBOT_SPEED, "/cmd_vel")
++  SET_DEFAULT_TOPIC_NAME(MSG_ID_SET_ROBOT_SPEED, "/agt/hmi/cmd_vel")
+   SET_DEFAULT_TOPIC_NAME(MSG_ID_BATTERY_STATE, "/battery")
+   SET_DEFAULT_TOPIC_NAME(MSG_ID_DIAGNOSTIC, "/diagnostics")
+   SET_DEFAULT_TOPIC_NAME(DISPLAY_ROBOT_FOOTPRINT, "/local_costmap/published_footprint")
+@@ -62,7 +62,7 @@ bool rclcomm::Start() {
+       node->create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>(
+           GET_TOPIC_NAME(MSG_ID_SET_RELOC_POSE), 10);
+   speed_publisher_ = node->create_publisher<geometry_msgs::msg::Twist>(
+-      GET_TOPIC_NAME(MSG_ID_SET_ROBOT_SPEED), 10);
++      qEnvironmentVariableIsSet("AGT_FIELD_SOCKET") ? "/agt/hmi/cmd_vel" : GET_TOPIC_NAME(MSG_ID_SET_ROBOT_SPEED), 10);
+   map_subscriber_ = node->create_subscription<nav_msgs::msg::OccupancyGrid>(
+       GET_TOPIC_NAME(DISPLAY_MAP),
+       rclcpp::QoS(rclcpp::KeepLast(1)).reliable().transient_local(),
+diff --git a/src/channel/rosbridge/cmake/GetWsCpp.cmake b/src/channel/rosbridge/cmake/GetWsCpp.cmake
+index ceed773..1fa76b1 100644
+--- a/src/channel/rosbridge/cmake/GetWsCpp.cmake
++++ b/src/channel/rosbridge/cmake/GetWsCpp.cmake
+@@ -3,7 +3,7 @@ include(FetchContent)
+ message(STATUS "get websocketpp ...")
+ 
+ set(websocketpp_GIT_TAG
+-    "0.8.2"
++    "56123c87598f8b1dd471be83ca841ceae07f95ba"
+     CACHE STRING "websocketpp git tag")
+ 
+ set(websocketpp_GIT_REPOSITORY 
+@@ -14,7 +14,7 @@ FetchContent_Declare(
+   websocketpp
+   GIT_REPOSITORY ${websocketpp_GIT_REPOSITORY}
+   GIT_TAG ${websocketpp_GIT_TAG}
+-  GIT_SHALLOW TRUE)
++  GIT_SHALLOW FALSE)
+ 
+ FetchContent_GetProperties(websocketpp)
+ if(NOT websocketpp_POPULATED)
+diff --git a/src/channel/rosbridge/rosbridge_comm.cpp b/src/channel/rosbridge/rosbridge_comm.cpp
+index f951538..76882d2 100644
+--- a/src/channel/rosbridge/rosbridge_comm.cpp
++++ b/src/channel/rosbridge/rosbridge_comm.cpp
+@@ -38,7 +38,7 @@ RosbridgeComm::RosbridgeComm() {
+   SET_DEFAULT_TOPIC_NAME(DISPLAY_GLOBAL_PATH, "/plan")
+   SET_DEFAULT_TOPIC_NAME(DISPLAY_LOCAL_PATH, "/local_plan")
+   SET_DEFAULT_TOPIC_NAME(DISPLAY_ROBOT, "/odom")
+-  SET_DEFAULT_TOPIC_NAME(MSG_ID_SET_ROBOT_SPEED, "/cmd_vel")
++  SET_DEFAULT_TOPIC_NAME(MSG_ID_SET_ROBOT_SPEED, "/agt/hmi/cmd_vel")
+   SET_DEFAULT_TOPIC_NAME(MSG_ID_BATTERY_STATE, "/battery")
+   SET_DEFAULT_TOPIC_NAME(DISPLAY_ROBOT_FOOTPRINT, "/local_costmap/published_footprint")
+   SET_DEFAULT_TOPIC_NAME(DISPLAY_TOPOLOGY_MAP, "/map/topology")
+diff --git a/src/common/config/config_manager.cc b/src/common/config/config_manager.cc
+index 783f479..403b65f 100644
+--- a/src/common/config/config_manager.cc
++++ b/src/common/config/config_manager.cc
+@@ -1,5 +1,6 @@
+ #include "config/config_manager.h"
+ #include <QFile>
++#include "msg/msg_info.h"
+ #include <boost/dll.hpp>
+ #include <fstream>
+ #include <nlohmann/json.hpp>
+@@ -26,6 +27,8 @@ bool ConfigManager::writeStringToFile(const std::string &filePath,
+ 
+ // #define CHECK_DEFALUT
+ ConfigManager::ConfigManager(/* args */) {
++  if (qEnvironmentVariableIsSet("AGT_HMI_CONFIG"))
++    config_path_ = qEnvironmentVariable("AGT_HMI_CONFIG").toStdString();
+   Init(config_path_);
+ }
+ void ConfigManager::Init(const std::string &config_path) {
+@@ -72,6 +75,9 @@ bool ConfigManager::StoreConfigUnlocked() {
+   return true;
+ }
+ std::string ConfigManager::GetTopicName(const std::string &frame_name) {
++  // Field mode cannot restore a legacy direct chassis speed topic from saved config.
++  if (qEnvironmentVariableIsSet("AGT_FIELD_SOCKET") && frame_name == MSG_ID_SET_ROBOT_SPEED)
++    return "/agt/hmi/cmd_vel";
+   auto iter = std::find_if(config_root_.display_config.begin(),
+                            config_root_.display_config.end(),
+                            [&frame_name](const auto &item) {
+diff --git a/tests/field/CMakeLists.txt b/tests/field/CMakeLists.txt
+new file mode 100644
+index 0000000..8b090ec
+--- /dev/null
++++ b/tests/field/CMakeLists.txt
+@@ -0,0 +1,9 @@
++cmake_minimum_required(VERSION 3.16)
++project(agt_field_hmi_tests)
++set(CMAKE_CXX_STANDARD 17)
++find_package(Qt5 COMPONENTS Core Gui Widgets Network REQUIRED)
++add_executable(field_hmi_logic_test field_hmi_logic_test.cpp)
++target_link_libraries(field_hmi_logic_test Qt5::Core Qt5::Gui Qt5::Widgets Qt5::Network)
++enable_testing()
++add_test(NAME field_hmi_logic COMMAND field_hmi_logic_test)
++set_tests_properties(field_hmi_logic PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+diff --git a/tests/field/field_hmi_logic_test.cpp b/tests/field/field_hmi_logic_test.cpp
+new file mode 100644
+index 0000000..56ae6f1
+--- /dev/null
++++ b/tests/field/field_hmi_logic_test.cpp
+@@ -0,0 +1,42 @@
++#include <QApplication>
++#include <QJsonDocument>
++#include <iostream>
++#include "../../src/app/widgets/field_client.h"
++#include "../../src/app/widgets/field_route_model.h"
++#define REQUIRE(expr)                                                        \
++  do {                                                                       \
++    if (!(expr)) {                                                           \
++      std::cerr << "failed line " << __LINE__ << ": " << #expr << std::endl; \
++      return 1;                                                              \
++    }                                                                        \
++  } while (0)
++int main(int argc, char **argv) {
++  QApplication app(argc, argv);
++  FieldRouteModel model;
++  QJsonObject binding{{"map_bundle_id", "test"}, {"map_version", "1"}, {"bundle_sha256", QString(64, 'a')}};
++  model.addPoint("P1", 1, 2, .5, 5);
++  model.addPoint("P2", 3, 4, 0, 20);
++  model.addPoint("P3", 5, 6, 1, 0);
++  REQUIRE(model.rowCount() == 3);
++  REQUIRE(model.setData(model.index(0, 4), 7.5));
++  REQUIRE(!model.setData(model.index(0, 4), -1));
++  REQUIRE(!model.setData(model.index(0, 3), "NaN"));
++  REQUIRE(model.movePoint(0, 1));
++  REQUIRE(model.item(1, 0)->text() == "P1");
++  auto saved = QJsonDocument(model.toRoute("route", binding)).toJson();
++  FieldRouteModel loaded;
++  QString error;
++  REQUIRE(loaded.fromRoute(QJsonDocument::fromJson(saved).object(), binding, &error));
++  REQUIRE(loaded.item(1, 4)->text().toDouble() == 7.5);
++  REQUIRE(loaded.rowCount() == 3);
++  QJsonObject wrong = binding;
++  wrong["map_version"] = "2";
++  REQUIRE(!loaded.fromRoute(QJsonDocument::fromJson(saved).object(), wrong, &error));
++  REQUIRE(loaded.removeRow(1));
++  REQUIRE(loaded.rowCount() == 2);
++  REQUIRE(!loaded.movePoint(0, -1));
++  auto points = loaded.toRoute("r", binding)["waypoints"].toArray();
++  REQUIRE(points[1].toObject()["sequence"].toInt() == 1);
++  std::cout << "HMI add/delete/reorder/yaw/dwell/save/load/map binding PASS" << std::endl;
++  return 0;
++}

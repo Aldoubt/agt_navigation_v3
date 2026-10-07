@@ -35,6 +35,12 @@ def report(data, profile, status=None):
         docker=probe(["docker", "ps", "--format", "{{json .}}"]),
         compose=probe(["docker", "compose", "version"]),
     )
+    try:
+        from .host_control import request
+
+        system["host_observations"] = request(data, "HOST_DIAGNOSTICS")
+    except Exception as exc:
+        system["host_observations"] = dict(state="UNAVAILABLE", reason=str(exc))
     base = profile["base"]
     can = (
         probe(["ip", "-details", "-json", "link", "show", base["can_interface"]])
@@ -61,6 +67,8 @@ def report(data, profile, status=None):
         real_hardware="PENDING",
         can="MOCK_ONLY" if mock else "PENDING",
         tf_duplicate_publishers="PENDING",
+        critical_topic_rates=(status or {}).get("devices", {}),
+        tf_frames=(status or {}).get("tf", {}),
     )
     binding = None
     active = data / "run/active_map.yaml"
@@ -127,4 +135,7 @@ def diagnostic_zip(data, profile, status=None):
         versions = Path("/opt/agt/versions.yaml")
         if versions.exists():
             archive.write(versions, "software_versions.yaml")
+        commits = Path("/opt/agt/build_commits.yaml")
+        if commits.exists():
+            archive.write(commits, "build_commits.yaml")
     return path

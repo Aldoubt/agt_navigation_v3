@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -eo pipefail
+AGT_REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+export AGT_REPO_ROOT
+export PYTHONPATH="$AGT_REPO_ROOT/appliance${PYTHONPATH:+:$PYTHONPATH}"
+exec "${AGT_PYTHON:-python3}" -m agt_field.cli "$@"

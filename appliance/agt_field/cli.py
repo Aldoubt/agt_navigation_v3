@@ -124,6 +124,8 @@ def host_services():
 
 
 def install(args):
+    if not sys.platform.startswith("linux"):
+        raise ContractError("Field Appliance requires a Linux host with Docker Engine")
     directories()
     if not shutil.which("docker"):
         raise ContractError(
@@ -132,6 +134,12 @@ def install(args):
     subprocess.run(["docker", "info"], stdout=subprocess.DEVNULL, check=True)
     subprocess.run(["docker", "compose", "version"], check=True)
     if not args.skip_build:
+        if subprocess.check_output(
+            ["git", "-C", str(ROOT), "status", "--porcelain"], text=True
+        ).strip():
+            raise ContractError(
+                "Refusing uncommitted appliance source: commit or use a clean checkout for reproducible image builds"
+            )
         subprocess.run(
             [
                 sys.executable,
@@ -164,6 +172,14 @@ def install(args):
                 "docker",
                 "build",
                 *secret,
+                "--build-arg",
+                "NAVIGATION_COMMIT="
+                + subprocess.check_output(
+                    ["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True
+                ).strip(),
+                "--build-arg",
+                "HMI_PATCH_SHA256="
+                + read_yaml(ROOT / "appliance/repos.lock.yaml")["hmi"]["patch_sha256"],
                 "--build-context",
                 "mapping=" + str(DATA / "sources/mapping"),
                 "--build-context",
@@ -261,10 +277,19 @@ def main(argv=None):
                 status = rpc(DATA, dict(command="STATUS"))
             except (ValueError, OSError):
                 status = dict(runtime="OFFLINE")
-            result = report(DATA, profile, status)
+            if status.get("runtime") != "OFFLINE":
+                runtime_report = rpc(DATA, dict(command="DOCTOR", report=args.report), timeout=90)
+                result = runtime_report["diagnostic"]
+                if args.report:
+                    print(
+                        "Report:",
+                        runtime_report["report_path"].replace("/data/", str(DATA) + "/", 1),
+                    )
+            else:
+                result = report(DATA, profile, status)
+                if args.report:
+                    print("Report:", diagnostic_zip(DATA, profile, status))
             print(json.dumps(result, ensure_ascii=False, indent=2))
-            if args.report:
-                print("Report:", diagnostic_zip(DATA, profile, status))
             if result["profile_errors"] or any(
                 str(v).startswith("FAIL") for v in result["checks"].values()
             ):

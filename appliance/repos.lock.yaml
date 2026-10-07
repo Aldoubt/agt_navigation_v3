@@ -1,0 +1,18 @@
+schema_version: 1
+navigation:
+  url: https://github.com/Aldoubt/agt_navigation_v3.git
+  commit: e27abeb3fd63280ee8e48a47966e06588f8eebd8
+  integration_branch: feature/yhs-field-appliance-v1
+  integration_source: current checkout; Git commit captured in build evidence
+mapping:
+  url: https://github.com/Aldoubt/agt-lio-pgo-mapping.git
+  commit: 539352d309deef4f0acfe5f2bd783d5e72623a88
+hmi:
+  url: https://github.com/chengyangkj/Ros_Qt5_Gui_App.git
+  commit: b0825e3cba3e7186cba8a6b83ff230be37c8b1fb
+  patch: third_party/qt-field.patch
+  patch_sha256: 11bbbff58954daf814f001de06ac47d5f4174069602dab7db552271552fcc5a2
+base_image: ros:humble-ros-base-jammy@sha256:860e53793ccf575e5369b5e9a19939de2bfcfb46a299954d06f54f2af54fed19
+native_manifest: dependencies/agt_navigation.repos
+mapping_manifest: .repos
+topology_msgs_commit: 7ba0d2a3ea0de9e8c416c64d1dab10e5299a5acb

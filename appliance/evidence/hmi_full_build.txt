@@ -1,0 +1,190 @@
+[  0%] Automatic MOC for target qtadvanceddocking-qt5
+[ 13%] Built target yaml-cpp
+[ 13%] Built target qtadvanceddocking-qt5_autogen
+[ 13%] Built target topology_msgs__cpp
+[ 13%] Built target topology_msgs__rs
+[ 16%] Built target topology_msgs__rosidl_generator_c
+[ 16%] Built target ament_cmake_python_copy_topology_msgs
+[ 28%] Built target qtadvanceddocking-qt5
+[ 29%] Built target common
+[ 33%] Built target topology_msgs__rosidl_typesupport_cpp
+[ 36%] Built target topology_msgs__rosidl_typesupport_fastrtps_cpp
+[ 40%] Built target topology_msgs__rosidl_typesupport_introspection_cpp
+[ 43%] Built target topology_msgs__rosidl_typesupport_fastrtps_c
+[ 49%] Built target topology_msgs__rosidl_typesupport_introspection_c
+[ 49%] Built target topology_msgs__rosidl_typesupport_c
+running egg_info
+writing topology_msgs.egg-info/PKG-INFO
+writing dependency_links to topology_msgs.egg-info/dependency_links.txt
+writing top-level names to topology_msgs.egg-info/top_level.txt
+reading manifest file 'topology_msgs.egg-info/SOURCES.txt'
+writing manifest file 'topology_msgs.egg-info/SOURCES.txt'
+[ 49%] Built target ament_cmake_python_build_topology_msgs_egg
+[ 49%] Built target topology_msgs
+[ 50%] Built target framework
+[ 51%] Built target topology_msgs__py
+[ 51%] Built target channel
+[ 54%] Built target topology_msgs__rosidl_generator_py
+[ 56%] Built target channel_ros2
+[ 60%] Built target channel_rosbridge
+[ 61%] Generating widgets/moc_field_client.cpp
+/opt/hmi/src/app/widgets/field_client.h:0: Note: No relevant classes found. No output generated.
+[ 62%] Built target topology_msgs__rosidl_typesupport_fastrtps_c__pyext
+[ 63%] Built target topology_msgs__rosidl_typesupport_introspection_c__pyext
+[ 64%] Built target topology_msgs__rosidl_typesupport_c__pyext
+Consolidate compiler generated dependencies of target ros_qt5_gui_app
+[ 65%] Building CXX object src/app/CMakeFiles/ros_qt5_gui_app.dir/mainwindow.cpp.o
+[ 65%] Building CXX object src/app/CMakeFiles/ros_qt5_gui_app.dir/main.cpp.o
+In file included from /opt/hmi/src/app/mainwindow.h:38,
+                 from /opt/hmi/src/app/main.cpp:21:
+/opt/hmi/src/app/widgets/ratio_layouted_frame.h:58:71: warning: ‘constexpr QFlags<T>::QFlags(QFlags<T>::Zero) [with Enum = Qt::WindowType; QFlags<T>::Zero = int QFlags<Qt::WindowType>::Private::*]’ is deprecated: Use default constructor instead [-Wdeprecated-declarations]
+   58 |   RatioLayoutedFrame(QWidget* parent=nullptr, Qt::WindowFlags flags = 0);
+      |                                                                       ^
+In file included from /usr/include/x86_64-linux-gnu/qt5/QtCore/qglobal.h:1299,
+                 from /usr/include/x86_64-linux-gnu/qt5/QtGui/qtguiglobal.h:43,
+                 from /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qtwidgetsglobal.h:43,
+                 from /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qapplication.h:43,
+                 from /usr/include/x86_64-linux-gnu/qt5/QtWidgets/QApplication:1,
+                 from /opt/hmi/src/app/main.cpp:12:
+/usr/include/x86_64-linux-gnu/qt5/QtCore/qflags.h:123:80: note: declared here
+  123 |     QT_DEPRECATED_X("Use default constructor instead") Q_DECL_CONSTEXPR inline QFlags(Zero) noexcept : i(0) {}
+      |                                                                                ^~~~~~
+In file included from /opt/hmi/src/app/mainwindow.h:38,
+                 from /opt/hmi/src/app/mainwindow.cpp:10:
+/opt/hmi/src/app/widgets/ratio_layouted_frame.h:58:71: warning: ‘constexpr QFlags<T>::QFlags(QFlags<T>::Zero) [with Enum = Qt::WindowType; QFlags<T>::Zero = int QFlags<Qt::WindowType>::Private::*]’ is deprecated: Use default constructor instead [-Wdeprecated-declarations]
+   58 |   RatioLayoutedFrame(QWidget* parent=nullptr, Qt::WindowFlags flags = 0);
+      |                                                                       ^
+In file included from /usr/include/x86_64-linux-gnu/qt5/QtCore/qglobal.h:1299,
+                 from /usr/include/x86_64-linux-gnu/qt5/QtGui/qtguiglobal.h:43,
+                 from /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qtwidgetsglobal.h:43,
+                 from /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qcalendarwidget.h:43,
+                 from /usr/include/x86_64-linux-gnu/qt5/QtWidgets/QCalendarWidget:1,
+                 from /opt/hmi/src/app/mainwindow.h:4,
+                 from /opt/hmi/src/app/mainwindow.cpp:10:
+/usr/include/x86_64-linux-gnu/qt5/QtCore/qflags.h:123:80: note: declared here
+  123 |     QT_DEPRECATED_X("Use default constructor instead") Q_DECL_CONSTEXPR inline QFlags(Zero) noexcept : i(0) {}
+      |                                                                                ^~~~~~
+/opt/hmi/src/app/mainwindow.cpp: In member function ‘void MainWindow::setupUi()’:
+/opt/hmi/src/app/mainwindow.cpp:670:67: warning: ‘ads::CDockWidget::CDockWidget(const QString&, QWidget*)’ is deprecated [-Wdeprecated-declarations]
+  670 |   CDockWidget *CentralDockWidget = new CDockWidget("CentralWidget");
+      |                                                                   ^
+In file included from /opt/hmi_build/_deps/dockwidget-src/src/DockAreaWidget.h:37,
+                 from /opt/hmi/src/app/mainwindow.h:27,
+                 from /opt/hmi/src/app/mainwindow.cpp:10:
+/opt/hmi_build/_deps/dockwidget-src/src/DockWidget.h:262:32: note: declared here
+  262 |     Q_DECL_DEPRECATED explicit CDockWidget(const QString &title, QWidget* parent = nullptr);
+      |                                ^~~~~~~~~~~
+/opt/hmi/src/app/mainwindow.cpp:676:75: warning: ‘ads::CDockWidget::CDockWidget(const QString&, QWidget*)’ is deprecated [-Wdeprecated-declarations]
+  676 |   ads::CDockWidget *DashBoardDockWidget = new ads::CDockWidget("DashBoard");
+      |                                                                           ^
+In file included from /opt/hmi_build/_deps/dockwidget-src/src/DockAreaWidget.h:37,
+                 from /opt/hmi/src/app/mainwindow.h:27,
+                 from /opt/hmi/src/app/mainwindow.cpp:10:
+/opt/hmi_build/_deps/dockwidget-src/src/DockWidget.h:262:32: note: declared here
+  262 |     Q_DECL_DEPRECATED explicit CDockWidget(const QString &title, QWidget* parent = nullptr);
+      |                                ^~~~~~~~~~~
+/opt/hmi/src/app/mainwindow.cpp:691:75: warning: ‘ads::CDockWidget::CDockWidget(const QString&, QWidget*)’ is deprecated [-Wdeprecated-declarations]
+  691 |   ads::CDockWidget *SpeedCtrlDockWidget = new ads::CDockWidget("SpeedCtrl");
+      |                                                                           ^
+In file included from /opt/hmi_build/_deps/dockwidget-src/src/DockAreaWidget.h:37,
+                 from /opt/hmi/src/app/mainwindow.h:27,
+                 from /opt/hmi/src/app/mainwindow.cpp:10:
+/opt/hmi_build/_deps/dockwidget-src/src/DockWidget.h:262:32: note: declared here
+  262 |     Q_DECL_DEPRECATED explicit CDockWidget(const QString &title, QWidget* parent = nullptr);
+      |                                ^~~~~~~~~~~
+/opt/hmi/src/app/mainwindow.cpp:702:54: warning: ‘ads::CDockWidget::CDockWidget(const QString&, QWidget*)’ is deprecated [-Wdeprecated-declarations]
+  702 |   settings_dock_ = new ads::CDockWidget(tr("Setting"));
+      |                                                      ^
+In file included from /opt/hmi_build/_deps/dockwidget-src/src/DockAreaWidget.h:37,
+                 from /opt/hmi/src/app/mainwindow.h:27,
+                 from /opt/hmi/src/app/mainwindow.cpp:10:
+/opt/hmi_build/_deps/dockwidget-src/src/DockWidget.h:262:32: note: declared here
+  262 |     Q_DECL_DEPRECATED explicit CDockWidget(const QString &title, QWidget* parent = nullptr);
+      |                                ^~~~~~~~~~~
+/opt/hmi/src/app/mainwindow.cpp:714:59: warning: ‘ads::CDockWidget::CDockWidget(const QString&, QWidget*)’ is deprecated [-Wdeprecated-declarations]
+  714 |   diagnostic_dock_ = new ads::CDockWidget(tr("Diagnostic"));
+      |                                                           ^
+In file included from /opt/hmi_build/_deps/dockwidget-src/src/DockAreaWidget.h:37,
+                 from /opt/hmi/src/app/mainwindow.h:27,
+                 from /opt/hmi/src/app/mainwindow.cpp:10:
+/opt/hmi_build/_deps/dockwidget-src/src/DockWidget.h:262:32: note: declared here
+  262 |     Q_DECL_DEPRECATED explicit CDockWidget(const QString &title, QWidget* parent = nullptr);
+      |                                ^~~~~~~~~~~
+/opt/hmi/src/app/mainwindow.cpp:727:59: warning: ‘ads::CDockWidget::CDockWidget(const QString&, QWidget*)’ is deprecated [-Wdeprecated-declarations]
+  727 |     auto field_dock=new ads::CDockWidget("AGT YHS CONTROL");
+      |                                                           ^
+In file included from /opt/hmi_build/_deps/dockwidget-src/src/DockAreaWidget.h:37,
+                 from /opt/hmi/src/app/mainwindow.h:27,
+                 from /opt/hmi/src/app/mainwindow.cpp:10:
+/opt/hmi_build/_deps/dockwidget-src/src/DockWidget.h:262:32: note: declared here
+  262 |     Q_DECL_DEPRECATED explicit CDockWidget(const QString &title, QWidget* parent = nullptr);
+      |                                ^~~~~~~~~~~
+/opt/hmi/src/app/mainwindow.cpp:738:76: warning: ‘ads::CDockWidget::CDockWidget(const QString&, QWidget*)’ is deprecated [-Wdeprecated-declarations]
+  738 |   ads::CDockWidget *nav_goal_list_dock_widget = new ads::CDockWidget("Task");
+      |                                                                            ^
+In file included from /opt/hmi_build/_deps/dockwidget-src/src/DockAreaWidget.h:37,
+                 from /opt/hmi/src/app/mainwindow.h:27,
+                 from /opt/hmi/src/app/mainwindow.cpp:10:
+/opt/hmi_build/_deps/dockwidget-src/src/DockWidget.h:262:32: note: declared here
+  262 |     Q_DECL_DEPRECATED explicit CDockWidget(const QString &title, QWidget* parent = nullptr);
+      |                                ^~~~~~~~~~~
+/opt/hmi/src/app/mainwindow.cpp:889:67: warning: ‘constexpr QFlags<T>::QFlags(QFlags<T>::Zero) [with Enum = Qt::WindowType; QFlags<T>::Zero = int QFlags<Qt::WindowType>::Private::*]’ is deprecated: Use default constructor instead [-Wdeprecated-declarations]
+  889 |     image_frame_map_[one_image.location] = new RatioLayoutedFrame();
+      |                                                                   ^
+In file included from /usr/include/x86_64-linux-gnu/qt5/QtCore/qglobal.h:1299,
+                 from /usr/include/x86_64-linux-gnu/qt5/QtGui/qtguiglobal.h:43,
+                 from /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qtwidgetsglobal.h:43,
+                 from /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qcalendarwidget.h:43,
+                 from /usr/include/x86_64-linux-gnu/qt5/QtWidgets/QCalendarWidget:1,
+                 from /opt/hmi/src/app/mainwindow.h:4,
+                 from /opt/hmi/src/app/mainwindow.cpp:10:
+/usr/include/x86_64-linux-gnu/qt5/QtCore/qflags.h:123:80: note: declared here
+  123 |     QT_DEPRECATED_X("Use default constructor instead") Q_DECL_CONSTEXPR inline QFlags(Zero) noexcept : i(0) {}
+      |                                                                                ^~~~~~
+/opt/hmi/src/app/mainwindow.cpp:890:108: warning: ‘ads::CDockWidget::CDockWidget(const QString&, QWidget*)’ is deprecated [-Wdeprecated-declarations]
+  890 |     ads::CDockWidget *dock_widget = new ads::CDockWidget(std::string("image/" + one_image.location).c_str());
+      |                                                                                                            ^
+In file included from /opt/hmi_build/_deps/dockwidget-src/src/DockAreaWidget.h:37,
+                 from /opt/hmi/src/app/mainwindow.h:27,
+                 from /opt/hmi/src/app/mainwindow.cpp:10:
+/opt/hmi_build/_deps/dockwidget-src/src/DockWidget.h:262:32: note: declared here
+  262 |     Q_DECL_DEPRECATED explicit CDockWidget(const QString &title, QWidget* parent = nullptr);
+      |                                ^~~~~~~~~~~
+[ 65%] Building CXX object src/app/CMakeFiles/ros_qt5_gui_app.dir/widgets/nav_goal_table_view.cpp.o
+[ 65%] Building CXX object src/app/CMakeFiles/ros_qt5_gui_app.dir/moc_mainwindow.cpp.o
+[ 65%] Building CXX object src/app/CMakeFiles/ros_qt5_gui_app.dir/widgets/moc_field_client.cpp.o
+[ 65%] Building CXX object src/app/CMakeFiles/ros_qt5_gui_app.dir/widgets/moc_field_panel.cpp.o
+In file included from /opt/hmi_build/src/app/../../../hmi/src/app/mainwindow.h:38,
+                 from /opt/hmi_build/src/app/moc_mainwindow.cpp:10:
+/opt/hmi_build/src/app/../../../hmi/src/app/widgets/ratio_layouted_frame.h:58:71: warning: ‘constexpr QFlags<T>::QFlags(QFlags<T>::Zero) [with Enum = Qt::WindowType; QFlags<T>::Zero = int QFlags<Qt::WindowType>::Private::*]’ is deprecated: Use default constructor instead [-Wdeprecated-declarations]
+   58 |   RatioLayoutedFrame(QWidget* parent=nullptr, Qt::WindowFlags flags = 0);
+      |                                                                       ^
+In file included from /usr/include/x86_64-linux-gnu/qt5/QtCore/qglobal.h:1299,
+                 from /usr/include/x86_64-linux-gnu/qt5/QtGui/qtguiglobal.h:43,
+                 from /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qtwidgetsglobal.h:43,
+                 from /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qcalendarwidget.h:43,
+                 from /usr/include/x86_64-linux-gnu/qt5/QtWidgets/QCalendarWidget:1,
+                 from /opt/hmi_build/src/app/../../../hmi/src/app/mainwindow.h:4,
+                 from /opt/hmi_build/src/app/moc_mainwindow.cpp:10:
+/usr/include/x86_64-linux-gnu/qt5/QtCore/qflags.h:123:80: note: declared here
+  123 |     QT_DEPRECATED_X("Use default constructor instead") Q_DECL_CONSTEXPR inline QFlags(Zero) noexcept : i(0) {}
+      |                                                                                ^~~~~~
+[ 66%] Building CXX object src/app/CMakeFiles/ros_qt5_gui_app.dir/widgets/moc_nav_goal_table_view.cpp.o
+[ 66%] Linking CXX executable ../../ros_qt5_gui_app
+Copying start.sh to build directory
+Setting execute permissions on start.sh
+[100%] Built target ros_qt5_gui_app
+Consolidate compiler generated dependencies of target field_hmi_logic_test
+[ 50%] Building CXX object CMakeFiles/field_hmi_logic_test.dir/field_hmi_logic_test.cpp.o
+[100%] Linking CXX executable field_hmi_logic_test
+[100%] Built target field_hmi_logic_test
+Internal ctest changing into directory: /opt/hmi_field_tests
+Test project /opt/hmi_field_tests
+    Start 1: field_hmi_logic
+1/1 Test #1: field_hmi_logic ..................   Passed    0.02 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.02 sec
+
+Actual complete ROS2 Qt5 executable offscreen startup: ran for 8s, terminated by test timeout (124); no real TF/sensors provided. Missing-map TF warnings are expected. This is software startup evidence, not an interactive X11/robot acceptance claim.

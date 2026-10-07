@@ -54,13 +54,29 @@ def can(profile, operation):
 
 class Handler(socketserver.StreamRequestHandler):
     def handle(self):
-        self.connection.settimeout(5)
+        self.connection.settimeout(15)
         try:
             request = json.loads(self.rfile.readline(4096))
             command = request["command"]
-            if command not in {"CAN_UP", "CAN_DOWN"}:
+            if command == "HOST_DIAGNOSTICS":
+                from .diagnostics import probe
+                import platform
+
+                result = dict(
+                    os=platform.platform(),
+                    docker=probe(["docker", "ps", "--format", "{{json .}}"]),
+                    compose=probe(["docker", "compose", "version"]),
+                    network=probe(["ip", "-j", "address"]),
+                    ros1_master_uri=load_profile(self.server.profile)["base"].get(
+                        "ros1_master_uri"
+                    ),
+                    ros1_nodes=probe(["rosnode", "list"], timeout=2),
+                    ros1_topics=probe(["rostopic", "list"], timeout=2),
+                )
+            elif command not in {"CAN_UP", "CAN_DOWN"}:
                 raise ContractError("unsupported host command")
-            result = can(self.server.profile, "up" if command == "CAN_UP" else "down")
+            else:
+                result = can(self.server.profile, "up" if command == "CAN_UP" else "down")
             response = dict(ok=True, result=result)
         except Exception as exc:
             response = dict(ok=False, error=str(exc))
@@ -69,7 +85,7 @@ class Handler(socketserver.StreamRequestHandler):
 
 def request(data, command):
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    sock.settimeout(10)
+    sock.settimeout(30)
     try:
         sock.connect(str(Path(data) / "run/host_control.sock"))
         sock.sendall(json.dumps(dict(command=command)).encode() + b"\n")

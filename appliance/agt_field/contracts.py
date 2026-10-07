@@ -90,7 +90,11 @@ def contained(root, relative):
     ):
         raise ContractError("unsafe relative path")
     p = root / relative
-    if not p.resolve().is_relative_to(root) or p.is_symlink():
+    try:
+        p.resolve().relative_to(root)
+    except ValueError as exc:
+        raise ContractError("asset escapes root") from exc
+    if p.is_symlink():
         raise ContractError("asset escapes root")
     return p
 

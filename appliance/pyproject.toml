@@ -5,8 +5,8 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "agt-yhs-field-appliance"
 version = "1.0.0"
-requires-python = ">=3.10"
-dependencies = ["PyYAML==6.0.3"]
+requires-python = ">=3.8"
+dependencies = ["PyYAML>=5.3.1,<7"]
 
 [project.scripts]
 agt-field = "agt_field.cli:main"
@@ -23,3 +23,6 @@ testpaths = ["tests"]
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F"]
+
+[tool.setuptools.exclude-package-data]
+"*" = ["__pycache__/*", "*.pyc"]

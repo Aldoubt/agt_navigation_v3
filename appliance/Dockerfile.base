@@ -1,0 +1,14 @@
+# syntax=docker/dockerfile:1
+FROM ros:humble-ros-base-jammy@sha256:860e53793ccf575e5369b5e9a19939de2bfcfb46a299954d06f54f2af54fed19
+SHELL ["/bin/bash", "-c"]
+RUN --mount=type=secret,id=proxy_ca \
+    if [ -f /run/secrets/proxy_ca ]; then cp /run/secrets/proxy_ca /usr/local/share/ca-certificates/session-proxy.crt; update-ca-certificates; fi; \
+    apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      git cmake ninja-build build-essential python3-pip python3-pytest python3-yaml python3-colcon-common-extensions python3-vcstool python3-rosdep \
+      qtbase5-dev qtbase5-private-dev libqt5svg5-dev libqt5websockets5-dev libqt5charts5-dev libsdl2-dev libsdl2-image-dev libopencv-dev \
+      libboost-filesystem-dev libeigen3-dev libpcl-dev libyaml-cpp-dev libfmt-dev libgtest-dev \
+      ros-humble-navigation2 ros-humble-nav2-bringup ros-humble-robot-state-publisher ros-humble-tf2-tools \
+      ros-humble-gtsam ros-humble-sophus ros-humble-pcl-ros ros-humble-pcl-conversions ros-humble-cv-bridge \
+      ros-humble-image-transport ros-humble-diagnostic-msgs ros-humble-xacro ros-humble-rviz2 \
+      iproute2 iputils-ping can-utils xauth zip && \
+    rm -f /usr/local/share/ca-certificates/session-proxy.crt && update-ca-certificates && rm -rf /var/lib/apt/lists/*

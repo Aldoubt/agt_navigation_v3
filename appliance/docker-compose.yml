@@ -1,0 +1,41 @@
+services:
+  runtime:
+    image: agt-yhs-field:v1
+    command: ${AGT_RUNTIME_MODE:-runtime}
+    network_mode: host
+    init: true
+    user: "${AGT_UID:-1000}:${AGT_GID:-1000}"
+    volumes:
+      - ${AGT_DATA_ROOT:?Set AGT_DATA_ROOT}:/data
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro
+      - ${AGT_XAUTHORITY:-/dev/null}:/run/agt-xauthority:ro
+    environment:
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-89}
+      ROS_LOCALHOST_ONLY: "1"
+      DISPLAY: ${DISPLAY:-}
+      XAUTHORITY: /run/agt-xauthority
+    healthcheck:
+      test: ["CMD", "python3", "-c", "from agt_field.server import rpc; rpc('/data', {'command':'STATUS'})"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    stop_grace_period: 30s
+  hmi:
+    image: agt-yhs-field:v1
+    command: hmi
+    network_mode: host
+    init: true
+    user: "${AGT_UID:-1000}:${AGT_GID:-1000}"
+    depends_on:
+      runtime:
+        condition: service_healthy
+    environment:
+      DISPLAY: ${DISPLAY:-}
+      XAUTHORITY: /run/agt-xauthority
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-89}
+      ROS_LOCALHOST_ONLY: "1"
+      AGT_FIELD_SOCKET: /data/run/appliance.sock
+    volumes:
+      - ${AGT_DATA_ROOT}:/data
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro
+      - ${AGT_XAUTHORITY:-/dev/null}:/run/agt-xauthority:ro
