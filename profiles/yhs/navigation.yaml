@@ -13,3 +13,7 @@ motion_limits:
   linear_decel_mps2: null
   reverse_mps: null
   rotate_to_heading_radps: null
+perception:
+  self_center_xyz: null
+  self_size_xyz: null
+  sensor_ground_z_m: null

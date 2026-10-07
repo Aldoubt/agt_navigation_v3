@@ -6,3 +6,6 @@ driver_watchdog_verified: false
 estop_adapter: std_msgs/Bool
 ros1_master_uri: null
 status_adapter: std_msgs/String JSON
+stop_angular_radps: null
+stop_linear_mps: null
+stop_timeout_sec: null

@@ -59,6 +59,18 @@ def calibration_errors(profile):
         or len(profile["navigation"]["footprint"]) < 3
     ):
         errors.append("CONFIG_REQUIRED: footprint")
+    if profile["navigation"].get("footprint_padding") is None:
+        errors.append("CONFIG_REQUIRED: footprint_padding")
+    perception = profile["navigation"].get("perception", {})
+    for key in ["self_center_xyz", "self_size_xyz", "sensor_ground_z_m"]:
+        if perception.get(key) is None:
+            errors.append("CONFIG_REQUIRED: perception." + key)
+    for key in ["lidar_frame", "imu_frame"]:
+        if not profile["robot"].get(key):
+            errors.append("CONFIG_REQUIRED: " + key)
+    for key in ["interface", "host_ip", "sensor_ip"]:
+        if not profile["sensors"].get(key):
+            errors.append("CONFIG_REQUIRED: " + key)
     return errors
 
 
@@ -68,6 +80,11 @@ def require_real(profile, *, motion=False):
         return
     if motion:
         base = profile["base"]
+        for stop_key in ("stop_linear_mps", "stop_angular_radps", "stop_timeout_sec"):
+            if base.get(stop_key) is None:
+                errors.append("CONFIG_REQUIRED: " + stop_key)
+            else:
+                number(base[stop_key], nonnegative=True)
         for k in ("command_timeout_sec", "driver_watchdog_sec", "can_interface", "can_bitrate"):
             if base.get(k) is None:
                 errors.append("CONFIG_REQUIRED: " + k)

@@ -92,7 +92,9 @@ def nonempty_pcd(path):
             if len(header) > 65536:
                 break
             if line.startswith(b"DATA "):
-                counts = [l.split()[1] for l in header.splitlines() if l.startswith(b"POINTS ")]
+                counts = [
+                    item.split()[1] for item in header.splitlines() if item.startswith(b"POINTS ")
+                ]
                 if not counts or int(counts[0]) <= 0 or not stream.read(1):
                     raise ContractError("empty PCD")
                 return

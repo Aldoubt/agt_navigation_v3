@@ -1,4 +1,6 @@
 base_frame: base_link
+imu_frame: null
+lidar_frame: null
 map_frame: map
 model: null
 odom_frame: odom

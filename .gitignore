@@ -21,3 +21,5 @@ agt_data/
 .idea/
 *~
 *.swp
+**/*.egg-info/
+.ruff_cache/
