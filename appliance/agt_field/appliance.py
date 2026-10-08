@@ -423,6 +423,32 @@ class Appliance:
         self.localization = "STOPPED"
         self.mode = "IDLE"
 
+    def save_navigation_edit(self, request):
+        self.no_mission()
+        if self.busy() or self.mode == "MAPPING":
+            raise ContractError("finish mapping/lifecycle before editing an active bundle")
+        if request.get("confirmed") is not True:
+            raise ContractError("operator map edit confirmation required")
+        self.validate_active()
+        if request.get("source_binding") != self.mission.binding:
+            raise ContractError("Qt map binding changed; reload the active map")
+        from .navigation_edit import publish_navigation_edit
+
+        target = publish_navigation_edit(
+            self.bundle,
+            request["edited_map"],
+            self.data,
+            self.mission.binding,
+            self.versions,
+            mock=self.mock,
+        )
+        self.activate({"map_bundle_id": self.identity["map_bundle_id"], "map_version": target.name})
+        return dict(
+            binding=self.mission.binding,
+            bundle_path=str(target),
+            navigation_map=str(target / "navigation/map.yaml"),
+        )
+
     def navigation_start(self):
         self.no_mission()
         self.validate_active()
@@ -580,6 +606,8 @@ class Appliance:
                 self.review()
             elif command == "CONFIRM_MAP":
                 self.confirm()
+            elif command == "SAVE_NAVIGATION_EDIT":
+                return self.save_navigation_edit(request)
             elif command == "ACTIVATE_MAP":
                 self.activate(request)
             elif command == "CONTROL_MODE":

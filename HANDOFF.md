@@ -116,3 +116,9 @@ Qt 完整主程序增量构建、Qt CTest 与 45 appliance tests 通过。实际
 取得最新集成分支后执行 `./install.sh` 再 `./agt up --mock`；正式安装会编译新的固定 Qt fork 并安装中文字体。当前旧镜像未重建，不能用 `--skip-build` 获取这次界面更新。当前运行容器已增量编译新界面用于验证。
 
 当前 Qt fork pin：`035b6ac7bfab24be63abea979741f1a6a7185206`（中文界面与建图阶段标签测试）。
+
+## Qt 地图编辑保存兼容性更新
+
+Qt 导出阈值、未知格、精度与写入失败提示已修复。现场“保存地图/另存为”走受控的新二维地图版本发布：保留三维资产及原版本，重建 bundle 身份/哈希，校验后激活并停止导航。无需手改只读文件或关闭地图校验。旧路线需按新版本重新创建/保存。详细审计、限制与操作见 [Qt 地图编辑兼容性](appliance/docs/QT_MAP_EDIT_COMPATIBILITY_ZH.md)。
+
+本次 Qt 地图保存实现 pin：`7e8ed9e1b47e994fcf538750da86c07fb89bf286`。56 appliance tests、Qt CTest 2/2 与实际 Qt 保存→V3 校验→激活的 Mock 集成通过。旧镜像未完整重建。

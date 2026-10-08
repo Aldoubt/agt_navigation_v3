@@ -1,0 +1,3 @@
+ACTUAL QT SAVE -> NEW BUNDLE -> V3 HASH/PGM VALIDATION -> ACTIVATE PASS
+Original frozen bundle and mapping/index bytes unchanged; unknown occupancy retained; navigation reset IDLE/STOPPED
+{'map_bundle_id': 'mock_field', 'map_version': '1.qt-d36b283243ae', 'bundle_sha256': 'a779baf9ecce018ac965916d9acd922ef024e5eb6054d5daffbcf9858c902cc5'}
