@@ -1,0 +1,17 @@
+# Manufacturer specification; DO NOT set status VERIFIED before field calibration review.
+status: MANUFACTURER_SPEC
+verified_by: null
+values:
+  model: Livox Mid-360
+  lidar_frame: lidar_link
+  imu_frame: imu_link
+  T_lidar_imu:
+    xyz_m: [0.011, 0.02329, -0.04412]
+    rpy_rad: [0.0, 0.0, 0.0]
+  T_imu_lidar:
+    xyz_m: [-0.011, -0.02329, 0.04412]
+    R_row_major: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+  source: Livox Mid-360 User Manual v1.2 2024-04 p14
+assumptions:
+  - The installed unit is the ordinary Mid-360
+  - lidar_link coincides with the Livox point-cloud frame (check CAD datum and driver)
