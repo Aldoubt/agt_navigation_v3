@@ -6,6 +6,15 @@
 <robot name="agt_yhs_mid360_tf_nominal">
   <material name="chassis_gray"><color rgba="0.45 0.48 0.51 0.6"/></material>
   <material name="sensor_blue"><color rgba="0.15 0.45 0.85 0.9"/></material>
+  <!-- Provisional ground projection from CAD lower mesh bound z=-0.1041m.
+       Real track contact height and yaw rotation center MUST be measured.
+       Candidate transform does not authorize motion. -->
+  <link name="base_footprint"/>
+  <joint name="base_footprint_to_base" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 0.1041" rpy="0 0 0"/>
+  </joint>
   <link name="base_link">
     <!-- Approximate visual proxy only, NOT measured collision/Nav2 footprint. -->
     <visual>
