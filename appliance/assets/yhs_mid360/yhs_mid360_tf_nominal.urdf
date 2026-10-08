@@ -1,0 +1,49 @@
+<?xml version="1.0"?>
+<!-- Ordinary Livox Mid-360 CAD + manufacturer-spec TF candidate.
+     Mesh-free; does not authorize robot motion.
+     base_link is the original SolidWorks datum, NOT yet verified as rotation center.
+     Never add duplicate odom/map TF publishers here. -->
+<robot name="agt_yhs_mid360_tf_nominal">
+  <material name="chassis_gray"><color rgba="0.45 0.48 0.51 0.6"/></material>
+  <material name="sensor_blue"><color rgba="0.15 0.45 0.85 0.9"/></material>
+  <link name="base_link">
+    <!-- Approximate visual proxy only, NOT measured collision/Nav2 footprint. -->
+    <visual>
+      <origin xyz="-0.00115 0 0.31745" rpy="0 0 0"/>
+      <geometry><box size="1.0671 0.7000 0.8420"/></geometry>
+      <material name="chassis_gray"/>
+    </visual>
+  </link>
+  <link name="lidar_link">
+    <visual>
+      <origin xyz="0 0 -0.0095" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.033" length="0.060"/></geometry>
+      <material name="sensor_blue"/>
+    </visual>
+  </link>
+  <!-- SolidWorks 2026-10-08 nominal chassis datum -> lidar cloud frame, +15 deg pitch. -->
+  <joint name="base_to_mid360" type="fixed">
+    <parent link="base_link"/>
+    <child link="lidar_link"/>
+    <origin xyz="0.346672505996986 0 0.589682276918286" rpy="0 0.261799387799143 0"/>
+  </joint>
+  <link name="imu_link"/>
+  <!-- Livox Mid-360 manual 2024-04 p14: point-cloud origin -> built-in IMU. -->
+  <joint name="mid360_internal_imu" type="fixed">
+    <parent link="lidar_link"/>
+    <child link="imu_link"/>
+    <origin xyz="0.011 0.02329 -0.04412" rpy="0 0 0"/>
+  </joint>
+  <link name="track_visual_link"/>
+  <joint name="cad_track_component" type="fixed">
+    <parent link="base_link"/>
+    <child link="track_visual_link"/>
+    <origin xyz="0 0 -0.113" rpy="0 0 0"/>
+  </joint>
+  <link name="arm_mount_link"/>
+  <joint name="cad_arm_mount" type="fixed">
+    <parent link="base_link"/>
+    <child link="arm_mount_link"/>
+    <origin xyz="-0.11 0 0.699" rpy="1.5707963267949 0 -3.14159265358979"/>
+  </joint>
+</robot>
