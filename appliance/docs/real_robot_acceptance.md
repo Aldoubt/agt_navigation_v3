@@ -1,26 +1,42 @@
-# Real robot acceptance — sequential gates
+# YHS 现场 R0–R13 验收清单（中文）
 
-Record operator/date/profile hash/map bundle digest and evidence for each gate. All gates initially PENDING. Stop at a failed gate; use STOP ALL and physical estop. Clear the area and maintain physical remote priority. Never change safety gates to make a check pass.
+> **按顺序验收，有一项失败就停止，不要直接跳级。** 每项记录操作时间、人员、底盘型号、profile SHA/地图 Bundle hash、日志或 bag。现场必须有物理急停、遥控优先权与人员监护；`STOP ALL` 是软件停止命令，**不能代替硬件急停**。全部实车 Gate 默认 PENDING。
 
-| Gate | Procedure | Evidence needed |
+| 步骤 | 要做什么 | 通过时必须留下什么证据 |
 |---|---|---|
-| R0 Docker/GUI | install.sh, ./agt up, desktop launcher; doctor --report | processes healthy, Qt visible, volumes survive runtime recreation |
-| R1 CAN only, wheels stationary | physical estop engaged; ./agt can up; ip -details link show measured interface | correct measured bitrate, no wheel movement, chassis no faults |
-| R2 YHS state + odom | launch audited ROS1 driver; command path remains disabled | chassis/estop fresh; wheel odom rate/scale/sign; no competing TF |
-| R3 low-speed direction | wheels safely raised/test area; apply measured low limits; commands enter Motion Guard (never direct YHS) | forward/reverse/yaw direction, remote priority and measured stop; see note below |
-| R4 TF/URDF | load mounted URDF; inspect map/odom/base/footprint/lidar/imu chain | physical rotation center and sensor pitch/translation match; sole map->odom owner |
-| R5 MID360 + IMU | System -> Start MID360 -> Test Connection/Preflight | Ethernet packets, raw Livox timing, IMU units, frequencies and timestamps |
-| R6 static localization | known validated map, Start Navigation Mode while stationary | fresh LIO odom, correction validity; no motion until READY |
-| R7 mapping | new ID/version; Start Mapping; drive with physical remote; Stop & Build Map | raw bag closed, clean lifecycle, PGO/nonempty map/keyframes/hash verified |
-| R8 bundle build | native localization assets, grid, MapStudio Review -> Confirm & Save -> close editor -> Confirm & Seal | mapping/localization provenance, raster/review hashes; READY and Activate |
-| R9 3D-BBS + GICP | cold start from multiple distinct poses without initialpose | accurate coarse+fine pose, retained artifacts and quality gates, tracking continuity |
-| R10 low-speed Nav2 | single reachable point under measured limits | obstacle avoidance, stable TF, guard chain and measured-stop gate |
-| R11 multi waypoint/dwell | save bound route P1=5 s, P2=20 s, P3=0 | action results advance, dwell timestamps, COMPLETED |
-| R12 pause/resume/cancel | pause while navigating and dwelling; cancel; localization loss; unplug gateway | cancellation barrier, no old goal replay, hard stops and fresh command recovery |
-| R13 30-minute endurance | repetitive route + recording + disconnect/reconnect + stop all | memory/disk/CPU, timing, watchdog deadlines, bags closed, no orphan processes |
+| **R0：Docker/Qt** | 安装、`./agt up`、双击中文 AGT YHS Control、`doctor --report` | Qt 可见、容器健康、卸载/重启不丢地图和配置 |
+| **R1：CAN 静止测试** | 物理急停保持有效、`./agt can up`、核对接口/bitrate | CAN 波特率与厂商一致、无错误、底盘不动 |
+| **R2：ROS1 状态和里程计** | 启动已审计的 YHS 厂商驱动，只读状态，不启用速度链 | chassis/estop/odom 新鲜、里程计尺度与符号正常、无竞争 TF |
+| **R3：低速方向** | 优先使用物理遥控检查前后、角速度正负、停车与遥控优先权 | 明确测得方向、零速度与停止行为；软件 teleop 暂缓到 R6/R9 之后 |
+| **R4：URDF/TF** | 检查车体参考点、实际雷达 Pitch +15°、厂家 IMU 固定关系 | `base_footprint → base_link → lidar_link → imu_link` 正确，只有一个 `map→odom` 发布者 |
+| **R5：MID360+IMU** | 启动雷达、检查以太网包、消息类型、频率、时间戳、外参 | LiDAR/IMU 正常、静止 LIO 输出稳定 |
+| **R6：静止定位预检** | 已有经过验证的地图，机器人静止启动定位 | LIO 新鲜、定位状态真实、未 READY 不允许运动 |
+| **R7：实机建图** | 新 Map ID/version，物理遥控驾驶，`Stop & Build Map` | 原始 bag 正常关闭、PGO 优化、PCD、keyframe patches、poses、checksum 有效 |
+| **R8：地图审核封存** | 原生定位资产、PCD2Grid、MapStudio 审核→Confirm/Seal→Activate | Mapping/Localization/Navigation 三类资产同源；Bundle READY 和 hash 校验通过 |
+| **R9：自动全局重定位** | 不使用 initialpose，在不同行道位置多次冷启动 | BBS+GICP 正确位姿、耗时/成功率、跟踪连续性；没有错配邻行 |
+| **R10：单点低速 Nav2** | 在测得的低速约束下给一个可达点 | 局部障碍反应、TF 稳定、Motion Guard 正常、停车阈值实测 |
+| **R11：三点与停顿** | 航点 P1=5s、P2=20s、P3=0s | 每个 Nav2 Action 成功后才计停留时间，最终任务 COMPLETED |
+| **R12：暂停/恢复/取消** | 行驶中暂停、停留中暂停、取消、定位丢失、Gateway 掉线 | 目标真正取消、不会重放旧目标、及时归零、恢复前重新检查门禁 |
+| **R13：30 分钟运行** | 重复路线＋录包＋断开重连＋STOP ALL | CPU/内存/磁盘、时延、真实 watchdog 触发记录、bag 正常关闭且无孤儿进程 |
 
-R3 note: existing V3 Motion Guard refuses manual commands without fresh valid localization. This invariant is retained. Before a known map/localization is available, use the **physical YHS remote** for direction/odom tests; defer software low-speed teleop until R6/R9. Never manufacture LocalizationStatus=READY or disable require_localization_status to pass R3. Document the deferred software test explicitly, then repeat R3 software command chain before R10.
+## 两项不能误解的安全规则
 
-Kill ROS2 runtime: ROS1 gateway must publish zero within configured timeout. Kill ROS1 gateway: actual driver watchdog must stop the vehicle within its separately verified deadline. Unplug CAN/MID360: mission must ERROR, guard must close, physical stop confirmed. Cloud mock socket timing does not verify these deadlines.
+### R3 为什么软件 teleop 需要往后放？
 
-After each gate: ./agt doctor --report; keep diagnostics in ~/agt/diagnostics. Include relevant small logs or bag references. Do not package huge bags in default diagnostic report.
+V3 的 Motion Guard 要求新的、有效的 LocalizationStatus。刚到现场没有完成 R6/R9 时，**不能制造假的 `LocalizationStatus=READY` 或把 `require_localization_status` 改为 false**。先由物理遥控确认方向与 odom，定位有效之后再重复软件低速控制测试，最后才能进入 R10。
+
+### Gateway 掉线后一定会停车吗？
+
+软件链路可在超时后尝试发零速度，但如果 **ROS1 Gateway 本身死掉**，能否停车取决于真实 YHS driver/CAN 控制器的独立 watchdog。必须分别停止 ROS2 Runtime、ROS1 Gateway，断开 CAN/MID360，验证实际底盘在已测量期限内停止；驱动看门狗数值只有实测后才能写 `driver_watchdog_verified: true`。
+
+## 一次性报告和保存路径
+
+~~~bash
+./agt status
+./agt logs
+./agt doctor --report
+~~~
+
+日志和报告保存在宿主机 `~/agt/logs`、`~/agt/diagnostics`，rosbag 在 `~/agt/bags`，Map Bundle 在 `~/agt/maps`。诊断 ZIP 默认不装入大体积 bag；在验收表里记录相应 bag 的实际路径即可。
+
+[返回中文安装指南](installation.md) · [普通 MID360/TF 参数](../assets/yhs_mid360/README.md) · [实车参数待办](REAL_ROBOT_TODO.md)
