@@ -5,7 +5,7 @@
 This directory puts a ROS2-loadable URDF and official built-in IMU extrinsics directly into the YHS integration branch, so no USB transfer is required.
 
 ## Files
-- `yhs_mid360_tf_nominal.urdf`: standalone **mesh-free** ROS2 URDF, preserving the 2026-10-08 SW export base_link-to-lidar offset (0.346672506, 0, 0.589682277 m) and +15-degree pitch. It adds `lidar_link -> imu_link` using ordinary Mid-360 IMU factory geometry (0.011, 0.02329, -0.04412 m), plus fixed CAD arm/track names. Its transparent box is an approximate visualization, **not** a collision geometry or Nav2 footprint.
+- `yhs_mid360_tf_nominal.urdf`: standalone **mesh-free** ROS2 URDF, preserving the 2026-10-08 SW export base_link-to-lidar offset (0.346672506, 0, 0.589682277 m) and +15-degree pitch. It adds `lidar_link -> imu_link` using ordinary Mid-360 IMU factory geometry (0.011, 0.02329, -0.04412 m), plus fixed CAD arm/track names. A provisional `base_footprint -> base_link` Z=+0.1041 m is included from the CAD lowest mesh point, **not** a verified ground contact height or rotation center; check it before navigation. Its transparent box is an approximate visualization, **not** a collision geometry or Nav2 footprint.
 - `fastlio_config_mid360_candidate.yaml`: official **inverse** `T_imu_lidar`, with `r_il=I`, `t_il=[-0.011,-0.02329,0.04412]`. The 15-degree chassis mounting angle must NOT be applied again in FAST-LIO.
 - `imu_extrinsics.reference.yaml`: source provenance only, not a validated hardware record.
 
@@ -31,7 +31,7 @@ Mapping and navigation must use the **same** FAST-LIO extrinsic source; changing
 2. R1-R5: audit vendor ROS1 Noetic driver, CAN, odom/chassis/estop, physical remote/stop, LiDAR/IMU headers and TF without allowing motion.
 3. R7-R8: physically remote-drive a short site map; clean finish/PGO; generate native keyframe patches, 3D-BBS/Polar Context, 2D raster; review/seal/activate using MapStudio.
 4. R9: cold-start relocalization at several distinct poses; check map->odom authority, map hash, GICP pose and quality. Note: in the **existing** field appliance, START_NAVIGATION requires the full motion hardware profile even for a static localization test. Do not falsify `VERIFIED` or disable guard to bypass this gate.
-5. R10-R13 only after watchdog, footprint, base transform, localization and manual emergency stop pass.
+5. Set `robot.yaml` `rotation_frame: base_footprint` only after the real footprint-to-base static transform is checked. The FAST-LIO adapter expects this link; without it local odometry is rejected.\n6. R10-R13 only after watchdog, footprint, base transform, localization and manual emergency stop pass.
 
 See `appliance/docs/REAL_ROBOT_TODO.md` and `appliance/docs/real_robot_acceptance.md`.
 
