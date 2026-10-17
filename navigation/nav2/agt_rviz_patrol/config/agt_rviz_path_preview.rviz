@@ -1,0 +1,85 @@
+Panels:
+  - Class: agt_rviz_route_tools/Workbench
+    Name: 路线工作台
+  - Class: rviz_common/Displays
+    Name: 显示项
+  - Class: rviz_common/Tool Properties
+    Name: 工具属性
+  - Class: rviz_common/Views
+    Name: 视图
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Marker
+      Name: 路线顶点
+      Enabled: true
+      Topic:
+        Value: /agt/path_tool/vertices
+        Depth: 1
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
+    - Class: rviz_default_plugins/Grid
+      Name: 网格
+      Enabled: true
+      Cell Size: 1
+      Alpha: 0.25
+    - Class: rviz_default_plugins/Map
+      Name: 导航地图
+      Enabled: true
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /map
+      Alpha: 0.85
+      Use Timestamp: false
+    - Class: rviz_default_plugins/TF
+      Name: 预览机器人位置
+      Enabled: true
+      Show Axes: true
+      Show Names: true
+      Frame Timeout: 1
+    - Class: rviz_default_plugins/Path
+      Name: 手绘路线
+      Enabled: true
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /agt/path_tool/route
+      Line Style: Lines
+      Line Width: 0.03
+      Color: 255; 0; 0
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0.08
+  Global Options:
+    Fixed Frame: map
+    Frame Rate: 30
+    Background Color: 48; 48; 48
+  Tools:
+    - Class: agt_rviz_route_tools/StraightRoute
+    - Class: agt_rviz_route_tools/DrawRoute
+    - Class: agt_rviz_route_tools/EditWaypoints
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+    - Class: rviz_default_plugins/PublishPoint
+      Topic:
+        Value: /clicked_point
+      Single click: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/TopDownOrtho
+      Scale: 8
+      Angle: 0
+      X: 18
+      Y: 7
+Window Geometry:
+  Width: 1600
+  Height: 900

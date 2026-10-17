@@ -6,9 +6,8 @@ import math
 
 import rclpy
 from action_msgs.msg import GoalStatus
+from agt_navigation_interfaces.action import FollowRoute
 from geometry_msgs.msg import PointStamped, PoseStamped
-from nav2_msgs.action import FollowPath
-from nav2_msgs.srv import IsPathValid
 from nav_msgs.msg import Odometry, Path
 from rclpy.action import ActionClient
 from rclpy.duration import Duration
@@ -86,15 +85,13 @@ class RvizPathTool(Node):
             'click_topic': '/clicked_point',
             'lio_odom_topic': '/agt/odometry/local',
             'wheel_odom_topic': '/wheel/odom',
-            'follow_path_action': '/follow_path',
-            'path_validation_service': '/is_path_valid',
-            'controller_id': 'FollowPath',
-            'goal_checker_id': 'general_goal_checker',
+            'follow_route_action': '/navigation/follow_route',
+            'preview_only': True,
             # Match the 5 cm costmap resolution so footprint validation does
             # not jump across unchecked cells between route poses.
             'route_spacing': 0.05,
             'trail_sample_distance': 0.05,
-            'max_trail_points': 20000,
+            'max_trail_points': 1000,
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -107,6 +104,9 @@ class RvizPathTool(Node):
         self.wheel_origin = None
         self.map_origin = None
         self.active_goal = None
+        self.active_path = None
+        self.paused_path = None
+        self.pause_pending = False
         self.start_pending = False
 
         self.tf_buffer = Buffer(cache_time=Duration(seconds=30.0))
@@ -129,11 +129,11 @@ class RvizPathTool(Node):
         self.create_service(Trigger, '/agt/path_tool/clear_route', self.on_clear_route)
         self.create_service(Trigger, '/agt/path_tool/clear_trails', self.on_clear_trails)
         self.create_service(Trigger, '/agt/path_tool/cancel', self.on_cancel)
+        self.create_service(Trigger, '/agt/path_tool/pause', self.on_pause)
+        self.create_service(Trigger, '/agt/path_tool/resume', self.on_resume)
 
         self.follow_client = ActionClient(
-            self, FollowPath, str(self.get_parameter('follow_path_action').value))
-        self.validation_client = self.create_client(
-            IsPathValid, str(self.get_parameter('path_validation_service').value))
+            self, FollowRoute, str(self.get_parameter('follow_route_action').value))
         self.publish_status('READY: use RViz Publish Point to add route vertices')
         self.publish_all_paths()
 
@@ -147,7 +147,7 @@ class RvizPathTool(Node):
         try:
             transform = self.tf_buffer.lookup_transform(
                 self.global_frame, self.base_frame, Time(),
-                timeout=Duration(seconds=0.1))
+                timeout=Duration(seconds=0.0))
         except TransformException:
             return None
         t = transform.transform.translation
@@ -194,7 +194,7 @@ class RvizPathTool(Node):
                 pose[0] - points[-1][0], pose[1] - points[-1][1]) < sample_distance:
             return False
         points.append(pose)
-        max_points = int(self.get_parameter('max_trail_points').value)
+        max_points = min(1000, max(1, int(self.get_parameter('max_trail_points').value)))
         if len(points) > max_points:
             del points[:len(points) - max_points]
         return True
@@ -243,48 +243,32 @@ class RvizPathTool(Node):
         if len(path.poses) < 2:
             response.success, response.message = False, 'route is too short'
             return response
-        if not self.validation_client.wait_for_service(timeout_sec=0.5):
-            response.success, response.message = False, 'Nav2 /is_path_valid service unavailable'
+        if bool(self.get_parameter('preview_only').value):
+            self.route_pub.publish(path)
+            response.success = True
+            response.message = (
+                f'offline preview ready: {len(path.poses)} route poses; no motion command sent')
+            self.publish_status(
+                f'OFFLINE PREVIEW: {len(path.poses)} route poses; validation and motion disabled')
             return response
-
-        self.start_pending = True
-        request = IsPathValid.Request()
-        request.path = path
-        future = self.validation_client.call_async(request)
-        future.add_done_callback(lambda done: self.on_validation(done, path))
+        if not self.submit_path(path):
+            response.success, response.message = False, 'Navigation Capability unavailable'
+            return response
         response.success = True
-        response.message = f'validating {len(path.poses)} route poses before motion'
-        self.publish_status(f'VALIDATING ROUTE: {len(path.poses)} poses')
+        response.message = f'submitted {len(path.poses)} route poses to Navigation Capability'
         return response
 
-    def on_validation(self, future, path):
-        try:
-            result = future.result()
-        except Exception as exc:
-            self.start_pending = False
-            self.publish_status(f'ROUTE VALIDATION ERROR: {exc}')
-            return
-        if not result.is_valid:
-            self.start_pending = False
-            indices = list(result.invalid_pose_indices)
-            summary = ','.join(str(index) for index in indices[:8])
-            if len(indices) > 8:
-                summary += ',...'
-            self.publish_status(
-                f'ROUTE REJECTED: footprint collision at path indices [{summary}]')
-            return
+    def submit_path(self, path):
         if not self.follow_client.wait_for_server(timeout_sec=0.5):
-            self.start_pending = False
-            self.publish_status('ROUTE ERROR: Nav2 /follow_path action unavailable')
-            return
-
-        goal = FollowPath.Goal()
+            return False
+        self.start_pending = True
+        self.active_path = path
+        goal = FollowRoute.Goal()
         goal.path = path
-        goal.controller_id = str(self.get_parameter('controller_id').value)
-        goal.goal_checker_id = str(self.get_parameter('goal_checker_id').value)
         send_future = self.follow_client.send_goal_async(goal, feedback_callback=self.on_feedback)
         send_future.add_done_callback(self.on_goal_response)
-        self.publish_status('ROUTE VALID: submitting to Nav2 FollowPath')
+        self.publish_status('ROUTE SUBMITTED TO NAVIGATION CAPABILITY')
+        return True
 
     def on_goal_response(self, future):
         self.start_pending = False
@@ -294,7 +278,7 @@ class RvizPathTool(Node):
             self.publish_status(f'ROUTE SUBMIT ERROR: {exc}')
             return
         if not handle.accepted:
-            self.publish_status('ROUTE REJECTED BY CONTROLLER')
+            self.publish_status('ROUTE REJECTED BY NAVIGATION CAPABILITY')
             return
         self.active_goal = handle
         handle.get_result_async().add_done_callback(self.on_result)
@@ -306,7 +290,9 @@ class RvizPathTool(Node):
 
     def on_result(self, future):
         try:
-            status = future.result().status
+            wrapped = future.result()
+            status = wrapped.status
+            result = wrapped.result
         except Exception as exc:
             self.publish_status(f'ROUTE RESULT ERROR: {exc}')
             self.active_goal = None
@@ -316,14 +302,22 @@ class RvizPathTool(Node):
             GoalStatus.STATUS_CANCELED: 'CANCELED',
             GoalStatus.STATUS_ABORTED: 'ABORTED',
         }
-        self.publish_status(f'ROUTE {labels.get(status, f"STATUS_{status}")}')
+        if self.pause_pending and status == GoalStatus.STATUS_CANCELED:
+            self.paused_path = self.active_path
+            self.publish_status('ROUTE PAUSED')
+        else:
+            detail = getattr(result, 'error_code', '')
+            self.publish_status(f'ROUTE {labels.get(status, f"STATUS_{status}")} {detail}')
         self.active_goal = None
+        self.active_path = None
+        self.pause_pending = False
 
     def on_clear_route(self, _request, response):
         if self.active_goal is not None or self.start_pending:
             response.success, response.message = False, 'cancel the active route first'
             return response
         self.route_points.clear()
+        self.paused_path = None
         self.route_pub.publish(self.route_path())
         self.publish_status('ROUTE CLEARED')
         response.success, response.message = True, 'drawn route cleared'
@@ -341,6 +335,8 @@ class RvizPathTool(Node):
         return response
 
     def on_cancel(self, _request, response):
+        self.paused_path = None
+        self.pause_pending = False
         if self.active_goal is None:
             response.success, response.message = True, 'no active route'
             return response
@@ -349,15 +345,54 @@ class RvizPathTool(Node):
         response.success, response.message = True, 'cancel requested'
         return response
 
+    def on_pause(self, _request, response):
+        if self.active_goal is None:
+            response.success, response.message = False, 'no active route'
+            return response
+        self.pause_pending = True
+        self.active_goal.cancel_goal_async()
+        response.success, response.message = True, 'pause requested; waiting for cancellation'
+        return response
+
+    def on_resume(self, _request, response):
+        if self.active_goal is not None or self.start_pending or self.paused_path is None:
+            response.success, response.message = False, 'no confirmed paused route'
+            return response
+        pose = self.current_map_pose()
+        if pose is None:
+            response.success, response.message = False, 'map-frame robot pose unavailable'
+            return response
+        remaining = self.paused_path
+        nearest = min(range(len(remaining.poses)), key=lambda index: math.hypot(
+            remaining.poses[index].pose.position.x - pose[0],
+            remaining.poses[index].pose.position.y - pose[1]))
+        points = [(pose[0], pose[1], pose[2])]
+        points.extend((p.pose.position.x, p.pose.position.y,
+                       yaw_from_quaternion(p.pose.orientation))
+                      for p in remaining.poses[nearest + 1:])
+        if len(points) < 2:
+            response.success, response.message = False, 'route already at end'
+            return response
+        path = self.make_path(points)
+        if not self.submit_path(path):
+            response.success, response.message = False, 'Navigation Capability unavailable'
+            return response
+        self.paused_path = None
+        response.success, response.message = True, 'remaining route submitted'
+        return response
+
 
 def main(args=None):
     rclpy.init(args=args)
-    node = RvizPathTool()
+    from .workbench import RouteWorkbench
+    node = RouteWorkbench()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
         pass
     finally:
+        node.follow_client.destroy()
+        node.tf_listener.unregister()
         node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()
