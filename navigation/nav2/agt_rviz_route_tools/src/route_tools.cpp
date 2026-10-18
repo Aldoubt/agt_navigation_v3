@@ -6,9 +6,11 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QFileDialog>
 #include <QKeyEvent>
 #include <QMessageBox>
 #include <QPointer>
+#include <QScrollArea>
 #include <QStringList>
 #include <QVBoxLayout>
 #include <QGridLayout>
@@ -238,6 +240,28 @@ RoutePanel::RoutePanel(QWidget * parent): rviz_common::Panel(parent) {
   instructions->setWordWrap(true); layout->addWidget(instructions);
   status_=new QLabel("正在等待工作台后端连接……");status_->setWordWrap(true);
   status_->setTextFormat(Qt::PlainText);layout->addWidget(status_);
+  ready_select_=new QPushButton("只读查看 READY RouteRef…");
+  ready_select_->setObjectName("s7_ready_route_select");
+  layout->addWidget(ready_select_);
+  ready_view_=new QLabel("STALE：READY 身份尚未验证；LOCAL DRAFT 独立｜NO MOTION");
+  ready_view_->setObjectName("s7_ready_route_state");
+  ready_view_->setTextFormat(Qt::PlainText);
+  ready_view_->setWordWrap(true);
+  ready_view_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+  auto * ready_scroll = new QScrollArea(this);
+  ready_scroll->setWidget(ready_view_);
+  ready_scroll->setWidgetResizable(true);
+  ready_scroll->setFixedHeight(145);
+  layout->addWidget(ready_scroll);
+  QObject::connect(ready_select_, &QPushButton::clicked, this, [this](){
+    const auto path=QFileDialog::getOpenFileName(
+      this,"选择 RouteRef 证据 JSON（只读）",QString(),"RouteRef JSON (*.json)");
+    if(path.isEmpty())return;
+    if(!ready_request_pub_){ready_view_->setText("INVALID：Resolver 未连接");return;}
+    ready_received_.invalidate();
+    ready_view_->setText("STALE：正在重新验证 Site/Profile/RouteRef…");
+    std_msgs::msg::String msg;msg.data=path.toStdString();ready_request_pub_->publish(msg);
+  });
   metrics_=new QLabel("草稿总长：0.00 米｜点数：0");
   metrics_->setObjectName("route_distance_metrics");
   metrics_->setFixedHeight(78); // Stable viewport geometry while switching live/preview distance text.
@@ -271,10 +295,45 @@ RoutePanel::RoutePanel(QWidget * parent): rviz_common::Panel(parent) {
       status_->setText("后端断开或状态已过期，已禁用执行。请独立确认车辆已停车。");
       metrics_->setText("后端未连接：距离数据不可用");
     }
+    if(!ready_received_.isValid()||ready_received_.elapsed()>2500){
+      ready_view_->setText("STALE：READY 验证过期或 Resolver 断开；须重新验证。"
+                           "LOCAL DRAFT 独立｜NO MOTION");
+    }
   });timer_.start(500);
 }
 void RoutePanel::onInitialize() {
   node_=getDisplayContext()->getRosNodeAbstraction().lock()->get_raw_node();
+  ready_request_pub_=node_->create_publisher<std_msgs::msg::String>(
+    "/agt/path_tool/ready_route_view/request",10);
+  // Volatile; prior RViz process' READY cannot be replayed after restart.
+  ready_state_sub_=node_->create_subscription<std_msgs::msg::String>(
+    "/agt/path_tool/ready_route_view/state",10,
+    [this](std_msgs::msg::String::ConstSharedPtr msg){
+      const auto payload=QString::fromStdString(msg->data);
+      QMetaObject::invokeMethod(this,[this,payload](){
+        const auto doc=QJsonDocument::fromJson(payload.toUtf8());
+        if(!doc.isObject())return;
+        const auto o=doc.object();
+        ready_received_.restart();
+        QString line=QString("READY Viewer：%1 [%2]\n%3\n")
+          .arg(o["state"].toString()).arg(o["code"].toString()).arg(o["message"].toString());
+        if(o["state"].toString()=="READY"){
+          line+=QString("Route：%1 / revision %2｜航点 %3\n"
+                        "Site：%4 / %5｜map_hash：%6\n"
+                        "Profile：%7｜closure：%8\n"
+                        "generation：%9｜manifest SHA：%10\n"
+                        "path SHA：%11｜Review：%12\n")
+            .arg(o["route_id"].toString()).arg(o["revision"].toInt())
+            .arg(o["point_count"].toInt()).arg(o["site_id"].toString())
+            .arg(o["site_revision"].toString()).arg(o["site_aggregate_map_hash"].toString())
+            .arg(o["profile_id"].toString()).arg(o["profile_closure_digest"].toString())
+            .arg(o["activation_generation"].toInt()).arg(o["route_manifest_sha256"].toString())
+            .arg(o["path_sha256"].toString()).arg(o["review_status"].toString());
+        }
+        line+="LOCAL DRAFT 独立｜Offline NO MOTION｜Execute/Resume 不授权";
+        ready_view_->setText(line);
+      },Qt::QueuedConnection);
+    });
   metrics_sub_=node_->create_subscription<std_msgs::msg::String>("/agt/path_tool/drawing_metrics",1,
     [this](std_msgs::msg::String::ConstSharedPtr message){
       auto text=QString::fromStdString(message->data);

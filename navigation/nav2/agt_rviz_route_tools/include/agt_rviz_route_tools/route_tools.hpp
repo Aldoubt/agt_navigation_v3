@@ -52,6 +52,11 @@ private:
   QLabel * status_;
   QLabel * reply_;
   QLabel * metrics_;
+  QLabel * ready_view_;
+  QPushButton * ready_select_;
+  QElapsedTimer ready_received_;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr ready_request_pub_;
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr ready_state_sub_;
   QString committed_metrics_;
   bool drawing_metrics_active_=false;
   QElapsedTimer metrics_received_;

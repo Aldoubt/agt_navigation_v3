@@ -30,7 +30,7 @@ def _launch_preview(context):
     robot_y = LaunchConfiguration('robot_y')
     robot_yaw = LaunchConfiguration('robot_yaw')
 
-    return [
+    components = [
         Node(
             package='nav2_map_server', executable='map_server', name='map_server',
             output='screen', parameters=[{'yaml_filename': map_yaml}]),
@@ -59,6 +59,14 @@ def _launch_preview(context):
             output='screen', arguments=['-d', str(rviz_config)],
             condition=IfCondition(start_rviz)),
     ]
+    trusted_config = LaunchConfiguration('ready_view_config').perform(context).strip()
+    if trusted_config:
+        components.append(Node(
+            package='agt_rviz_patrol', executable='ready_route_viewer',
+            name='agt_ready_route_viewer', output='screen',
+            parameters=[{'trusted_config': trusted_config, 'offline_hard_lock': True}],
+        ))
+    return components
 
 
 def generate_launch_description():
@@ -69,6 +77,8 @@ def generate_launch_description():
                               default_value=EnvironmentVariable('AGT_MAP_REGISTRY', default_value='')),
         DeclareLaunchArgument('draft_path', default_value=''),
         DeclareLaunchArgument('start_rviz', default_value='true'),
+        # Explicit opt-in only. No production Site or synthetic fixture defaults.
+        DeclareLaunchArgument('ready_view_config', default_value=''),
         DeclareLaunchArgument('robot_x', default_value='0.0'),
         DeclareLaunchArgument('robot_y', default_value='0.0'),
         DeclareLaunchArgument('robot_yaw', default_value='0.0'),

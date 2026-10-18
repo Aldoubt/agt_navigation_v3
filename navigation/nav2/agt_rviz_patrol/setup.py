@@ -30,5 +30,6 @@ setup(
     entry_points={'console_scripts': [
         'rviz_patrol = agt_rviz_patrol.rviz_patrol:main',
         'rviz_path_tool = agt_rviz_patrol.path_tool:main',
+        'ready_route_viewer = agt_rviz_patrol.ready_route_viewer:main',
     ]},
 )

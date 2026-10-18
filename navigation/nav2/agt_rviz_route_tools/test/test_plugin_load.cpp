@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <QApplication>
 #include <QPushButton>
+#include <QLabel>
 #include "agt_rviz_route_tools/chinese.hpp"
 #include "agt_rviz_route_tools/route_metrics.hpp"
 #include <pluginlib/class_loader.hpp>
@@ -21,6 +22,13 @@ TEST(Plugins, OffscreenLoadAndConstruct) {
   for(auto * button:panel->findChildren<QPushButton*>())
     if(button->text()=="预览／校验")found=true;
   EXPECT_TRUE(found);
+  auto readyButton=panel->findChild<QPushButton*>("s7_ready_route_select");
+  auto readyStatus=panel->findChild<QLabel*>("s7_ready_route_state");
+  ASSERT_NE(readyButton,nullptr);
+  ASSERT_NE(readyStatus,nullptr);
+  EXPECT_TRUE(readyButton->text().contains("READY RouteRef"));
+  EXPECT_TRUE(readyStatus->text().contains("STALE"));
+  EXPECT_TRUE(readyStatus->text().contains("LOCAL DRAFT"));
   EXPECT_EQ(agt_rviz_route_tools::chinese("DRAFT revision 8: preview required"), QString("草稿版本 8: 请先预览"));
   EXPECT_EQ(agt_rviz_route_tools::chinese("EDIT REJECTED: stale edit: reload current draft"), QString("编辑被拒绝: 编辑版本已过期，请重新加载当前草稿"));
   EXPECT_EQ(agt_rviz_route_tools::chinese("LOAD REJECTED: map/version/profile/grid observation mismatch: draft not loaded"),
