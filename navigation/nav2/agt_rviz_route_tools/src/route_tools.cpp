@@ -315,9 +315,12 @@ void RoutePanel::onInitialize() {
         if(!doc.isObject())return;
         const auto o=doc.object();
         ready_received_.restart();
-        QString line=QString("READY Viewer：%1 [%2]\n%3\n")
-          .arg(o["state"].toString()).arg(o["code"].toString()).arg(o["message"].toString());
-        if(o["state"].toString()=="READY"){
+        QString line=QString("Route Asset：%1｜Map View：%2\n状态：%3 [%4]\n原因：%5\n")
+          .arg(o["asset_ready_verified"].toBool()?"ASSET_READY_VERIFIED":"NOT_VERIFIED")
+          .arg(o["map_binding_state"].toString("STALE"))
+          .arg(o["state"].toString()).arg(o["code"].toString())
+          .arg(o["message"].toString());
+        if(o["asset_ready_verified"].toBool()){
           line+=QString("Route：%1 / revision %2｜航点 %3\n"
                         "Site：%4 / %5｜map_hash：%6\n"
                         "Profile：%7｜closure：%8\n"
@@ -330,7 +333,9 @@ void RoutePanel::onInitialize() {
             .arg(o["activation_generation"].toInt()).arg(o["route_manifest_sha256"].toString())
             .arg(o["path_sha256"].toString()).arg(o["review_status"].toString());
         }
-        line+="LOCAL DRAFT 独立｜Offline NO MOTION｜Execute/Resume 不授权";
+        if(!o["map_bound_to_view"].toBool())
+          line+="\n禁止在当前地图显示 READY Path：MAP_NOT_BOUND_TO_VIEW\n";
+        line+="LOCAL DRAFT 独立｜Offline NO MOTION｜Execute/Resume 始终禁用";
         ready_view_->setText(line);
       },Qt::QueuedConnection);
     });

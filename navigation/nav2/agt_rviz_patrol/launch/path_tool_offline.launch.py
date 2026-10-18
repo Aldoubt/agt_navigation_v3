@@ -64,7 +64,10 @@ def _launch_preview(context):
         components.append(Node(
             package='agt_rviz_patrol', executable='ready_route_viewer',
             name='agt_ready_route_viewer', output='screen',
-            parameters=[{'trusted_config': trusted_config, 'offline_hard_lock': True}],
+            parameters=[{'trusted_config': trusted_config, 'offline_hard_lock': True,
+                         'view_map_spec': f'{selected.map_id}/{selected.map_version}',
+                         'view_robot': LaunchConfiguration('robot'),
+                         'view_registry': LaunchConfiguration('map_registry')}],
         ))
     return components
 

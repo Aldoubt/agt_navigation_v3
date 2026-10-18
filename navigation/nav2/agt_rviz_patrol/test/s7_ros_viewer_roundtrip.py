@@ -1,4 +1,8 @@
-"""Offline only: start -> READY -> INVALID -> restart -> STALE -> READY."""
+"""S7.1 regression entrypoint adapted to the stronger S7.2 map-view gate.
+
+Legacy Asset READY alone can never authorize a Path. Replay with a real ROS
+mock Map Server + validated synthetic Site and retain both restart/SHA tests.
+"""
 from __future__ import annotations
 
 import json
@@ -102,4 +106,5 @@ def execute(config, good, bad, output):
 
 
 if __name__ == "__main__":
-    execute(Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3]), Path(sys.argv[4]))
+    from s7_2_ros_map_roundtrip import run
+    run(Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3]), Path(sys.argv[4]))
