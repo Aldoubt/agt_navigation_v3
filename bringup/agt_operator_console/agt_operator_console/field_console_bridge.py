@@ -40,6 +40,15 @@ class FieldROSBridge:
         }
         self.pending = {}
 
+    def navigation_nodes_present(self):
+        """Conservatively detect any known Nav2/route lifecycle ownership."""
+        names = set(self.node.get_node_names())
+        return bool(names & {
+            "controller_server", "planner_server", "bt_navigator",
+            "lifecycle_manager_navigation", "agt_rviz_path_tool",
+            "agt_navigation_capability", "agt_localization_manager",
+        })
+
     def spin(self):
         self.rclpy.spin_once(self.node, timeout_sec=0.0)
 
@@ -49,6 +58,7 @@ class FieldROSBridge:
             "data": {
                 "status": m.status, "state": m.state,
                 "localized": m.localized, "base_alive": m.base_alive,
+                "goal_active": m.goal_active,
                 "nav2_active": m.nav2_active, "map_id": m.map_id,
                 "map_version": m.map_version, "robot_profile": m.robot_profile,
                 "last_error_code": m.last_error_code,

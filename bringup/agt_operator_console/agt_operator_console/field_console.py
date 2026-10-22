@@ -123,6 +123,11 @@ class FieldConsoleWindow(QMainWindow):
         buttons.addWidget(refresh)
         buttons.addWidget(choose)
         sel_l.addRow(buttons)
+        self.activate = QPushButton("校验并激活所选地图")
+        self.activate.setObjectName("activate_map")
+        self.activate.clicked.connect(self.activate_map)
+        self.activate.setToolTip("仅导航停止时激活地图包；校验资产哈希。禁止运行中热切图。")
+        sel_l.addRow(self.activate)
         self.map_note = QLabel("地图尚未选择")
         self.map_note.setWordWrap(True)
         self.map_note.setObjectName("muted")
@@ -170,7 +175,7 @@ class FieldConsoleWindow(QMainWindow):
         self.map_studio = QPushButton("打开 Map Studio 地图编辑器")
         self.map_studio.clicked.connect(self.open_map_studio)
         mp.addWidget(self.map_studio)
-        self.start_mapping = QPushButton("一键建图（待无回环链路验收）")
+        self.start_mapping = QPushButton("开始建图（暂不可用）")
         self.start_mapping.setEnabled(False)
         self.start_mapping.setToolTip(
             "现有建图流程含 PGO；无回环建图和资产发布尚未完成，不允许伪装成可用。")
@@ -178,7 +183,7 @@ class FieldConsoleWindow(QMainWindow):
         self.acceptance = QPushButton("查看验收报告")
         self.acceptance.clicked.connect(self.open_report)
         mp.addWidget(self.acceptance)
-        note = QLabel("地面/GPS 因子、自动识别垄行和返航仍在开发；当前不提供未经验证的一键运动。")
+        note = QLabel("大棚自动覆盖和返回起点仍在验收中，不会开放未经验证的运动功能。")
         note.setWordWrap(True)
         note.setObjectName("muted")
         mp.addWidget(note)
@@ -367,6 +372,7 @@ class FieldConsoleWindow(QMainWindow):
         if self.offline_demo:
             self.summary.setText("离线交互演示｜不能控制车辆")
             self.prepare.setEnabled(True)
+            self.activate.setEnabled(False)
             self.execute.setEnabled(False)
             self.pause.setEnabled(False)
             self.cancel.setEnabled(False)
@@ -377,6 +383,9 @@ class FieldConsoleWindow(QMainWindow):
             self.selected_profile(), self.current_map,
             self.health, self.editor, self.guard)
         self.summary.setText(reason)
+        active = self._active_navigation_present()
+        self.activate.setEnabled(bool(self.bridge) and self.current_map is not None
+                                 and not active)
         self.prepare.setEnabled(bool(self.bridge) and may_prepare)
         self.execute.setEnabled(bool(self.bridge) and may_execute)
         self.pause.setEnabled(bool(self.bridge) and self.editor is not None)
@@ -450,11 +459,70 @@ class FieldConsoleWindow(QMainWindow):
         except (ValueError, RuntimeError) as exc:
             QMessageBox.warning(self, "服务不可用", str(exc))
 
+    def _active_navigation_present(self):
+        if self.health is not None:
+            h = self.health["data"]
+            if h.get("status") in (1, 2) or h.get("goal_active"):
+                return True
+        if self.bridge is not None:
+            try:
+                return self.bridge.navigation_nodes_present()
+            except Exception:
+                return True  # Unobservable ROS graph -> no hot activation.
+        return False
+
+    def activate_map(self):
+        if self.offline_demo or not self.bridge or not self.current_map:
+            return
+        if self._active_navigation_present():
+            QMessageBox.warning(
+                self, "无法切换地图", "检测到导航正在运行或无法确认已停止，请先停止导航。")
+            return
+        m = self.current_map
+        if QMessageBox.question(
+                self, "确认激活地图",
+                f"校验并激活地图 {m.label}？\n只准备下一次导航加载；不会热切换正在运行的节点。",
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
+            return
+        proc = getattr(self, "activation_process", None)
+        if proc is not None and proc.state() != QProcess.NotRunning:
+            return
+        proc = QProcess(self)
+        proc.setProgram("ros2")
+        proc.setArguments([
+            "run", "agt_map_manager", "select_map_package",
+            "--map-root", str(self.map_root),
+            "--active-state-file", str(self.map_root / "active_map.yaml"),
+            "--map-id", m.map_id, "--map-version", m.version,
+        ])
+        proc.finished.connect(
+            lambda exit_code, _status, p=proc, name=m.label:
+            self._map_activation_finished(p, name, exit_code))
+        proc.errorOccurred.connect(
+            lambda _: self._log("无法调用 Map Manager，请检查导航包是否已安装。"))
+        self.activation_process = proc
+        self.children_processes.append(proc)
+        proc.start()
+        self._log(f"正在检查地图资产并激活：{m.label}")
+
+    def _map_activation_finished(self, process, name, exit_code):
+        output = (bytes(process.readAllStandardOutput()) +
+                  bytes(process.readAllStandardError())).decode(
+                      "utf-8", "replace").strip()
+        if exit_code == 0:
+            self._log(f"地图激活完成：{name}。等待导航加载同一版本。")
+            self.map_note.setText(
+                f"已准备 {name}\n导航加载并确认该地图版本后才能执行。")
+        else:
+            self._log("地图激活失败：" + output[:700])
+            QMessageBox.warning(
+                self, "地图未通过校验",
+                "地图包哈希或内容不符合要求。\n" + output[:700])
+
     def open_map_studio(self):
         if self.offline_demo:
             return
-        h = self.health["data"] if self.health else {}
-        if h.get("status") in (1, 2) and h.get("base_alive"):
+        if self._active_navigation_present():
             QMessageBox.warning(self, "无法编辑活动地图",
                                 "导航运行期间不允许从此界面启动地图编辑。请先独立停止导航。")
             return
