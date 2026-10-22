@@ -58,6 +58,12 @@ GNSS/ground-factor smoother, unified one-click launch, simulation and
 field acceptance reports are **not implemented in P0**. They require
 separate integration and safety verification before motion authorization.
 
+## Distance preview and externally surveyed acceptance
+
+The ROS2 `/agt/field/prepare_distance` service now creates a **draft preview**, not a motion goal. See `docs/ROS_DISTANCE_SERVICE.md` for the map-locked call and separate execution confirmation. The generated interface requires a new Humble build before use.
+
+After actual field measurements, use `acceptance.py` with the independently surveyed navigation and speed CSV files. See `docs/ACCEPTANCE_REPORT.md`. Missing or internal SLAM-only measurements never count as PASS.
+
 ## Operator profiles
 
 `config/scenarios/field_acceptance.yaml` contains official 5/7/10 m

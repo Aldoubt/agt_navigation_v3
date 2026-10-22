@@ -6,8 +6,8 @@
     {
       "name": "agt_navigation_v3",
       "url": "https://github.com/Aldoubt/agt_navigation_v3.git",
-      "ref": "5b01ce0ba40e67f1732d7cf7970b5483bf7e1fa3",
-      "description": "V3 FW-mini field navigation + RouteWorkbench"
+      "ref": "5363e0807af3dd495f2217bb10435b4973af62e1",
+      "description": "V3 FW-mini + PrepareDistanceRoute P1a preview interface"
     },
     {
       "name": "fwmini_navigation_lab",
