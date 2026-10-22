@@ -75,10 +75,53 @@ def repo_root(root, name):
     return root / "src" / name
 
 
+def resolved_bootstrap_v3(data):
+    """Use the checked-out V3 bootstrap SHA if it descends from locked baseline.
+
+    A manifest cannot literally pin its own containing commit. Resolve once
+    from a clean checkout, then record the real commit for reproducibility.
+    """
+    repo = next(r for r in data["repositories"] if r["name"] == "agt_navigation_v3")
+    source = HERE.parent
+    try:
+        if run_git("-C", source, "remote", "get-url", "origin") != repo["url"]:
+            return repo["ref"]
+        sha = run_git("-C", source, "rev-parse", "HEAD")
+        if run_git("-C", source, "status", "--porcelain"):
+            raise RuntimeError("bootstrap V3 checkout is dirty: commit/stash it first")
+        run_git("-C", source, "merge-base", "--is-ancestor", repo["ref"], sha)
+        return sha
+    except subprocess.CalledProcessError:
+        return repo["ref"]
+
+
+def resolved_sources(root, data):
+    path = root / ".agt_field_sources.json"
+    if not path.is_file():
+        return {r["name"]: r["ref"] for r in data["repositories"]}
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    if manifest.get("schema_version") != 1:
+        raise RuntimeError("workspace source manifest has unsupported schema")
+    refs = manifest.get("repositories", {})
+    if set(refs) != {r["name"] for r in data["repositories"]}:
+        raise RuntimeError("workspace source manifest repository names mismatch")
+    for name, sha in refs.items():
+        if not isinstance(sha, str) or len(sha) != 40:
+            raise RuntimeError(f"malformed resolved SHA for {name}")
+    return refs
+
+
 def init_workspace(root, dry_run=False):
-    """Never reset an existing checkout; refuse mismatched commits."""
+    """Clone explicit revisions; never reset existing code or start ROS."""
     data = lock_data()
+    manifest_path = root / ".agt_field_sources.json"
+    if manifest_path.exists():
+        refs = resolved_sources(root, data)
+    else:
+        refs = {r["name"]: r["ref"] for r in data["repositories"]}
+        refs["agt_navigation_v3"] = resolved_bootstrap_v3(data)
     for repo in data["repositories"]:
+        selected_sha = refs[repo["name"]]
         target = repo_root(root, repo["name"])
         if target.exists():
             if not (target / ".git").exists():
@@ -87,23 +130,32 @@ def init_workspace(root, dry_run=False):
             if got_url != repo["url"]:
                 raise RuntimeError(f"{target} origin mismatch: {got_url}")
             got = run_git("-C", target, "rev-parse", "HEAD")
-            if got != repo["ref"]:
+            if got != selected_sha:
                 raise RuntimeError(
-                    f"{target} HEAD={got[:12]} not lock={repo['ref'][:12]}. "
+                    f"{target} HEAD={got[:12]} not selected={selected_sha[:12]}. "
                     "Do not reset your work; use a clean workspace.")
             print(f"OK PINNED {repo['name']} {got[:12]}")
             continue
-        print(f"{'WOULD CLONE' if dry_run else 'CLONE'} {repo['name']} @{repo['ref'][:12]}")
+        print(f"{'WOULD CLONE' if dry_run else 'CLONE'} {repo['name']} @{selected_sha[:12]}")
         if dry_run:
             continue
         target.parent.mkdir(parents=True, exist_ok=True)
         run_git("clone", "--no-checkout", repo["url"], target)
         try:
-            run_git("-C", target, "fetch", "origin", repo["ref"])
-            run_git("-C", target, "checkout", "--detach", repo["ref"])
+            run_git("-C", target, "fetch", "origin", selected_sha)
+            run_git("-C", target, "checkout", "--detach", selected_sha)
         except Exception:
             print(f"INCOMPLETE CHECKOUT: inspect {target}; no reset attempted", file=sys.stderr)
             raise
+    if not dry_run:
+        manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = manifest_path.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps({
+            "schema_version": 1,
+            "repositories": refs,
+        }, indent=2) + "\n", encoding="utf-8")
+        tmp.replace(manifest_path)
+        print(f"EXACT SOURCE SHAs: {manifest_path}")
     print("SOURCE READY only. Run 'doctor' before installing ROS dependencies.")
 
 
@@ -171,6 +223,7 @@ def build_plan(root, role):
 
 def doctor(root):
     data = lock_data()
+    refs = resolved_sources(root, data)
     warnings = 0
     for repo in data["repositories"]:
         top = repo_root(root, repo["name"])
@@ -179,8 +232,9 @@ def doctor(root):
             warnings += 1
             continue
         got = run_git("-C", top, "rev-parse", "HEAD")
-        print(f"{'PINNED' if got == repo['ref'] else 'DIFFERENT'} {repo['name']} {got[:12]}")
-        if got != repo["ref"]:
+        expected = refs[repo["name"]]
+        print(f"{'PINNED' if got == expected else 'DIFFERENT'} {repo['name']} {got[:12]}")
+        if got != expected:
             warnings += 1
         dirty = run_git("-C", top, "status", "--porcelain")
         if dirty:
