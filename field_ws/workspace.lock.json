@@ -12,8 +12,8 @@
     {
       "name": "fwmini_navigation_lab",
       "url": "https://github.com/Aldoubt/fwmini_navigation_lab.git",
-      "ref": "aad4b6eb955ebb4de6444d40dc7d9e1b14f879a8",
-      "description": "FW-mini adapter, vendor message types, Nav2 parameters"
+      "ref": "6e715c19eb41efa32b597c8e0609e38c960c4f7c",
+      "description": "FW-mini P1b fail-closed front scan guard + DWB/RPP compare candidate, no-CAN CI PASS; field unverified"
     },
     {
       "name": "agt-lio-pgo-mapping",
@@ -35,5 +35,6 @@
     "yhs_can_control": "fwmini_navigation_lab"
   },
   "external_dependencies_status": "NOT_BOOTSTRAPPED",
-  "readiness": "SOURCE_ONLY_NO_MOTION"
+  "readiness": "SOURCE_ONLY_NO_MOTION",
+  "safety_release": "P1B_SCAN_GATE_SOURCE_ONLY_NOT_FIELD_VALIDATED"
 }

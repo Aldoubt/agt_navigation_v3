@@ -17,6 +17,9 @@
 - [ ] Convert the pure line geometry into a ROS 2 Action server that snapshots
       confirmed `map->base_link` and accepts an explicit operator confirmation.
 - [ ] Confirm identity of the selected map (same PCD and OccupancyGrid version).
+- [x] FW-mini has a last-software-gate forward LaserScan stop filter with
+      fail-closed stale/wrong-frame/nonadvancing-stamp behavior and no-CAN CI.
+- [ ] ROS Humble no-CAN fault-injection of the guard and motion-enable checks.
 - [ ] Verify every velocity hop: controller -> smoother -> Collision Monitor ->
       Navigation Guard -> FW-mini ABI-correct CAN -> physical feedback.
 - [ ] Simulate low speed and then stage up carefully, using vendor limits;

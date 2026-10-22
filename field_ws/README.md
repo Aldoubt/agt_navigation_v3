@@ -92,3 +92,17 @@ read-only historical snapshot. Do not build it alongside the V3 originals
 or edit both copies separately.
 
 See `docs/FIELD_WS_ROADMAP.md` for the exact P1/P2/P3 gates.
+
+## P1b FW-mini front-obstacle safety candidate
+
+The pinned FW-mini SHA in `workspace.lock.json` now includes a real
+ROS 2 parameter file `src/fwmini_multi_nav_bringup/config/nav2/fwmini_obstacle_guard.yaml`
+and safety-scan code. This applies to **both** Nav2 and operator local search
+before the CAN adapter; it stops on unknown front obstacles and stale scan.
+The separate RPP configuration `fwmini_mid360_nav2_rpp_candidate.yaml`
+remains **simulation-only**; DWB remains the active field baseline.
+
+GitHub no-CAN safety unit tests PASS. This is **not** a measured or certified
+human-detection system and the hardware remains blocked at 1m/s until
+stopping-distance tests. Review [FW-mini P1b Draft PR](https://github.com/Aldoubt/fwmini_navigation_lab/pull/3)
+with `docs/P1B_SCAN_GUARD_HANDOFF.md` before field use.
