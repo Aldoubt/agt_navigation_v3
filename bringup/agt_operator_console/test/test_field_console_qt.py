@@ -36,6 +36,49 @@ class QtFieldConsoleTest(unittest.TestCase):
                 self.assertFalse(win.execute.isEnabled())
             win.close()
 
+    def test_repeated_offline_route_preview_does_not_use_deleted_qt_items(self):
+        with tempfile.TemporaryDirectory() as d:
+            win = FieldConsoleWindow(map_root=d, offline_demo=True)
+            win.distance.setValue(5.0)
+            win.prepare_route()
+            win.distance.setValue(10.0)
+            win.prepare_route()
+            self.assertIn("10", win.route_label.text())
+            self.assertFalse(win.execute.isEnabled())
+            win.close()
+
+    def test_ros_callback_does_not_reenter_executor(self):
+        with tempfile.TemporaryDirectory() as d:
+            win = FieldConsoleWindow(map_root=d, offline_demo=False)
+
+            class FakeBridge:
+                depth = 0
+                max_depth = 0
+                calls = 0
+                def spin(self):
+                    self.depth += 1
+                    self.max_depth = max(self.depth, self.max_depth)
+                    self.calls += 1
+                    if self.calls == 1:
+                        win._on_ros_event("guard", {
+                            "at": 10.0, "data": {"state": "OBSTACLE_STOP"}})
+                    self.depth -= 1
+
+                def navigation_nodes_present(self):
+                    return False
+
+                def close(self):
+                    pass
+
+            fake = FakeBridge()
+            win.bridge = fake
+            win._tick()
+            self.assertEqual(fake.max_depth, 1)
+            self.assertEqual(fake.calls, 6)
+            self.assertFalse(win.execute.isEnabled())
+            win.bridge = None
+            win.close()
+
     def test_online_without_ros_stays_blocked(self):
         with tempfile.TemporaryDirectory() as d:
             win = FieldConsoleWindow(map_root=d, offline_demo=False)
