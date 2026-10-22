@@ -7,12 +7,12 @@
 - [x] Validation of pure 5/7/10 m map-frame line geometry.
 - [x] Two YAML operator scenarios + one FW-mini geometry/hardware profile.
 - [ ] Install source dependencies and perform Humble build on the real PC.
-- [ ] Single \`field_console.launch.py\` orchestration with map ID/hash checks.
+- [ ] Single `field_console.launch.py` orchestration with map ID/hash checks.
 - [ ] One-click mapping -> optimize (no loop) -> PCD/PGM/BBS assets.
 
 ## Gate P1 — 5/7/10 m field test and obstacle stopping
 - [ ] Convert the pure line geometry into a ROS 2 Action server that snapshots
-      confirmed \`map->base_link\` and accepts an explicit operator confirmation.
+      confirmed `map->base_link` and accepts an explicit operator confirmation.
 - [ ] Confirm identity of the selected map (same PCD and OccupancyGrid version).
 - [ ] Verify every velocity hop: controller -> smoother -> Collision Monitor ->
       Navigation Guard -> FW-mini ABI-correct CAN -> physical feedback.
