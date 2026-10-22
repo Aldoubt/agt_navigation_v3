@@ -5,8 +5,6 @@ Panels:
     Name: 显示项
   - Class: rviz_common/Tool Properties
     Name: 工具属性
-  - Class: rviz_common/Views
-    Name: 视图
 Visualization Manager:
   Class: ""
   Displays:
@@ -38,7 +36,7 @@ Visualization Manager:
       Name: 预览机器人位置
       Enabled: true
       Show Axes: true
-      Show Names: true
+      Show Names: false
       Frame Timeout: 1
     - Class: rviz_default_plugins/Path
       Name: 手绘路线
@@ -78,8 +76,8 @@ Visualization Manager:
       Class: rviz_default_plugins/TopDownOrtho
       Scale: 8
       Angle: 0
-      X: 18
-      Y: 7
+      X: 0
+      Y: 0
 Window Geometry:
-  Width: 1600
-  Height: 900
+  Width: 1024
+  Height: 600

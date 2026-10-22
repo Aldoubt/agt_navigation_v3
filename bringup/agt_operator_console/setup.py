@@ -1,3 +1,4 @@
+from glob import glob
 from setuptools import find_packages, setup
 
 
@@ -11,7 +12,8 @@ setup(
     data_files=[
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name + '/config', ['config/operator_profile.yaml']),
+        ('share/' + package_name + '/config', glob('config/*')),
+        ('share/' + package_name + '/launch', glob('launch/*.launch.py')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -22,6 +24,7 @@ setup(
     entry_points={
         'console_scripts': [
             'operator_console = agt_operator_console.operator_console:main',
+            'field_test_gui = agt_operator_console.field_test_gui:main',
             'replay_audit = agt_operator_console.replay_audit:main',
             'deterministic_seed_injector = agt_operator_console.deterministic_seed_injector:main',
             'pose_chain_recorder = agt_operator_console.pose_chain_recorder:main',

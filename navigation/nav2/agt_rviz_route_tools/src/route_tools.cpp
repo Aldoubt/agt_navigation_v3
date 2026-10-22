@@ -10,12 +10,23 @@
 #include <QMessageBox>
 #include <QPointer>
 #include <QVBoxLayout>
+#include <QScrollArea>
+#include <QGroupBox>
+#include <QFormLayout>
+#include <QFrame>
+#include <QDoubleSpinBox>
+#include <QComboBox>
 #include <QGridLayout>
 #include <OgreCamera.h>
 #include <OgreRay.h>
 #include <rviz_common/display_context.hpp>
 #include <rviz_common/render_panel.hpp>
 #include <rviz_common/view_controller.hpp>
+#include <rviz_common/visualization_frame.hpp>
+#include <rviz_common/visualization_manager.hpp>
+#include <tf2/time.h>
+#include <tf2/exceptions.h>
+#include <tf2/utils.h>
 #include <rviz_common/viewport_mouse_event.hpp>
 #include <rviz_common/ros_integration/ros_node_abstraction_iface.hpp>
 #include <rviz_rendering/render_window.hpp>
@@ -232,9 +243,50 @@ int RouteTool::processKeyEvent(QKeyEvent * event, rviz_common::RenderPanel *) {
 }
 
 RoutePanel::RoutePanel(QWidget * parent): rviz_common::Panel(parent) {
-  auto * layout = new QVBoxLayout(this);
-  auto * instructions = new QLabel("直线绘制（L）：点起点→点终点，Esc 结束\n连续画线（D）：按住左键自由手绘\n航点编辑（E）：添加／拖动／Delete 删除\n滚轮缩放，中键平移；路线使用细红线。\n请先预览，执行前需要再次确认。\n“取消任务”不能替代硬件急停。");
+  auto * outer_layout = new QVBoxLayout(this);
+  outer_layout->setContentsMargins(2, 2, 2, 2);
+  auto * scroll = new QScrollArea(this);
+  scroll->setWidgetResizable(true);
+  scroll->setFrameShape(QFrame::NoFrame);
+  auto * content = new QWidget(scroll);
+  auto * layout = new QVBoxLayout(content);
+  layout->setContentsMargins(4, 4, 4, 4);
+  scroll->setWidget(content);
+  outer_layout->addWidget(scroll);
+  auto * instructions = new QLabel("默认从机器人当前位姿生成直线路线：输入距离即可生成草稿。地图视图支持滚轮缩放、中键平移；居中按钮只移动视图，不控制车辆。生成后先预览／校验，再单独确认执行。手绘工具仍可选用。");
   instructions->setWordWrap(true); layout->addWidget(instructions);
+  auto * generator = new QGroupBox("参数化直线路线");
+  auto * generator_layout = new QFormLayout(generator);
+  distance_input_ = new QDoubleSpinBox(generator);
+  distance_input_->setObjectName("route_distance_input");
+  distance_input_->setRange(0.1, 200.0);
+  distance_input_->setDecimals(2);
+  distance_input_->setSingleStep(0.5);
+  distance_input_->setValue(5.0);
+  distance_input_->setSuffix(" m");
+  heading_mode_ = new QComboBox(generator);
+  heading_mode_->setObjectName("route_heading_mode");
+  heading_mode_->addItem("沿机器人当前航向");
+  heading_mode_->addItem("指定地图航向");
+  heading_input_ = new QDoubleSpinBox(generator);
+  heading_input_->setObjectName("route_heading_input");
+  heading_input_->setRange(-180.0, 180.0);
+  heading_input_->setDecimals(1);
+  heading_input_->setSingleStep(5.0);
+  heading_input_->setValue(0.0);
+  heading_input_->setSuffix(" °");
+  heading_input_->setToolTip("map 坐标系航向：0° 沿 +X，正角度逆时针；如果车头尚未对齐，在线预览可能要求先调整车身或规划连接段。");
+  heading_input_->setEnabled(false);
+  generator_layout->addRow("行驶距离", distance_input_);
+  generator_layout->addRow("行驶方向", heading_mode_);
+  generator_layout->addRow("地图航向", heading_input_);
+  generate_route_ = new QPushButton("按距离生成路线草稿", generator);
+  generate_route_->setObjectName("generate_straight_route_button");
+  generate_route_->setToolTip("从 map → base_link 当前位姿生成直线；只更新草稿，不会发送运动命令。");
+  generator_layout->addRow(generate_route_);
+  layout->addWidget(generator);
+  QObject::connect(heading_mode_, qOverload<int>(&QComboBox::currentIndexChanged), this,
+    [this](int index) { heading_input_->setEnabled(index == 1); });
   status_=new QLabel("正在等待工作台后端连接……");status_->setWordWrap(true);
   status_->setTextFormat(Qt::PlainText);layout->addWidget(status_);
   metrics_=new QLabel("草稿总长：0.00 米｜点数：0");
@@ -244,11 +296,15 @@ RoutePanel::RoutePanel(QWidget * parent): rviz_common::Panel(parent) {
   metrics_->setStyleSheet("QLabel { background: #20242a; color: #fff36a; padding: 7px; font-weight: bold; }");
   layout->addWidget(metrics_);
   auto * buttons = new QGridLayout(); layout->addLayout(buttons);
+  center_robot_ = new QPushButton("居中机器人");
+  center_robot_->setObjectName("center_robot_button");
+  center_robot_->setToolTip("将地图视图中心移动到 map → base_link 的当前机器人位置；保留缩放，不发送运动命令。");
+  buttons->addWidget(center_robot_, 0, 0, 1, 2);
   const std::vector<std::pair<QString,QString>> specs = {
     {"预览／校验","preview"},{"执行…","start"},{"撤销","undo"},{"重做","redo"},
     {"清空草稿","clear_route"},{"清空轨迹","clear_trails"},{"暂停","pause"},
     {"恢复…","resume"},{"取消任务","cancel"}};
-  int i=0;
+  int i=2;
   for (const auto & spec: specs) {
     auto * button = new QPushButton(spec.first); buttons->addWidget(button,i/2,i%2);++i;
     if(spec.second=="start") execute_=button;
@@ -256,6 +312,10 @@ RoutePanel::RoutePanel(QWidget * parent): rviz_common::Panel(parent) {
     QObject::connect(button,&QPushButton::clicked,this,[this,spec](){request(spec.second,spec.second=="start"||spec.second=="resume");});
   }
   execute_->setEnabled(false);resume_->setEnabled(false);
+  center_robot_->setEnabled(false);
+  QObject::connect(center_robot_, &QPushButton::clicked, this, [this]() { centerRobot(); });
+  QObject::connect(generate_route_, &QPushButton::clicked, this, [this]() { generateStraightRoute(); });
+  generate_route_->setEnabled(false);
   reply_=new QLabel();reply_->setWordWrap(true);reply_->setTextFormat(Qt::PlainText);layout->addWidget(reply_);
   QObject::connect(&timer_,&QTimer::timeout,this,[this](){
     if(drawing_metrics_active_ && metrics_received_.isValid() && metrics_received_.elapsed()>800) {
@@ -270,6 +330,11 @@ RoutePanel::RoutePanel(QWidget * parent): rviz_common::Panel(parent) {
 }
 void RoutePanel::onInitialize() {
   node_=getDisplayContext()->getRosNodeAbstraction().lock()->get_raw_node();
+  tf_buffer_ = std::make_shared<tf2_ros::Buffer>(node_->get_clock());
+  // RViz already spins its ROS node; do not try to add it to a second executor.
+  tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_, node_, false);
+  edit_pub_ = node_->create_publisher<std_msgs::msg::String>("/agt/path_tool/edit", 10);
+  center_robot_->setEnabled(true);
   metrics_sub_=node_->create_subscription<std_msgs::msg::String>("/agt/path_tool/drawing_metrics",1,
     [this](std_msgs::msg::String::ConstSharedPtr message){
       auto text=QString::fromStdString(message->data);
@@ -290,9 +355,13 @@ void RoutePanel::onInitialize() {
       QMetaObject::invokeMethod(this,[this,text](){
         auto doc=QJsonDocument::fromJson(text.toUtf8());if(!doc.isObject())return;auto o=doc.object();
         received_.restart();
+        draft_revision_ = static_cast<qint64>(o["revision"].toDouble(-1));
+        draft_point_count_ = o["points"].toArray().size();
+        draft_locked_ = o["locked"].toBool(true);
+        generate_route_->setEnabled(draft_revision_ >= 0 && !draft_locked_);
         committed_metrics_=metricsText(measureRoute(o["points"].toArray()),false);
         if(o["preview_length_m"].isDouble())
-          committed_metrics_+=QString("\n预览总长（含连接段）：%1 米").arg(o["preview_length_m"].toDouble(),0,'f',2);
+          committed_metrics_+=QString("\n预览路线总长（实际下发）：%1 米").arg(o["preview_length_m"].toDouble(),0,'f',2);
         if(!drawing_metrics_active_)metrics_->setText(committed_metrics_);
         status_->setText(QString("%1｜草稿版本 %2\n地图：%3 / %4\n导航状态：%5｜已定位：%6\n%7")
           .arg(o["preview_only"].toBool()?"离线模式／禁止运动":"在线模式／可控制车辆运动")
@@ -303,6 +372,97 @@ void RoutePanel::onInitialize() {
       },Qt::QueuedConnection);
     });
 }
+bool RoutePanel::lookupRobotTransform(geometry_msgs::msg::TransformStamped & transform, QString & error) {
+  if (!tf_buffer_) {
+    error = "TF 缓冲区尚未初始化";
+    return false;
+  }
+  try {
+    transform = tf_buffer_->lookupTransform("map", "base_link", tf2::TimePointZero);
+    return true;
+  } catch (const tf2::TransformException & exception) {
+    error = QString::fromUtf8(exception.what());
+    return false;
+  }
+}
+
+void RoutePanel::centerRobot() {
+  geometry_msgs::msg::TransformStamped robot_tf;
+  QString error;
+  if (!lookupRobotTransform(robot_tf, error)) {
+    reply_->setText(QString("无法居中：找不到 map → base_link TF（%1）。请先确认定位与 TF 发布。")
+      .arg(error));
+    return;
+  }
+  rviz_common::VisualizationFrame * frame = nullptr;
+  for (QWidget * widget = this; widget; widget = widget->parentWidget()) {
+    frame = dynamic_cast<rviz_common::VisualizationFrame *>(widget);
+    if (frame) break;
+  }
+  auto * manager = frame ? frame->getManager() : nullptr;
+  auto * render_panel = manager ? manager->getRenderPanel() : nullptr;
+  auto * view = render_panel ? render_panel->getViewController() : nullptr;
+  if (!view) {
+    reply_->setText("无法居中：没有找到 RViz 当前视图控制器。");
+    return;
+  }
+  const auto & t = robot_tf.transform.translation;
+  view->lookAt(Ogre::Vector3(static_cast<float>(t.x), static_cast<float>(t.y), static_cast<float>(t.z)));
+  reply_->setText(QString("视图已居中到机器人位置（map：x=%1，y=%2）。当前缩放保持不变；未发送运动命令。")
+    .arg(t.x, 0, 'f', 2).arg(t.y, 0, 'f', 2));
+}
+
+void RoutePanel::generateStraightRoute() {
+  if (!received_.isValid() || received_.elapsed() > 2000 || draft_revision_ < 0) {
+    reply_->setText("暂时无法生成：路线后端状态未连接或已过期。");
+    return;
+  }
+  if (draft_locked_) {
+    reply_->setText("当前路线已锁定：请先取消正在运行或暂停的任务，再编辑草稿。");
+    return;
+  }
+  if (draft_point_count_ > 0) {
+    QMessageBox dialog(QMessageBox::Question, "替换当前路线草稿",
+      "生成直线路线将替换当前草稿。是否继续？", QMessageBox::Yes | QMessageBox::No, this);
+    dialog.button(QMessageBox::Yes)->setText("替换草稿");
+    dialog.button(QMessageBox::No)->setText("保留现有路线");
+    dialog.setDefaultButton(QMessageBox::No);
+    if (dialog.exec() != QMessageBox::Yes) return;
+  }
+  geometry_msgs::msg::TransformStamped robot_tf;
+  QString error;
+  if (!lookupRobotTransform(robot_tf, error)) {
+    reply_->setText(QString("无法生成路线：找不到 map → base_link TF（%1）。").arg(error));
+    return;
+  }
+  const auto & t = robot_tf.transform.translation;
+  const double distance = distance_input_->value();
+  const auto & q = robot_tf.transform.rotation;
+  const double robot_yaw = std::atan2(2.0 * (q.w * q.z + q.x * q.y),
+                                      1.0 - 2.0 * (q.y * q.y + q.z * q.z));
+  const double yaw = heading_mode_->currentIndex() == 0
+    ? robot_yaw : heading_input_->value() * 3.14159265358979323846 / 180.0;
+  const double end_x = t.x + distance * std::cos(yaw);
+  const double end_y = t.y + distance * std::sin(yaw);
+  if (!std::isfinite(end_x) || !std::isfinite(end_y)) {
+    reply_->setText("无法生成路线：终点坐标不是有效数值。");
+    return;
+  }
+  QJsonArray points;
+  points.append(QJsonArray{t.x, t.y});
+  points.append(QJsonArray{end_x, end_y});
+  QJsonObject payload{{"frame", "map"}, {"revision", static_cast<double>(draft_revision_)}, {"points", points}};
+  std_msgs::msg::String message;
+  message.data = QJsonDocument(payload).toJson(QJsonDocument::Compact).toStdString();
+  if (!edit_pub_) {
+    reply_->setText("无法生成路线：编辑接口未初始化。");
+    return;
+  }
+  edit_pub_->publish(message);
+  reply_->setText(QString("已提交 %1 米直线路线草稿（起点为机器人当前位置）。请检查地图预览，再点击“预览／校验”；当前没有发送运动命令。")
+    .arg(distance, 0, 'f', 2));
+}
+
 void RoutePanel::request(const QString & name,bool confirm) {
   if(!node_){reply_->setText("ROS 节点不可用");return;}
   if(confirm && (!received_.isValid()||received_.elapsed()>2000))return;

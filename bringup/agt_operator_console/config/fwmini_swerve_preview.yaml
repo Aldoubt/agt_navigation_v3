@@ -1,0 +1,73 @@
+# FW-mini V3 GUI field-trial preview. Values match FW-mini NAV worktree geometry.
+# Candidate values, not an independent absolute accuracy certification.
+schema_version: 1
+profile_id: fwmini_swerve_preview
+profile_status: FIELD_TRIAL_CANDIDATE
+field_verified: false
+source_project: fwmini_nav2_worktree/geometry.field_trial.yaml
+body:
+  length_m: 0.495
+  width_m: 0.36
+  height_m: 0.32
+  measured: false
+  source: FW-mini standard vendor dimensions via 20261021 candidate
+  base_link_origin: center_of_bottom_face
+camera_mount:
+  measured: false
+  method: pending_ruler_and_solidworks
+  xyz_m:
+  - 0.0
+  - 0.0
+  - 0.5
+  rpy_rad:
+  - 0.0
+  - 0.0
+  - 0.0
+color_optical:
+  measured: false
+  method: pending_vendor_model_or_measurement
+  xyz_m:
+  - 0.0
+  - 0.0
+  - 0.0
+  rpy_rad:
+  - -1.5707963267948966
+  - 0.0
+  - -1.5707963267948966
+base:
+  drive_type: swerve
+  kinematics_status: UNVERIFIED
+  description_source: fwmini_description/urdf/fwmini.urdf.xacro
+  command_message: yhs_can_interfaces/msg/CtrlCmd
+  ros_command_input: /cmd_vel
+  vendor_command_output: /ctrl_cmd
+  enable_service: /fwmini/enable_motion
+  control_gear: null
+  control_gear_status: NEEDS_VENDOR_AND_CHASSIS_CONFIRMATION
+  provisional_limits:
+    max_linear_x_mps: 0.3
+    max_linear_y_mps: 0.3
+    max_angular_z_radps: 0.5
+  limits_status: SOFTWARE_DEFAULTS_NOT_FIELD_VERIFIED
+lidar_mount:
+  model: MID360_OR_CONFIRM_MODEL
+  parent_frame: base_link
+  child_frame: livox_frame
+  xyz_m:
+  - 0.146725
+  - 0.002608
+  - 0.37704
+  rpy_rad:
+  - 0.0
+  - 0.2152
+  - 0.0
+  measured: false
+  status: SPIN_FIT_CANDIDATE_20261021
+  measurement_note: 2026-10-21 spin fit + CAD height, forward mounting; same values
+    as FW-mini robot field trial profile
+navigation:
+  map_id: bunker_mid360
+  map_version: 20260924-trav-integration-v1
+  compatibility: NOT_VERIFIED_FOR_FWMINI
+  nav2_profile: NOT_IMPLEMENTED
+base_footprint_to_base_z: 0.07

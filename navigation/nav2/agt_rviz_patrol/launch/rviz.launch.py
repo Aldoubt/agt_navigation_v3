@@ -21,8 +21,10 @@ def _rviz(context):
 
 
 def generate_launch_description():
+    # Route authoring starts in a clean top-down view. Costmap diagnostics remain
+    # available as a separately selected config, rather than cluttering the route UI.
     default = str(Path(get_package_share_directory('agt_rviz_patrol')) /
-                  'config' / 'agt_rviz_demo.rviz')
+                  'config' / 'agt_rviz_path_preview.rviz')
     return LaunchDescription([
         DeclareLaunchArgument('config_file', default_value=default),
         DeclareLaunchArgument('use_sim_time', default_value='false'),

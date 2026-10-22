@@ -5,6 +5,7 @@
 #include <QJsonArray>
 #include <QTest>
 #include <QPushButton>
+#include <QDoubleSpinBox>
 #include <QLabel>
 #include <QElapsedTimer>
 #include <QScreen>
@@ -12,6 +13,7 @@
 #include <rviz_common/view_controller.hpp>
 #include <rviz_common/properties/property.hpp>
 #include <iostream>
+#include <cmath>
 #include <stdexcept>
 #include <rviz_common/visualization_frame.hpp>
 #include <rviz_common/visualization_manager.hpp>
@@ -24,12 +26,21 @@
 #include <rviz_rendering/render_window.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/string.hpp>
+#include <geometry_msgs/msg/transform_stamped.hpp>
+#include <tf2_ros/static_transform_broadcaster.h>
 
 int main(int argc,char **argv) {
   QApplication app(argc,argv);
   rviz_common::ros_integration::RosClientAbstraction ros;
   auto weak=ros.init(argc,argv,"workbench_gui_probe",false);
   auto node=weak.lock()->get_raw_node();
+  tf2_ros::StaticTransformBroadcaster tf_broadcaster(node);
+  geometry_msgs::msg::TransformStamped robot_tf;
+  robot_tf.header.stamp=node->get_clock()->now();
+  robot_tf.header.frame_id="map";robot_tf.child_frame_id="base_link";
+  robot_tf.transform.translation.x=4.0;robot_tf.transform.translation.y=3.0;
+  robot_tf.transform.rotation.w=1.0;
+  tf_broadcaster.sendTransform(robot_tf);
   QJsonObject state;
   auto sub=node->create_subscription<std_msgs::msg::String>("/agt/path_tool/editor_state",
     rclcpp::QoS(1).reliable().transient_local(),[&](std_msgs::msg::String::ConstSharedPtr msg){
@@ -61,6 +72,29 @@ int main(int argc,char **argv) {
       clear();tools->setCurrentTool(draw);QTest::qWait(100);
       auto * window=manager->getRenderPanel()->getRenderWindow();
       QPoint center(window->width()/2,window->height()/2);
+      auto * view=manager->getRenderPanel()->getViewController();
+      auto * center_button=findButton("居中机器人");
+      auto * generate_button=findButton("按距离生成路线草稿");
+      auto * distance_input=frame.findChild<QDoubleSpinBox*>("route_distance_input");
+      if(!distance_input)throw std::runtime_error("numeric route distance input missing");
+      const double original_x=view->subProp("X")->getValue().toDouble();
+      const double original_y=view->subProp("Y")->getValue().toDouble();
+      const double original_scale=view->subProp("Scale")->getValue().toDouble();
+      QTest::mouseClick(center_button,Qt::LeftButton);
+      wait([&](){return std::abs(view->subProp("X")->getValue().toDouble()-4.0)<0.05 &&
+                      std::abs(view->subProp("Y")->getValue().toDouble()-3.0)<0.05;});
+      if(std::abs(view->subProp("Scale")->getValue().toDouble()-original_scale)>0.001)
+        throw std::runtime_error("Center robot changed zoom scale");
+      distance_input->setValue(2.0);
+      QTest::mouseClick(generate_button,Qt::LeftButton);
+      wait([&](){return state["points"].toArray().size()==2;});
+      const auto generated=state["points"].toArray();
+      const double generated_length=std::hypot(generated[1].toArray()[0].toDouble()-generated[0].toArray()[0].toDouble(),
+                                                generated[1].toArray()[1].toDouble()-generated[0].toArray()[1].toDouble());
+      if(std::abs(generated_length-2.0)>0.01)throw std::runtime_error("numeric route generator produced wrong distance");
+      clear();
+      view->subProp("X")->setValue(original_x);view->subProp("Y")->setValue(original_y);
+      view->subProp("Scale")->setValue(original_scale);QTest::qWait(100);
       auto zoom=[&](){
         auto * scale=manager->getRenderPanel()->getViewController()->subProp("Scale");
         double original=scale->getValue().toDouble();
@@ -80,16 +114,16 @@ int main(int argc,char **argv) {
         scale->setValue(original);QTest::qWait(100);
       };
       zoom();
-      auto * view=manager->getRenderPanel()->getViewController();
-      double original_x=view->subProp("X")->getValue().toDouble();
-      double original_y=view->subProp("Y")->getValue().toDouble();
+      view=manager->getRenderPanel()->getViewController();
+      double pan_original_x=view->subProp("X")->getValue().toDouble();
+      double pan_original_y=view->subProp("Y")->getValue().toDouble();
       QTest::mousePress(window,Qt::MiddleButton,Qt::NoModifier,center);
       QTest::mouseMove(window,center+QPoint(20,10),40);
       QTest::mouseRelease(window,Qt::MiddleButton,Qt::NoModifier,center+QPoint(20,10));
-      wait([&](){return std::abs(view->subProp("X")->getValue().toDouble()-original_x)>0.001 ||
-                      std::abs(view->subProp("Y")->getValue().toDouble()-original_y)>0.001;});
+      wait([&](){return std::abs(view->subProp("X")->getValue().toDouble()-pan_original_x)>0.001 ||
+                      std::abs(view->subProp("Y")->getValue().toDouble()-pan_original_y)>0.001;});
       if(!state["points"].toArray().isEmpty())throw std::runtime_error("camera gesture edited route");
-      view->subProp("X")->setValue(original_x);view->subProp("Y")->setValue(original_y);QTest::qWait(100);
+      view->subProp("X")->setValue(pan_original_x);view->subProp("Y")->setValue(pan_original_y);QTest::qWait(100);
       auto * distance=frame.findChild<QLabel*>("route_distance_metrics");
       if(!distance)throw std::runtime_error("distance label missing");
       // Qt sends actual window mouse input. RViz forwards it into the active tool.

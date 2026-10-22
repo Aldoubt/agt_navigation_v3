@@ -256,3 +256,78 @@ def test_preview_length_includes_robot_connector(node):
     assert call(node.on_preview).success
     assert node.preview['length_m'] == pytest.approx(1.0)
     assert math.dist(node.editor.points[0],node.editor.points[1]) == pytest.approx(.5)
+
+
+def strict(n):
+    n.set_parameters([
+        Parameter('start_connection_policy', value='drawn_only'),
+        Parameter('max_start_connection', value=0.35),
+        Parameter('max_start_lateral', value=0.12),
+        Parameter('max_start_heading_deg', value=25.0),
+        Parameter('max_start_behind', value=0.05),
+    ])
+
+
+def test_fwmini_exact_drawn_line_no_robot_connector(node):
+    strict(node)
+    node.map_key = ('map',)
+    node.robot_pose = lambda: (-0.10, 0.03, 0.0)
+    edit(node, [(0.0, 0.0), (2.0, 0.0)])
+    response = call(node.on_preview)
+    assert response.success, response.message
+    poses = node.preview['path'].poses
+    assert len(poses) == 41
+    assert (poses[0].pose.position.x, poses[0].pose.position.y) == (0.0, 0.0)
+    assert all(abs(p.pose.position.y) < 1.e-7 for p in poses)
+    assert node.preview['length_m'] == pytest.approx(2.0)
+    assert node.preview['connector_length_m'] == 0.0
+
+
+@pytest.mark.parametrize('robot,points,reason', [
+    ((0., 0., math.pi/2), [(.1,0.),(1.,0.)], 'heading mismatch'),
+    ((0., 0., 0.), [(.1,.20),(1.,.20)], 'cross-track'),
+    ((0., 0., 0.), [(.5,0.),(1.,0.)], 'route start'),
+    ((0.2, 0., 0.), [(0.,0.),(1.,0.)], 'behind path direction'),
+])
+def test_fwmini_rejects_unexpected_motion_or_hidden_turn(node,robot,points,reason):
+    strict(node);node.map_key=('map',);node.robot_pose=lambda:robot
+    edit(node,points)
+    response = call(node.on_preview)
+    assert not response.success
+    assert reason in response.message
+    assert node.preview is None
+
+
+def test_fwmini_previous_real_world_route_requires_alignment(node):
+    # 2026-10-22 captured route from GUI and actual map->base_link.
+    strict(node);node.map_key=('map',)
+    node.robot_pose=lambda:(-7.324,-1.810,math.radians(95.45))
+    edit(node,[(-7.04445695877,-1.75430870056),(-9.15506362915,-1.57216644287)])
+    response=call(node.on_preview)
+    assert not response.success
+    assert 'heading mismatch' in response.message
+    assert 'behind path direction' in response.message
+    assert node.preview is None
+
+
+def test_fwmini_start_validation_restores_no_unapproved_connector(node):
+    strict(node);node.map_key=('map',)
+    node.robot_pose=lambda:(-0.1,0.,0.)
+    edit(node,[(0.,0.),(1.,0.)])
+    assert call(node.on_preview).success
+    p=node.preview['path']
+    assert p.poses[0].pose.position.x==0.
+    node.health_ok=lambda: True
+    node.set_parameters([Parameter('preview_only',value=False)])
+    submissions=[];node.submit_path=lambda path:submissions.append(path) or True
+    assert call(node.on_start).success
+    assert len(submissions)==1
+    assert submissions[0]==p and submissions[0].poses[0].pose.position.x==0.
+
+
+def test_fwmini_invalid_policy_fails_closed(node):
+    node.map_key=('map',);node.robot_pose=lambda:(0.,0.,0.)
+    edit(node,[(0.,0.),(1.,0.)])
+    node.set_parameters([Parameter('start_connection_policy', value='nonsense')])
+    response=call(node.on_preview)
+    assert not response.success and 'unknown start_connection_policy' in response.message

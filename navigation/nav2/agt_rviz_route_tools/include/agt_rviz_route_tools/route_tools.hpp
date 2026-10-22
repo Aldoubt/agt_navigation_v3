@@ -2,6 +2,8 @@
 #include <memory>
 #include <vector>
 #include <QElapsedTimer>
+#include <QComboBox>
+#include <QDoubleSpinBox>
 #include <QLabel>
 #include <QPushButton>
 #include <QTimer>
@@ -11,6 +13,9 @@
 #include <std_msgs/msg/string.hpp>
 #include <std_srvs/srv/trigger.hpp>
 #include <rviz_rendering/objects/billboard_line.hpp>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
+#include <geometry_msgs/msg/transform_stamped.hpp>
 
 namespace agt_rviz_route_tools {
 class RouteTool : public rviz_common::Tool {
@@ -49,6 +54,9 @@ public:
   void onInitialize() override;
 private:
   void request(const QString & name, bool confirm);
+  bool lookupRobotTransform(geometry_msgs::msg::TransformStamped & transform, QString & error);
+  void centerRobot();
+  void generateStraightRoute();
   QLabel * status_;
   QLabel * reply_;
   QLabel * metrics_;
@@ -58,6 +66,17 @@ private:
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr metrics_sub_;
   QPushButton * execute_;
   QPushButton * resume_;
+  QPushButton * center_robot_;
+  QPushButton * generate_route_;
+  QDoubleSpinBox * distance_input_;
+  QComboBox * heading_mode_;
+  QDoubleSpinBox * heading_input_;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr edit_pub_;
+  std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+  std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
+  qint64 draft_revision_ = -1;
+  int draft_point_count_ = 0;
+  bool draft_locked_ = true;
   QElapsedTimer received_;
   QTimer timer_;
   rclcpp::Node::SharedPtr node_;

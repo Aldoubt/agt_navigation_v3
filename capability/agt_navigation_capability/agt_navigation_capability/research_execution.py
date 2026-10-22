@@ -21,8 +21,7 @@ from nav2_msgs.srv import IsPathValid
 from rclpy.action import ActionClient, ActionServer, CancelResponse, GoalResponse
 from rclpy.duration import Duration
 from rclpy.task import Future
-from rclpy.clock import Clock
-from rclpy.clock_type import ClockType
+from rclpy.clock import Clock, ClockType
 from tf2_ros import Buffer, TransformListener
 
 

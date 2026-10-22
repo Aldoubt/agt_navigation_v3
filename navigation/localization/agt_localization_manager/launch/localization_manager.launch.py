@@ -3,6 +3,7 @@ from pathlib import Path
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 
@@ -22,7 +23,7 @@ def generate_launch_description():
             parameters=[str(share / 'config' / 'localization_manager.yaml'),
                         {'use_sim_time': LaunchConfiguration('use_sim_time'),
                          'map_id': LaunchConfiguration('map_id'),
-                         'map_version': LaunchConfiguration('map_version'),
+                         'map_version': ParameterValue(LaunchConfiguration('map_version'), value_type=str),
                          'debug_identity_map_odom': LaunchConfiguration('debug_identity_map_odom')}],
         )
     ])

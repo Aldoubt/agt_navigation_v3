@@ -18,6 +18,7 @@ from visualization_msgs.msg import Marker
 
 from .path_tool import RvizPathTool, interpolate_polyline
 from .route_editor import RouteEditor
+from .route_start_policy import validate_drawn_route_start
 
 
 class RouteWorkbench(RvizPathTool):
@@ -35,8 +36,13 @@ class RouteWorkbench(RvizPathTool):
         self.lio_dirty = self.wheel_dirty = False
         self.status_text = 'INITIALIZING'
         super().__init__()
-        for key, value in [('max_start_connection', 1.0), ('preview_ttl', 30.0),
-                           ('map_id', ''), ('map_version', '')]:
+        for key, value in [
+                ('max_start_connection', 1.0), ('preview_ttl', 30.0),
+                ('start_connection_policy', 'auto_connector'),
+                ('max_start_lateral', 0.12),
+                ('max_start_heading_deg', 25.0),
+                ('max_start_behind', 0.05),
+                ('map_id', ''), ('map_version', '')]:
             self.declare_parameter(key, value)
         latched = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL,
                              reliability=ReliabilityPolicy.RELIABLE)
@@ -78,6 +84,9 @@ class RouteWorkbench(RvizPathTool):
         h = self.health
         data = dict(revision=self.editor.revision, points=self.editor.points, map_received=self.map_key is not None,
                     preview_length_m=self.preview.get("length_m") if self.preview else None,
+                    start_connection_policy=self.get_parameter('start_connection_policy').value,
+                    connector_length_m=(self.preview.get("connector_length_m", 0.0)
+                                        if self.preview else None),
                     locked=self.locked(), preview_only=self.offline(), status=self.status_text,
                     validating=self.validating, can_execute=bool(self.preview and not self.validating
                     and not self.busy() and not self.offline() and self.health_ok()),
@@ -192,12 +201,27 @@ class RouteWorkbench(RvizPathTool):
         return pose
 
     def build_preview(self, points, robot):
-        if len(points) < 1:
-            raise ValueError('draw a route first')
-        distance = math.dist(robot[:2], points[0])
-        if distance > float(self.get_parameter('max_start_connection').value):
-            raise ValueError('start connection exceeds limit; draw near robot or plan a connector')
-        vertices = [robot[:2]] + list(points)
+        if len(points) < 2:
+            raise ValueError('draw at least two route points')
+        mode = str(self.get_parameter('start_connection_policy').value)
+        if mode == 'drawn_only':
+            # FW-mini: pass only user-drawn geometry. If robot is not
+            # positioned/heading-aligned for it, require manual reposition
+            # or an explicitly planned connector as a separate route.
+            validate_drawn_route_start(
+                points, robot,
+                max_distance=float(self.get_parameter('max_start_connection').value),
+                max_lateral=float(self.get_parameter('max_start_lateral').value),
+                max_heading_deg=float(self.get_parameter('max_start_heading_deg').value),
+                max_behind=float(self.get_parameter('max_start_behind').value))
+            vertices = list(points)
+        elif mode == 'auto_connector':
+            distance = math.dist(robot[:2], points[0])
+            if distance > float(self.get_parameter('max_start_connection').value):
+                raise ValueError('start connection exceeds limit; draw near robot or plan a connector')
+            vertices = [robot[:2]] + list(points)
+        else:
+            raise ValueError(f'unknown start_connection_policy: {mode}')
         spacing = float(self.get_parameter('route_spacing').value)
         if not math.isfinite(spacing) or not 0.01 <= spacing <= 0.05:
             raise ValueError('route spacing must be finite and between 0.01 and 0.05 m')
@@ -230,6 +254,9 @@ class RouteWorkbench(RvizPathTool):
             self.invalidate()
             snapshot = dict(path=path, revision=self.editor.revision, map_key=self.map_key,
                             robot=robot, time=time.monotonic(), resume=self.paused_path is not None,
+                            connector_length_m=(0.0 if str(self.get_parameter(
+                                'start_connection_policy').value) == 'drawn_only'
+                                else math.dist(robot[:2], points[0])),
                             length_m=sum(math.hypot(b.pose.position.x-a.pose.position.x,
                                                    b.pose.position.y-a.pose.position.y)
                                          for a,b in zip(path.poses,path.poses[1:])))
@@ -246,7 +273,10 @@ class RouteWorkbench(RvizPathTool):
                 request = IsPathValid.Request(); request.path = path
                 self.validator.call_async(request).add_done_callback(
                     lambda f: self.on_validated(f, token, snapshot))
-                self.publish_status('VALIDATING: wait for VALIDATED before confirming execution')
+                self.publish_status(
+                    'VALIDATING: drawn route only, no hidden connector'
+                    if str(self.get_parameter('start_connection_policy').value) == 'drawn_only'
+                    else 'VALIDATING: auto connector included; wait for VALIDATED')
             response.success, response.message = True, self.status_text
         except Exception as exc:
             self.invalidate()
