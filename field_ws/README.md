@@ -15,7 +15,7 @@ python3 ~/agt_field_ws_bootstrap/field_ws/field_ws.py \
   --workspace ~/agt_field_ws doctor
 ```
 
-`init` clones three specific commit IDs to `~/agt_field_ws/src`:
+`init` clones three exact revisions to `~/agt_field_ws/src` and writes a resolved source manifest. For V3, it uses the clean current bootstrap checkout when descended from the locked baseline, so the Qt GUI version is not silently downgraded:
 - `agt_navigation_v3` – navigation and operator UI (2026-10-22 V3 FW-mini baseline)
 - `fwmini_navigation_lab` – chassis, vendor CAN protocol, sensor wiring
 - `agt-lio-pgo-mapping` – mapping and PCD→PGM/map asset pipeline
@@ -33,7 +33,9 @@ three fields. **Never run an unrestricted colcon build over all source trees.**
 
 ```bash
 python3 ~/agt_field_ws_bootstrap/field_ws/field_ws.py \
-  --workspace ~/agt_field_ws build-plan navigation
+  --workspace ~/agt_field_ws build-plan navigation --robot fwmini
+python3 ~/agt_field_ws_bootstrap/field_ws/field_ws.py \
+  --workspace ~/agt_field_ws build-plan navigation --robot bunker
 python3 ~/agt_field_ws_bootstrap/field_ws/field_ws.py \
   --workspace ~/agt_field_ws build-plan mapping
 ```
@@ -106,3 +108,22 @@ GitHub no-CAN safety unit tests PASS. This is **not** a measured or certified
 human-detection system and the hardware remains blocked at 1m/s until
 stopping-distance tests. Review [FW-mini P1b Draft PR](https://github.com/Aldoubt/fwmini_navigation_lab/pull/3)
 with `docs/P1B_SCAN_GUARD_HANDOFF.md` before field use.
+
+## Unified Qt5 operator console (both Bunker and FW-mini)
+
+Cloud GUI development branch: `feature/field-operator-qt-p1-20261022`.
+The Python/PyQt5 app is installed through `agt_operator_console`:
+
+    ros2 run agt_operator_console agt_field_console --maps ~/agt_field_ws/maps
+
+Only an operator-confirmed ROS service request may execute a route.
+The exact hardware guard remains separate per robot. Mapping preview is
+available through `agt_map_studio`, and validated map activation requires
+no live Nav2 nodes. Full one-click mapping/navigation launch is PENDING.
+See `bringup/agt_operator_console/docs/FIELD_CONSOLE_QT5.md`.
+
+The two ROS package build/install roots MUST remain independent:
+`install/navigation_fwmini` links the 4-field FW-mini YHS CAN interfaces;
+`install/navigation_bunker` does not contain FW-mini YHS vendor messages.
+Never source the FW-mini install overlay when launching Bunker CAN drivers.
+This isolation is essential even though the UI is the same executable.

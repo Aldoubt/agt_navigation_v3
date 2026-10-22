@@ -52,6 +52,18 @@ class FieldWorkspaceTests(unittest.TestCase):
             (mirror / "package.xml").write_text("<package><name>agt_rviz_patrol</name></package>")
             self.assertNotIn("agt_rviz_patrol", app.packages_in(root))
 
+    def test_robot_builds_do_not_share_vendor_can_interfaces(self):
+        fw = set(app.navigation_packages("fwmini"))
+        bunker = set(app.navigation_packages("bunker"))
+        self.assertIn("yhs_can_interfaces", fw)
+        self.assertIn("fwmini_chassis_adapter", fw)
+        self.assertNotIn("yhs_can_interfaces", bunker)
+        self.assertNotIn("fwmini_chassis_adapter", bunker)
+        self.assertIn("agt_base_runtime", bunker)
+        self.assertIn("agt_operator_console", fw & bunker)
+        with self.assertRaises(ValueError):
+            app.navigation_packages("unknown")
+
     def test_5_7_10_m_lines_have_exact_endpoints(self):
         for d in (5., 7., 10.):
             for yaw in (0., math.pi/2, -math.pi/3):

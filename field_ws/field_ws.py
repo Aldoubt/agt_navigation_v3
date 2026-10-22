@@ -40,6 +40,26 @@ NAV_PACKAGES = (
     "fwmini_multi_nav_bringup", "yhs_can_interfaces", "yhs_can_control",
     "agt_fastlio_adapter",
 )
+# One workspace, but independent install trees and CAN ABI owners for each robot.
+FWMINI_ONLY_PACKAGES = (
+    "fwmini_bringup", "fwmini_description", "fwmini_chassis_adapter",
+    "fwmini_multi_nav_bringup", "yhs_can_interfaces", "yhs_can_control",
+    "agt_fastlio_adapter",
+)
+BUNKER_ONLY_PACKAGES = ("agt_base_control", "agt_base_runtime")
+COMMON_NAV_PACKAGES = tuple(
+    pkg for pkg in NAV_PACKAGES if pkg not in FWMINI_ONLY_PACKAGES
+)
+
+
+def navigation_packages(robot):
+    if robot == "fwmini":
+        return COMMON_NAV_PACKAGES + FWMINI_ONLY_PACKAGES
+    if robot == "bunker":
+        return COMMON_NAV_PACKAGES + BUNKER_ONLY_PACKAGES
+    raise ValueError("robot must be fwmini or bunker")
+
+
 MAPPING_PACKAGES = (
     "agt_mapping_interfaces", "agt_mapping_frontend_api",
     "agt_mapping_backend_api", "agt_mapping_core", "agt_spatial_map_core",
@@ -204,12 +224,14 @@ def resolve_packages(root, required):
     return selected
 
 
-def build_plan(root, role):
-    selected = resolve_packages(root, MAPPING_PACKAGES if role == "mapping" else NAV_PACKAGES)
-    output = root / "build" / role
-    install = root / "install" / role
+def build_plan(root, role, robot="fwmini"):
+    packages = MAPPING_PACKAGES if role == "mapping" else navigation_packages(robot)
+    selected = resolve_packages(root, packages)
+    scope = "mapping" if role == "mapping" else "navigation_" + robot
+    output = root / "build" / scope
+    install = root / "install" / scope
     args = [
-        "colcon", "--log-base", str(root / "log" / role),
+        "colcon", "--log-base", str(root / "log" / scope),
         "build", "--symlink-install", "--executor", "sequential",
         "--base-paths", *map(str, selected),
         "--build-base", str(output),
@@ -269,6 +291,7 @@ def main(argv=None):
     sub.add_parser("doctor", help="read-only workspace and duplicate package checks")
     p = sub.add_parser("build-plan", help="print, but do not execute, isolated build command")
     p.add_argument("role", choices=("mapping", "navigation"))
+    p.add_argument("--robot", choices=("fwmini", "bunker"), default="fwmini")
     p = sub.add_parser("line", help="generate geometry, never command actuators")
     p.add_argument("--distance", type=float, required=True)
     p.add_argument("--x", type=float, required=True)
@@ -283,7 +306,7 @@ def main(argv=None):
         elif args.command == "doctor":
             return doctor(root)
         elif args.command == "build-plan":
-            build_plan(root, args.role)
+            build_plan(root, args.role, args.robot)
         elif args.command == "line":
             from relative_line import generate_line
             import math
