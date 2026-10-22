@@ -460,7 +460,7 @@ class FieldConsoleWindow(QMainWindow):
             QMessageBox.warning(self, "服务不可用", str(exc))
 
     def _active_navigation_present(self):
-        if self.health is not None:
+        if self.health is not None and time.monotonic() - self.health["at"] <= 2.5:
             h = self.health["data"]
             if h.get("status") in (1, 2) or h.get("goal_active"):
                 return True
@@ -521,6 +521,9 @@ class FieldConsoleWindow(QMainWindow):
 
     def open_map_studio(self):
         if self.offline_demo:
+            return
+        if self.bridge is None:
+            QMessageBox.warning(self, "ROS 未连接", "无法确认导航是否停止，禁止打开地图编辑。")
             return
         if self._active_navigation_present():
             QMessageBox.warning(self, "无法编辑活动地图",
