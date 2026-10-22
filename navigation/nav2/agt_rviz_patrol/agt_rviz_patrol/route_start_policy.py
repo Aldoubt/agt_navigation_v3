@@ -59,3 +59,20 @@ def validate_drawn_route_start(points, robot, *, max_distance=0.35,
         "along_track_m": along, "heading_error_deg": diff_deg,
         "first_heading_rad": path_yaw,
     }
+
+
+
+def make_relative_straight_vertices(robot, distance_m):
+    """Two drawn-only map-frame vertices; does not create an action or velocity.
+
+    This operation snapshots map->base_link at the moment it is requested.
+    Returns the fixed global line even if the robot subsequently moves.
+    """
+    if len(robot) != 3 or not all(math.isfinite(float(v)) for v in robot):
+        raise ValueError("invalid map-frame robot pose")
+    if not math.isfinite(float(distance_m)) or not 0.1 <= distance_m <= 30.0:
+        raise ValueError("distance_m must be a finite number in [0.1, 30.0]")
+    x, y, yaw = (float(v) for v in robot)
+    distance_m = float(distance_m)
+    return [(x, y), (x + distance_m * math.cos(yaw),
+                      y + distance_m * math.sin(yaw))]

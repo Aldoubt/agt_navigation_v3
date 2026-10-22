@@ -20,6 +20,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "action/ExecuteTaskSegment.action"
   "action/NavigateTo.action"
   "action/FollowRoute.action"
+  "srv/PrepareDistanceRoute.srv"
   DEPENDENCIES builtin_interfaces geometry_msgs nav_msgs std_msgs)
 ament_export_dependencies(rosidl_default_runtime)
 ament_package()

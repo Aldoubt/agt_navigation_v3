@@ -11,6 +11,9 @@
 - [ ] One-click mapping -> optimize (no loop) -> PCD/PGM/BBS assets.
 
 ## Gate P1 — 5/7/10 m field test and obstacle stopping
+- [x] ROS PrepareDistanceRoute service API: current map pose -> revisioned route
+      draft -> existing IsPathValid preview; *never sends goals automatically*.
+- [ ] Humble ROS interface build and runtime service regression on cloud/robot.
 - [ ] Convert the pure line geometry into a ROS 2 Action server that snapshots
       confirmed `map->base_link` and accepts an explicit operator confirmation.
 - [ ] Confirm identity of the selected map (same PCD and OccupancyGrid version).

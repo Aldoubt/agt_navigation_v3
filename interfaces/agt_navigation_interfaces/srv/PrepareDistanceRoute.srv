@@ -1,0 +1,9 @@
+# Request a draft and asynchronous collision-validation preview ONLY.
+# Never starts FollowRoute; the operator must later explicitly confirm Execute.
+float64 distance_m
+string expected_map_id
+string expected_map_version
+---
+bool success
+uint32 draft_revision
+string message
