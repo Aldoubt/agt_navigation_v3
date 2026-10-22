@@ -1,0 +1,55 @@
+# Proposed user-facing scenario CONTRACT; NOT directly a Nav2 ros__parameters file.
+# MUST NOT automatically enable movement on the real chassis.
+schema_version: 1
+scenario_id: agricultural_institute_precision
+platform: fwmini
+map:
+  selected_map_id: fwmini_mid360
+  selected_map_version: ""            # operator selects verified map package
+  require_hash_match: true
+mapping:
+  frontend: fastlio2
+  global_pgo: false
+  loop_closure: false
+localization:
+  odometry: fastlio2
+  global_initialization: 3dbbs_gicp
+  require_ambiguity_resolved: true
+  # Explicitly NOT implemented yet. Do not mark these as active ROS factors.
+  ground_factor:
+    implementation: PENDING
+    enabled: false
+    use_local_ground_normal: true
+  gnss_factor:
+    implementation: PENDING
+    enabled: false
+    quality_gate:
+      require_rtk_fixed: true
+      require_covariance: true
+      reject_stale: true
+      reject_innovation_outliers: true
+test:
+  straight_distance_presets_m: [5.0, 7.0, 10.0]
+  measurements_per_distance: 5
+  allowed_mean_terminal_error_m:
+    "5": 0.12
+    "7": 0.15
+    "10": 0.20
+  measurement_source: EXTERNAL_SURVEY_REQUIRED
+  speed_test:
+    gate_separation_m: 30.0
+    repetitions: 2
+    minimum_average_speed_mps: 1.0
+control:
+  proposed_controller: rpp
+  existing_controller: dwb
+  requested_cruise_speed_mps: 1.0
+  status: SIMULATION_ONLY_UNTIL_VERIFIED
+  never_raise_limit_without_platform_preflight: true
+safety:
+  require_confirmed_localization: true
+  require_fresh_local_obstacles: true
+  require_operator_motion_enable: true
+  stop_on_person_or_unknown_obstacle: true
+  obstacle_behavior: STOP_NOT_BYPASS
+  require_verified_stopping_distance: true

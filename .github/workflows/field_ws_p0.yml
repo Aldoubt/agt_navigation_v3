@@ -1,0 +1,24 @@
+name: field-workspace-P0
+on:
+  push:
+    paths:
+      - "field_ws/**"
+      - ".github/workflows/field_ws_p0.yml"
+  pull_request:
+    paths:
+      - "field_ws/**"
+      - ".github/workflows/field_ws_p0.yml"
+jobs:
+  pure-python-contracts:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Source-only static compile
+        run: python -m compileall -q field_ws
+      - name: Offline P0 geometry/bootstrap/duplicate-policy tests
+        run: python -m unittest discover -s field_ws/tests -v
+      - name: Demonstrate no-motion 5m geometry generation
+        run: python field_ws/field_ws.py line --x 0 --y 0 --yaw-deg 0 --distance 5 > /tmp/dry_run_line.json

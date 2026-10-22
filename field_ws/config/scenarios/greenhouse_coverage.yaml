@@ -1,0 +1,19 @@
+# Phase P3 contract, NOT yet wired to a ROS navigation task executor.
+schema_version: 1
+scenario_id: greenhouse_coverage
+platform: fwmini
+base_map_type: nav_msgs/OccupancyGrid
+row_extraction:
+  pointcloud_support: true
+  suggested_methods: [parallel_line_ransac, connected_free_space, manual_edit]
+  model_status: NOT_IMPLEMENTED
+  human_review_required: true
+coverage:
+  rows: AUTO_DETECT_AND_REVIEW
+  row_direction: REVIEW
+  headland_turns: KINEMATIC_FEASIBILITY_REQUIRED
+  return_to_confirmed_start: true
+  forbidden_region_collision_check: true
+safety:
+  stop_for_person_or_unknown_obstacle: true
+  soft_leaf_ignoring: DISABLED_UNTIL_SEMANTIC_AND_SAFETY_VALIDATION
