@@ -58,7 +58,7 @@ class FieldConsoleWindow(QMainWindow):
             self._log("离线演示模式：只有路线示意，绝不发送车辆命令。")
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._tick)
-        self.timer.start(100)
+        self.timer.start(80)
         self._tick()
 
     def _build(self):
@@ -357,14 +357,18 @@ class FieldConsoleWindow(QMainWindow):
             self._log(f"{payload['action']}：{payload['message']}")
             if not payload["success"]:
                 QMessageBox.warning(self, "操作未通过", payload["message"])
-        self._tick()
+        # ROS callbacks execute inside spin_once(). Do not reenter the
+        # executor via _tick here; the Qt timer refreshes shortly.
 
     def _tick(self):
         if not hasattr(self, "summary"):
             return
         if self.bridge:
             try:
-                self.bridge.spin()
+                # Drain enough DDS events per timer cycle without blocking
+                # Qt; guard status may arrive up to 50 Hz.
+                for _ in range(6):
+                    self.bridge.spin()
             except Exception as exc:
                 self._log("ROS 通信异常：" + str(exc))
                 self.bridge.close()
