@@ -288,6 +288,7 @@ class FieldConsoleWindow(QMainWindow):
         self._tick()
 
     def _display_map(self):
+        self.route_items = []
         self.scene.clear()
         self.map_image = None
         p = self.current_map
@@ -403,6 +404,7 @@ class FieldConsoleWindow(QMainWindow):
             distance = validate_distance(self.distance.value())
             if self.offline_demo:
                 # Synthetic preview is never sent to ROS/CAN.
+                self.route_items = []
                 self.scene.clear()
                 self.map_image = None
                 self.scene.addRect(0, 0, 580, 350, QPen(QColor("#425764")))
