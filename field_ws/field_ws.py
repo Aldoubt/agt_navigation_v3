@@ -157,11 +157,11 @@ def build_plan(root, role):
     output = root / "build" / role
     install = root / "install" / role
     args = [
-        "colcon", "build", "--symlink-install", "--executor", "sequential",
+        "colcon", "--log-base", str(root / "log" / role),
+        "build", "--symlink-install", "--executor", "sequential",
         "--base-paths", *map(str, selected),
         "--build-base", str(output),
         "--install-base", str(install),
-        "--log-base", str(root / "log" / role),
     ]
     import shlex
     print("NOT EXECUTED — inspect and install all pinned external dependencies first.")
