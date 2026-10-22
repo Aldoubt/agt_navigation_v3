@@ -1,0 +1,26 @@
+schema_version: 1
+robot_id: fwmini
+profile_status: FIELD_TRIAL_USABLE
+geometry_source: fwmini_navigation_lab/src/fwmini_bringup/config/geometry.field_trial.yaml
+body:
+  length_m: 0.495
+  width_m: 0.360
+  height_m: 0.320
+lidar:
+  frame: livox_frame
+  xyz_m: [0.146725, 0.002608, 0.377040]
+  rpy_rad: [0.0, 0.2152, 0.0]
+  independent_precision_calibration: PENDING
+hardware:
+  manual_version: V1.0.4
+  nominal_max_speed_mps: 1.0
+  nominal_max_slope_deg_full_load: 15
+  rated_max_payload_kg: 30
+  command_gear_4t4d: 6
+  command_gear_lateral: 8
+  command_angular_unit: degps
+constraints:
+  acceptance_1mps: REQUIRES_MEASURED_SPEED_AND_STOPPING_TEST
+  required_slope_deg: 30
+  slope_acceptance: NOT_MET_BY_THIS_PLATFORM_RATING
+  motion_auto_enabled: false

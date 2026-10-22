@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "workspace_name": "agt_field_ws",
+  "verified_field_test_source": "2026-10-22",
+  "repositories": [
+    {
+      "name": "agt_navigation_v3",
+      "url": "https://github.com/Aldoubt/agt_navigation_v3.git",
+      "ref": "5363e0807af3dd495f2217bb10435b4973af62e1",
+      "description": "V3 FW-mini + PrepareDistanceRoute P1a preview interface"
+    },
+    {
+      "name": "fwmini_navigation_lab",
+      "url": "https://github.com/Aldoubt/fwmini_navigation_lab.git",
+      "ref": "6e715c19eb41efa32b597c8e0609e38c960c4f7c",
+      "description": "FW-mini P1b fail-closed front scan guard + DWB/RPP compare candidate, no-CAN CI PASS; field unverified"
+    },
+    {
+      "name": "agt-lio-pgo-mapping",
+      "url": "https://github.com/Aldoubt/agt-lio-pgo-mapping.git",
+      "ref": "62e80002cf2db12fce8332688dc63f4a94b87f12",
+      "description": "FAST-LIO2 mapping, map publisher, Map Studio"
+    }
+  ],
+  "preferred_package_owner": {
+    "agt_navigation_interfaces": "agt_navigation_v3",
+    "agt_fastlio_adapter": "fwmini_navigation_lab",
+    "agt_navigation_capability": "agt_navigation_v3",
+    "agt_navigation_supervisor": "agt_navigation_v3",
+    "agt_rviz_patrol": "agt_navigation_v3",
+    "agt_rviz_route_tools": "agt_navigation_v3",
+    "agt_robot_interfaces": "agt_navigation_v3",
+    "agt_operator_console": "agt_navigation_v3",
+    "yhs_can_interfaces": "fwmini_navigation_lab",
+    "yhs_can_control": "fwmini_navigation_lab"
+  },
+  "external_dependencies_status": "NOT_BOOTSTRAPPED",
+  "readiness": "SOURCE_ONLY_NO_MOTION",
+  "safety_release": "P1B_SCAN_GATE_SOURCE_ONLY_NOT_FIELD_VALIDATED"
+}

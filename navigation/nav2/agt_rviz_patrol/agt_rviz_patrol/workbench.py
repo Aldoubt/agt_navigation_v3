@@ -8,6 +8,7 @@ import zlib
 from action_msgs.msg import GoalStatus
 from agt_navigation_interfaces.action import FollowRoute
 from agt_navigation_interfaces.msg import NavigationHealth
+from agt_navigation_interfaces.srv import PrepareDistanceRoute
 from geometry_msgs.msg import Point
 from nav_msgs.msg import OccupancyGrid
 from nav2_msgs.srv import IsPathValid
@@ -18,7 +19,7 @@ from visualization_msgs.msg import Marker
 
 from .path_tool import RvizPathTool, interpolate_polyline
 from .route_editor import RouteEditor
-from .route_start_policy import validate_drawn_route_start
+from .route_start_policy import validate_drawn_route_start, make_relative_straight_vertices
 
 
 class RouteWorkbench(RvizPathTool):
@@ -52,6 +53,9 @@ class RouteWorkbench(RvizPathTool):
         self.create_subscription(OccupancyGrid, '/map', self.on_map, latched)
         self.create_subscription(NavigationHealth, '/navigation/health', self.on_health, latched)
         self.validator = self.create_client(IsPathValid, '/is_path_valid')
+        # A distance request ONLY edits + previews the route; never starts motion.
+        self.create_service(PrepareDistanceRoute, '/agt/field/prepare_distance',
+                            self.on_prepare_distance)
         for name, callback in [('preview', self.on_preview), ('undo', self.on_undo), ('redo', self.on_redo)]:
             self.create_service(Trigger, '/agt/path_tool/'+name, callback)
         self.create_timer(0.5, self.tick)
@@ -229,6 +233,55 @@ class RouteWorkbench(RvizPathTool):
         if not 2 <= len(samples) <= 10000:
             raise ValueError('path too short or too many samples')
         return self.make_path(samples)
+
+    def on_prepare_distance(self, request, response):
+        """Create a straight-line draft from the current, confirmed map pose.
+
+        This service never calls FollowRoute. It delegates the asynchronous
+        IsPathValid check to the existing preview path, which still requires
+        a separate human Execute action. The returned success means preview
+        requested, NOT that collision validation passed.
+        """
+        response.success = False
+        response.draft_revision = int(self.editor.revision)
+        try:
+            if self.locked() or self.validating:
+                raise ValueError('active/paused/validating route: cancel first')
+            if self.map_key is None:
+                raise ValueError('map not received')
+            if str(self.get_parameter('start_connection_policy').value) != 'drawn_only':
+                raise ValueError('field distance requires drawn_only; no auto connector')
+            map_id = str(self.get_parameter('map_id').value)
+            version = str(self.get_parameter('map_version').value)
+            if not map_id or not version:
+                raise ValueError('selected map identity is incomplete')
+            if (request.expected_map_id, request.expected_map_version) != (map_id, version):
+                raise ValueError('requested map identity differs from selected map')
+            h = self.health
+            if (not self.health_ok() or h is None
+                    or (h.map_id, h.map_version) != (map_id, version)):
+                raise ValueError('fresh READY health and exact map identity required')
+            robot = self.robot_pose()  # includes live TF stamp freshness checks
+            vertices = make_relative_straight_vertices(robot, float(request.distance_m))
+            # Check against the same drawn-only preconditions as hand drawing
+            # BEFORE overwriting an operator's draft.
+            self.build_preview(vertices, robot)
+            self.editor.replace(vertices, self.editor.revision)
+            self.edited()
+            # Use the same IsPathValid and preview state machine as the UI.
+            check = self.on_preview(Trigger.Request(), Trigger.Response())
+            if not check.success:
+                raise ValueError('preview rejected: ' + check.message)
+            response.success = True
+            response.draft_revision = int(self.editor.revision)
+            response.message = (
+                f'PREVIEW REQUESTED: {request.distance_m:.2f}m straight, '
+                f'{map_id}/{version}; wait for VALIDATED, then confirm Execute')
+        except (ValueError, TypeError, OverflowError) as exc:
+            response.message = str(exc)
+            response.draft_revision = int(self.editor.revision)
+            self.publish_status('DISTANCE REJECTED: ' + response.message)
+        return response
 
     def on_preview(self, _, response):
         try:

@@ -6,6 +6,7 @@ from types import SimpleNamespace as NS
 import pytest
 import rclpy
 from agt_navigation_interfaces.msg import NavigationHealth
+from agt_navigation_interfaces.srv import PrepareDistanceRoute
 from geometry_msgs.msg import PointStamped
 from nav_msgs.msg import OccupancyGrid
 from rclpy.parameter import Parameter
@@ -331,3 +332,81 @@ def test_fwmini_invalid_policy_fails_closed(node):
     node.set_parameters([Parameter('start_connection_policy', value='nonsense')])
     response=call(node.on_preview)
     assert not response.success and 'unknown start_connection_policy' in response.message
+
+
+
+def request_distance(node, distance, map_id='fwmini_mid360', version='20261022_144218'):
+    request = PrepareDistanceRoute.Request()
+    request.distance_m = float(distance)
+    request.expected_map_id = map_id
+    request.expected_map_version = version
+    return node.on_prepare_distance(request, PrepareDistanceRoute.Response())
+
+
+def ready_for_distance(node):
+    strict(node)
+    node.set_parameters([
+        Parameter('map_id', value='fwmini_mid360'),
+        Parameter('map_version', value='20261022_144218'),
+    ])
+    node.map_key = ('map',)
+    node.robot_pose = lambda: (2.0, 3.0, math.pi / 2)
+    h = NavigationHealth()
+    h.status = NavigationHealth.READY
+    h.map_id, h.map_version = 'fwmini_mid360', '20261022_144218'
+    h.platform_ready = h.lidar_alive = h.imu_alive = True
+    h.odom_alive = h.localized = h.nav2_active = True
+    node.health, node.health_received = h, time.monotonic()
+
+
+@pytest.mark.parametrize('d', [5.0, 7.0, 10.0])
+def test_relative_distance_prepares_only_drawn_line_never_executes(node, d):
+    ready_for_distance(node)
+    submissions = []
+    node.submit_path = lambda path: submissions.append(path) or True
+    response = request_distance(node, d)
+    assert response.success, response.message
+    assert response.draft_revision == 1
+    assert len(node.editor.points) == 2
+    a, b = node.editor.points
+    assert math.dist(a, b) == pytest.approx(d)
+    assert a == pytest.approx((2.0, 3.0))
+    assert b == pytest.approx((2.0, 3.0 + d))
+    assert node.preview['connector_length_m'] == 0.0
+    assert node.preview['length_m'] == pytest.approx(d)
+    assert submissions == []  # preview cannot move chassis
+
+
+@pytest.mark.parametrize('d', [0, -5, 30.1, math.inf, math.nan])
+def test_relative_distance_rejects_invalid_requested_distance(node, d):
+    ready_for_distance(node)
+    response = request_distance(node, d)
+    assert not response.success
+    assert not node.editor.points
+    assert node.preview is None
+
+
+def test_relative_distance_rejects_map_mismatch_and_stale_health(node):
+    ready_for_distance(node)
+    bad_map = request_distance(node, 5.0, version='other')
+    assert not bad_map.success and 'map identity' in bad_map.message
+    node.health_received = time.monotonic() - 5.
+    stale = request_distance(node, 5.0)
+    assert not stale.success and 'fresh READY' in stale.message
+    assert node.editor.revision == 0
+
+
+def test_relative_distance_fails_closed_during_active_motion(node):
+    ready_for_distance(node)
+    node.start_pending = True
+    reply = request_distance(node, 5)
+    assert not reply.success and 'active' in reply.message
+    assert node.editor.revision == 0
+
+
+def test_relative_distance_requires_drawn_only_profile(node):
+    ready_for_distance(node)
+    node.set_parameters([Parameter('start_connection_policy', value='auto_connector')])
+    reply = request_distance(node, 5)
+    assert not reply.success and 'drawn_only' in reply.message
+    assert node.editor.revision == 0

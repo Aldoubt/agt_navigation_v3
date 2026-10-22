@@ -25,6 +25,7 @@ setup(
         'console_scripts': [
             'operator_console = agt_operator_console.operator_console:main',
             'field_test_gui = agt_operator_console.field_test_gui:main',
+            'agt_field_console = agt_operator_console.field_console:main',
             'replay_audit = agt_operator_console.replay_audit:main',
             'deterministic_seed_injector = agt_operator_console.deterministic_seed_injector:main',
             'pose_chain_recorder = agt_operator_console.pose_chain_recorder:main',
