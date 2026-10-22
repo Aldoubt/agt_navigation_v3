@@ -22,6 +22,9 @@
   <exec_depend>robot_state_publisher</exec_depend>
   <exec_depend>rviz2</exec_depend>
   <exec_depend>python3-tk</exec_depend>
+  <exec_depend>python3-pyqt5</exec_depend>
+  <exec_depend>agt_navigation_interfaces</exec_depend>
+  <exec_depend>std_srvs</exec_depend>
   <test_depend>python3-pytest</test_depend>
   <export><build_type>ament_python</build_type></export>
 </package>
