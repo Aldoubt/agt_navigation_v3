@@ -18,6 +18,8 @@ jobs:
           python-version: "3.10"
       - name: Source-only static compile
         run: python -m compileall -q field_ws
+      - name: Verify desktop launch helper syntax
+        run: bash -n field_ws/scripts/start_console.sh
       - name: Offline P0 geometry/bootstrap/duplicate-policy tests
         run: python -m unittest discover -s field_ws/tests -v
       - name: Demonstrate no-motion 5m geometry generation
