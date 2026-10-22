@@ -79,6 +79,27 @@ class QtFieldConsoleTest(unittest.TestCase):
             win.bridge = None
             win.close()
 
+    def test_real_pgm_asset_preview_and_world_to_pixel_projection(self):
+        with tempfile.TemporaryDirectory() as d:
+            map_dir = Path(d) / "field" / "v1"
+            navigation = map_dir / "navigation"
+            navigation.mkdir(parents=True)
+            (map_dir / "metadata.yaml").write_text(
+                "map_id: field\nmap_version: v1\n")
+            (navigation / "map.yaml").write_text(
+                "image: map.pgm\nresolution: 0.05\norigin: [0, 0, 0]\n")
+            (navigation / "map.pgm").write_bytes(
+                b"P5\n4 4\n255\n" + bytes([205] * 16))
+            win = FieldConsoleWindow(map_root=d, offline_demo=True)
+            self.assertEqual(win.map_select.count(), 2)
+            win.map_select.setCurrentIndex(1)
+            self.assertIsNotNone(win.current_map)
+            self.assertIsNotNone(win.map_image)
+            self.assertEqual(win._pixel(0, 0), (0.0, 3.0))
+            self.assertEqual(win._pixel(0.10, 0), (2.0, 3.0))
+            self.assertFalse(win.activate.isEnabled())
+            win.close()
+
     def test_online_without_ros_stays_blocked(self):
         with tempfile.TemporaryDirectory() as d:
             win = FieldConsoleWindow(map_root=d, offline_demo=False)
