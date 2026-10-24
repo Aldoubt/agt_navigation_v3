@@ -84,6 +84,17 @@ def test_relocalization_query_requires_every_configured_cloud():
     assert GlobalRelocalization.has_complete_query(6, 5)
 
 
+def test_relocalization_query_also_requires_duration_and_raw_points():
+    ready=GlobalRelocalization.query_window_ready
+    assert not ready(5,.4,50000,5,1.,20000)
+    assert not ready(11,1.,10000,5,1.,20000)
+    assert ready(11,1.,20000,5,1.,20000)
+    params=yaml.safe_load((Path(__file__).resolve().parents[1]/'config/global_relocalization.yaml')
+                          .read_text())['agt_global_relocalization']['ros__parameters']
+    assert params['accumulate_min_duration_sec'] >= 1.
+    assert params['accumulate_max_clouds'] > params['accumulate_clouds']
+
+
 def test_field_stationary_authority_uses_bunker_wheel_odometry():
     root = Path(__file__).resolve().parents[4]
     config = yaml.safe_load((root / 'navigation/localization/agt_global_relocalization/'
@@ -193,3 +204,53 @@ def test_explicit_fastlio_calibration_takes_precedence_over_legacy_batch_argumen
     )
     result = GlobalRelocalization.body_to_base_pose(fake)
     assert (result['x'], result['y'], result['z']) == pytest.approx((-.311, -.02329, -.75588))
+
+
+def test_kiss_is_an_explicit_alternative_with_shared_mapping_and_gicp_contract():
+    root = Path(__file__).resolve().parents[4]
+    package = root / 'navigation/localization/agt_global_relocalization'
+    native_package = root / 'navigation/localization/agt_global_relocalization_native'
+    params = yaml.safe_load((package / 'config/global_relocalization.yaml').read_text())[
+        'agt_global_relocalization']['ros__parameters']
+    assert params['global_backend'] == 'bbs'
+    assert 'kiss_gicp_localizer' in params['kiss_sdk_command']
+    assert '--kiss-min-inliers' in params['kiss_sdk_command']
+
+    orchestrator = (package / 'agt_global_relocalization/global_relocalization.py').read_text()
+    assert "selected_backend not in ('bbs', 'kiss')" in orchestrator
+    assert "selected_backend == 'bbs' and candidate_command" in orchestrator
+    assert "self.query_pose_to_base_pose(query_result, mode)" in orchestrator
+
+    native = (native_package / 'src/kiss_gicp_localizer.cpp').read_text()
+    assert 'matcher.estimate(to_float(scan_points), to_float(map_points))' in native
+    assert 'small_gicp::align(gicp_target, scan_points, coarse, setting)' in native
+    assert 'mapping_body contract' in native
+    cmake = (native_package / 'CMakeLists.txt').read_text()
+    assert 'find_package(kiss_matcher CONFIG QUIET)' in cmake
+    assert 'if(TARGET kiss_matcher::kiss_matcher_core)' in cmake
+
+
+def test_timestamp_regression_and_zero_stamps_are_explicit_observation_errors():
+    check = GlobalRelocalization.observation_timestamp_error
+    assert check(None, 1_000_000_000) is None
+    assert check(2_000_000_000, 3_000_000_000) is None
+    assert check(2_000_000_000, 2_000_000_000) == 'local_odom_timestamp_regression'
+    assert check(2_000_000_000, 1_000_000_000) == 'local_odom_timestamp_regression'
+    assert check(None, 0, 'point_cloud') == 'point_cloud_zero_timestamp'
+    assert check(2_000_000_000, 1_000_000_000, 'point_cloud') == 'point_cloud_timestamp_regression'
+
+
+def test_rejected_observation_clears_query_and_cancels_pending_request():
+    from types import SimpleNamespace
+    published = []
+    node = SimpleNamespace(
+        clouds=[object()], pending_request=True,
+        get_parameter=lambda name: SimpleNamespace(value=False),
+        status=lambda state, detail, **extra: published.append((state, detail, extra)),
+        get_logger=lambda: SimpleNamespace(warn=lambda text: None))
+    GlobalRelocalization._reject_observation(
+        node, 'local_odom_timestamp_regression', 2_000_000_000, 1_000_000_000)
+    assert not node.clouds
+    assert not node.pending_request
+    assert published[0][0] == 'REJECTED'
+    assert published[0][2]['observation_error'] == 'local_odom_timestamp_regression'

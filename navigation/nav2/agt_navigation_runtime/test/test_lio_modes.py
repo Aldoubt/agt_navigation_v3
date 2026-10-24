@@ -123,6 +123,25 @@ def test_fastlio_default_matches_mapping_body_query_calibration():
     assert data['r_il'] == [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
 
 
+def test_fastlio_chain_has_one_local_tf_owner_and_one_map_odom_owner():
+    adapter_config = yaml.safe_load((ROOT / 'navigation/state_estimation/agt_fastlio_adapter/'
+        'config/fastlio_navigation_adapter.yaml').read_text())['agt_fastlio_adapter']['ros__parameters']
+    assert adapter_config['input_topic'] == '/fastlio2/lio_odom'
+    assert adapter_config['output_topic'] == '/agt/odometry/local'
+    assert adapter_config['output_odom_frame'] == 'odom'
+    assert adapter_config['output_base_frame'] == 'base_link'
+    assert adapter_config['tf_child_frame'] == 'base_footprint'
+    adapter = (ROOT / 'navigation/state_estimation/agt_fastlio_adapter/'
+               'agt_fastlio_adapter/fastlio_adapter.py').read_text()
+    manager = (ROOT / 'navigation/localization/agt_localization_manager/'
+               'agt_localization_manager/localization_manager.py').read_text()
+    launch = (ROOT / 'bringup/agt_system_bringup/launch/localization.launch.py').read_text()
+    assert adapter.count('self._tf = TransformBroadcaster(self)') == 1
+    assert manager.count('self._tf = TransformBroadcaster(self)') == 1
+    assert 'exclusive map->odom owner' in manager
+    assert 'TransformBroadcaster' not in launch
+
+
 def test_adapter_launch_forwards_clock_and_does_not_force_legacy_calibration():
     source = (ROOT / 'navigation/state_estimation/agt_fastlio_adapter/launch/adapter.launch.py').read_text()
     assert "DeclareLaunchArgument('use_sim_time'" in source
@@ -187,7 +206,7 @@ def test_field_dry_run_selects_backend_without_creating_run_or_starting_nodes(tm
 
 def test_runtime_check_rejects_simultaneous_backends(tmp_path):
     fake = tmp_path / 'ros2'
-    fake.write_text('#!/bin/sh\nprintf "%s\\n" /agt_localization_manager /robot_state_publisher '
+    fake.write_text('#!/bin/sh\nprintf "%s\n" /agt_localization_manager /robot_state_publisher '
                     '/agt_pointcloud_preprocessor /agt_fastlio_adapter /fastlio2/lio_node '
                     '/agt_batch_lio_adapter /laserMapping\n')
     fake.chmod(0o755)
