@@ -206,7 +206,7 @@ def test_field_dry_run_selects_backend_without_creating_run_or_starting_nodes(tm
 
 def test_runtime_check_rejects_simultaneous_backends(tmp_path):
     fake = tmp_path / 'ros2'
-    fake.write_text('#!/bin/sh\nprintf "%s\n" /agt_localization_manager /robot_state_publisher '
+    fake.write_text('#!/bin/sh\nprintf "%s\\n" /agt_localization_manager /robot_state_publisher '
                     '/agt_pointcloud_preprocessor /agt_fastlio_adapter /fastlio2/lio_node '
                     '/agt_batch_lio_adapter /laserMapping\n')
     fake.chmod(0o755)
