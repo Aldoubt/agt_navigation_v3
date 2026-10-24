@@ -313,6 +313,8 @@ class LocalizationManager(Node):
 
         self._odom: Deque[Odometry] = deque()
         self._last_odom_rx_ns = 0
+        self._last_odom_stamp_ns: Optional[int] = None
+        self._observation_error: Optional[str] = None
         self._correction_current: Optional[_Pose3] = None
         self._correction_target: Optional[_Pose3] = None
         self._last_tracking_measurement: Optional[_Pose3] = None
@@ -380,6 +382,14 @@ class LocalizationManager(Node):
         self.get_logger().info(
             'Localization Manager started as the exclusive map->odom owner.')
 
+    @staticmethod
+    def odom_timestamp_error(previous_ns: Optional[int], current_ns: int) -> Optional[str]:
+        if current_ns <= 0:
+            return 'local_odom_zero_timestamp'
+        if previous_ns is not None and current_ns <= previous_ns:
+            return 'local_odom_timestamp_regression'
+        return None
+
     def _on_odom(self, msg: Odometry) -> None:
         if msg.header.frame_id != self.get_parameter('odom_frame').value:
             self.get_logger().warn(
@@ -394,9 +404,23 @@ class LocalizationManager(Node):
             )
             return
 
-        self._odom.append(msg)
-        self._last_odom_rx_ns = self.get_clock().now().nanoseconds
         newest_ns = _stamp_ns(msg.header.stamp)
+        error = self.odom_timestamp_error(self._last_odom_stamp_ns, newest_ns)
+        if error:
+            # Never mix a pre-regression buffer with a new clock sequence. Keep
+            # the last valid stamp so recovery still requires strictly newer data.
+            self._odom.clear()
+            self._observation_error = error
+            self._reason = error
+            self.get_logger().warn(
+                f'Rejected local odometry observation: {error}; '
+                f'previous={self._last_odom_stamp_ns}, current={newest_ns}')
+            return
+
+        self._observation_error = None
+        self._odom.append(msg)
+        self._last_odom_stamp_ns = newest_ns
+        self._last_odom_rx_ns = self.get_clock().now().nanoseconds
         keep_ns = int(float(self.get_parameter('odom_buffer_sec').value) * 1e9)
         while self._odom and newest_ns - _stamp_ns(self._odom[0].header.stamp) > keep_ns:
             self._odom.popleft()
@@ -778,6 +802,9 @@ class LocalizationManager(Node):
         self._update_state()
         self._publish_tf()
 
+    def _reported_reason(self) -> str:
+        return getattr(self, '_observation_error', None) or self._reason
+
     def _publish_status(self) -> None:
         self._update_state()
         age = self._local_age()
@@ -797,7 +824,7 @@ class LocalizationManager(Node):
             self._last_global_std[1] if math.isfinite(self._last_global_std[1]) else 1.0e9)
         out.map_id = str(self.get_parameter('map_id').value)
         out.map_version = str(self.get_parameter('map_version').value)
-        out.reason = self._reason
+        out.reason = self._reported_reason()
         self._status_pub.publish(out)
         debug = String()
         debug.data = self._debug_state()
@@ -825,7 +852,7 @@ class LocalizationManager(Node):
         metrics = _make_metrics_message(
             self._state,
             self._tracking_health,
-            self._reason,
+            self._reported_reason(),
             self._correction_current,
             self._correction_translation_delta,
             self._correction_yaw_delta,
@@ -842,7 +869,7 @@ class LocalizationManager(Node):
         return json.dumps({
             'state': self._state.value,
             'wire_state': int(_wire_state(self._state)),
-            'reason': self._reason,
+            'reason': self._reported_reason(),
             'tracking_health': self._tracking_health,
             'backend_state': self._backend_debug_state,
             'recovery_pending': self._recovery.pending,
