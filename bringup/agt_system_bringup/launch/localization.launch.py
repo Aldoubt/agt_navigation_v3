@@ -53,6 +53,7 @@ def _localization_nodes(context):
         # Raw CustomMsg remains untouched; this is a separate PointCloud2 branch.
         _include('agt_livox_tools', 'livox_format_bridge.launch.py'),
         _include('agt_global_relocalization', 'global_relocalization.launch.py', {
+            'global_backend': value('global_backend'),
             'global_map': global_map,
             'relocalization_assets': assets,
             'body_to_base_calibration_file': calibration,
@@ -79,6 +80,7 @@ def _localization_nodes(context):
 def generate_launch_description():
     runtime_share = Path(get_package_share_directory('agt_navigation_runtime'))
     return LaunchDescription([
+        DeclareLaunchArgument('global_backend', default_value='bbs', choices=['bbs', 'kiss']),
         DeclareLaunchArgument('global_map', description='Absolute localization PCD path'),
         DeclareLaunchArgument('relocalization_assets', default_value=''),
         DeclareLaunchArgument('use_sim_time', default_value='false'),

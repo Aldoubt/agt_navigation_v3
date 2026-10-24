@@ -10,6 +10,7 @@ find_package(PCL REQUIRED COMPONENTS common io filters)
 find_package(OpenMP)
 find_package(Boost REQUIRED COMPONENTS filesystem system)
 find_package(small_gicp CONFIG REQUIRED)
+find_package(kiss_matcher CONFIG QUIET)
 
 set(AGT_NATIVE_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
@@ -138,6 +139,27 @@ if(AGT_HAVE_3D_BBS)
     candidate_bbs_gicp_localizer
     build_relocalization_assets
   )
+endif()
+
+# KISS is a second coarse-global backend, not a replacement for BBS. Keep its
+# native dependency optional so existing acceptance/manual-seed builds remain
+# unchanged on machines that only install small_gicp.
+if(TARGET kiss_matcher::kiss_matcher_core)
+  message(STATUS "KISS-Matcher coarse localization support enabled")
+  add_executable(kiss_gicp_localizer src/kiss_gicp_localizer.cpp)
+  target_include_directories(kiss_gicp_localizer PRIVATE ${PCL_INCLUDE_DIRS})
+  target_link_libraries(kiss_gicp_localizer PRIVATE
+    kiss_matcher::kiss_matcher_core
+    small_gicp::small_gicp
+    ${PCL_LIBRARIES}
+    Eigen3::Eigen
+  )
+  target_compile_definitions(kiss_gicp_localizer PRIVATE ${PCL_DEFINITIONS})
+  list(APPEND AGT_NATIVE_TARGETS kiss_gicp_localizer)
+else()
+  message(WARNING
+    "KISS-Matcher CMake package not found. kiss_gicp_localizer will not be "
+    "built; BBS and manual-seed localization remain available.")
 endif()
 
 install(

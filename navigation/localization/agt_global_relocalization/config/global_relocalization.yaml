@@ -52,6 +52,10 @@ agt_global_relocalization:
     stationary_hard_linear_threshold_mps: 0.20
     stationary_hard_angular_threshold_rps: 0.30
 
+    # One coarse backend per request. Both alternatives share mapping_body,
+    # small_gicp refinement, output pose conversion and quality gates.
+    global_backend: bbs
+
     # V1 default backend: true no-initial-pose CPU 3D-BBS coarse search followed
     # by small_gicp GICP refinement. RTK/INS is deliberately NOT an input here.
     # Generate relocalization_assets once for each final optimized PCD. If assets are
@@ -89,6 +93,18 @@ agt_global_relocalization:
       --local-map-radius-xy {local_map_radius_xy}
       --local-map-half-height {local_map_half_height}
       --min-local-map-points {min_local_map_points}
+
+    # Optional alternative: KISS coarse global registration + the same GICP
+    # refinement. The outer subprocess timeout is the hard execution bound.
+    kiss_sdk_command: >-
+      ros2 run agt_global_relocalization_native kiss_gicp_localizer
+      --map {global_map} --scan {scan_pcd} {assets_arg}
+      --timeout {timeout_sec}
+      --kiss-voxel 0.50 --kiss-min-inliers 10
+      --kiss-max-correspondences 5000 --kiss-use-quatro 1
+      --local-map-radius-xy {local_map_radius_xy}
+      --local-map-half-height {local_map_half_height}
+      --min-local-map-points {min_local_map_points}
     global_map: ""
     relocalization_assets: ""
     backend_local_map_radius_xy: 35.0
@@ -97,9 +113,14 @@ agt_global_relocalization:
     work_dir: ~/.ros/agt_global_relocalization
     sdk_timeout_sec: 18.0
 
-    # Accumulate several navigation-only PointCloud2 frames. Batch-LIO continues
-    # to consume the untouched timing-preserving Livox CustomMsg stream.
+    # Five frames alone are only a minimum count. At the usual 10 Hz this joint
+    # gate collects about one second of stationary coverage; weak/short windows
+    # are discarded instead of being padded with repeated data indefinitely.
     accumulate_clouds: 5
+    accumulate_max_clouds: 20
+    accumulate_min_duration_sec: 1.0
+    accumulate_max_duration_sec: 3.0
+    accumulate_min_raw_points: 20000
     # Keep online query geometry consistent with the FAST-LIO2 map source:
     # remove no-return/near-field points, reject beyond-map-range points, then
     # collapse repeated stationary frames before entering whole-map BBS.

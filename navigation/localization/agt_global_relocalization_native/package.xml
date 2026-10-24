@@ -2,7 +2,7 @@
 <package format="3">
   <name>agt_global_relocalization_native</name>
   <version>0.1.0</version>
-  <description>One-shot no-initial-pose 3D-BBS coarse localization plus local-submap small_gicp refinement and offline BBS asset generation.</description>
+  <description>Optional no-initial-pose 3D-BBS or KISS-Matcher coarse localization with shared local-submap small_gicp refinement.</description>
   <maintainer email="contact@aldoubt.com">AGT</maintainer>
   <license>Apache-2.0</license>
   <buildtool_depend>ament_cmake</buildtool_depend>

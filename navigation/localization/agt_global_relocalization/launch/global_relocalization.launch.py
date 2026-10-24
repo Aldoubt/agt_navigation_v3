@@ -15,6 +15,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         DeclareLaunchArgument('use_sim_time', default_value='false'),
+        DeclareLaunchArgument('global_backend', default_value='bbs', choices=['bbs', 'kiss']),
         DeclareLaunchArgument(
             'body_to_base_calibration_file', default_value='',
             description='Active LIO calibration: Batch ROS YAML or FAST-LIO2 flat YAML.'),
@@ -63,6 +64,7 @@ def generate_launch_description():
             parameters=[
                 cfg,
                 {
+                    'global_backend': LaunchConfiguration('global_backend'),
                     'global_map': LaunchConfiguration('global_map'),
                     'batch_lio_config_file': LaunchConfiguration('batch_lio_config_file'),
                     'body_to_base_calibration_file': LaunchConfiguration(
