@@ -121,7 +121,7 @@ def test_metrics_reflects_tracking_innovation_gate_as_degraded():
 
 
 def test_metrics_records_correction_translation_and_yaw_delta():
-    previous = _Pose3((0.0, 0.0, 0.0), (0.0, 0.0, 0.0, 1.0))
+    previous = _Pose3((1.0, 2.0, 0.0), (0.0, 0.0, 0.0, 1.0))
     current = _Pose3(
         (2.0, 2.0, 0.0),
         (0.0, 0.0, math.sin(0.1), math.cos(0.1)),
