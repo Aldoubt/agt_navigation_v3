@@ -9,6 +9,7 @@ from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, Opaq
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import Node
 
 
 def _include(package, launch_file, arguments=None, condition=None):
@@ -51,9 +52,14 @@ def _localization_nodes(context):
         # Only one frontend launch is constructed. The other backend is not started.
         _include('agt_navigation_runtime', lio_launch, lio_args),
         # Raw CustomMsg remains untouched; this is a separate PointCloud2 branch.
-        _include('agt_livox_tools', 'livox_format_bridge.launch.py'),
+        Node(package='agt_livox_tools',executable='livox_format_bridge',name='livox_format_bridge',
+             parameters=[str(Path(get_package_share_directory('agt_livox_tools'))/'config/custom_to_pointcloud2.yaml'),
+                         {'input_topic':common['lidar_topic'],'use_sim_time':use_sim_time.lower()=='true'}]),
         _include('agt_global_relocalization', 'global_relocalization.launch.py', {
+            'global_backend':value('global_backend'),
+            'sc_database':value('sc_database'),
             'global_map': global_map,
+            'output_pose_topic':value('global_pose_output'),
             'relocalization_assets': assets,
             'body_to_base_calibration_file': calibration,
             # Retained compatibility argument for the existing Batch mode.
@@ -69,6 +75,7 @@ def _localization_nodes(context):
         _include(
             'agt_map_tracker', 'map_tracker.launch.py', {
                 'global_map': global_map,
+            'output_pose_topic':value('global_pose_output'),
                 'scan_topic': '/agt/livox/points',
                 'use_sim_time': use_sim_time,
             },
@@ -79,6 +86,9 @@ def _localization_nodes(context):
 def generate_launch_description():
     runtime_share = Path(get_package_share_directory('agt_navigation_runtime'))
     return LaunchDescription([
+        DeclareLaunchArgument('global_backend', default_value='bbs', choices=['bbs','sc_kiss']),
+        DeclareLaunchArgument('sc_database', default_value=''),
+        DeclareLaunchArgument('global_pose_output', default_value='/agt/relocalization/pose'),
         DeclareLaunchArgument('global_map', description='Absolute localization PCD path'),
         DeclareLaunchArgument('relocalization_assets', default_value=''),
         DeclareLaunchArgument('use_sim_time', default_value='false'),

@@ -108,7 +108,9 @@ def _launch_runtime(context):
     nav2_share = Path(get_package_share_directory('agt_nav2_bringup'))
     runtime_share = Path(get_package_share_directory('agt_navigation_runtime'))
     patrol_share = Path(get_package_share_directory('agt_rviz_patrol'))
-    params_file = _build_runtime_params(share / 'config')
+    params_file = LaunchConfiguration('runtime_params_file').perform(context) or _build_runtime_params(share / 'config')
+    if not Path(params_file).is_file():
+        raise RuntimeError('runtime parameters not found')
     use_sim_time = LaunchConfiguration('use_sim_time').perform(context)
 
     observation = {
@@ -190,6 +192,7 @@ def _launch_runtime(context):
 
 def generate_launch_description():
     return LaunchDescription([
+        DeclareLaunchArgument('runtime_params_file', default_value=''),
         DeclareLaunchArgument('map', description='Absolute Nav2 map YAML path'),
         DeclareLaunchArgument('use_sim_time', default_value='false'),
         DeclareLaunchArgument('autostart', default_value='true'),

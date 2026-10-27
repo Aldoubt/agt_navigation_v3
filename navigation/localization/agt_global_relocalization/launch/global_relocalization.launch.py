@@ -14,7 +14,10 @@ def generate_launch_description():
         'config', 'global_relocalization.yaml')
 
     return LaunchDescription([
+        DeclareLaunchArgument('global_backend', default_value='bbs', choices=['bbs','sc_kiss']),
+        DeclareLaunchArgument('sc_database', default_value=''),
         DeclareLaunchArgument('use_sim_time', default_value='false'),
+        DeclareLaunchArgument('output_pose_topic', default_value='/agt/relocalization/pose'),
         DeclareLaunchArgument(
             'body_to_base_calibration_file', default_value='',
             description='Active LIO calibration: Batch ROS YAML or FAST-LIO2 flat YAML.'),
@@ -63,7 +66,10 @@ def generate_launch_description():
             parameters=[
                 cfg,
                 {
+                    'global_backend': LaunchConfiguration('global_backend'),
+                    'sc_database': LaunchConfiguration('sc_database'),
                     'global_map': LaunchConfiguration('global_map'),
+                    'output_pose_topic': LaunchConfiguration('output_pose_topic'),
                     'batch_lio_config_file': LaunchConfiguration('batch_lio_config_file'),
                     'body_to_base_calibration_file': LaunchConfiguration(
                         'body_to_base_calibration_file'),

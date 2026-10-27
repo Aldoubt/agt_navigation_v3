@@ -11,11 +11,12 @@ find_package(sensor_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(agt_pointcloud_core REQUIRED)
 
 add_executable(agt_pointcloud_preprocessor src/obstacle_cloud_node.cpp)
 target_include_directories(agt_pointcloud_preprocessor PRIVATE include)
 ament_target_dependencies(agt_pointcloud_preprocessor
-  rclcpp sensor_msgs tf2 tf2_ros geometry_msgs)
+  rclcpp sensor_msgs tf2 tf2_ros geometry_msgs agt_pointcloud_core)
 
 install(TARGETS agt_pointcloud_preprocessor
   DESTINATION lib/${PROJECT_NAME})

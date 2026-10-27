@@ -20,6 +20,7 @@
 #include "tf2_ros/transform_listener.h"
 
 #include "agt_pointcloud_preprocessor/radial_ground_filter.hpp"
+#include "agt_pointcloud_core/filters.hpp"
 
 namespace
 {
@@ -115,6 +116,27 @@ public:
     self_size_ = declare_parameter<std::vector<double>>(
       "self_filter.size_xyz", {1.023, 0.778, 0.400});
     self_padding_ = declare_parameter<double>("self_filter.padding_m", 0.05);
+    // Additional measured self geometry in base_frame; each row is
+    // xmin,xmax,ymin,ymax,zmin,zmax. Empty preserves the existing profile.
+    const auto extra_boxes = declare_parameter<std::vector<double>>(
+      "self_filter.extra_boxes", std::vector<double>{});
+    if (extra_boxes.size() % 6U != 0U) {
+      throw std::runtime_error("self_filter.extra_boxes requires groups of six bounds");
+    }
+    for (std::size_t i = 0; i < extra_boxes.size(); i += 6U) {
+      for (std::size_t j = i; j < i + 6U; ++j) {
+        if (!std::isfinite(extra_boxes[j])) {
+          throw std::runtime_error("self_filter.extra_boxes requires finite bounds");
+        }
+      }
+      agt_pointcloud_core::BoxFilter box(
+        extra_boxes[i], extra_boxes[i + 1U], extra_boxes[i + 2U],
+        extra_boxes[i + 3U], extra_boxes[i + 4U], extra_boxes[i + 5U]);
+      if (!box.valid()) {
+        throw std::runtime_error("self_filter.extra_boxes requires min < max");
+      }
+      extra_self_boxes_.push_back(box);
+    }
 
     rear_enabled_ = declare_parameter<bool>("rear_filter.enabled", false);
     rear_center_rad_ = deg2rad(declare_parameter<double>("rear_filter.center_deg", 180.0));
@@ -211,6 +233,13 @@ public:
 private:
   bool inside_self_box(const tf2::Vector3 & p) const
   {
+    agt_pointcloud_core::PointContext context;
+    context.robot = {p.x(), p.y(), p.z()};
+    for (const auto & box : extra_self_boxes_) {
+      if (box.removes(context)) {
+        return true;
+      }
+    }
     const double hx = 0.5 * self_size_[0] + self_padding_;
     const double hy = 0.5 * self_size_[1] + self_padding_;
     const double hz = 0.5 * self_size_[2] + self_padding_;
@@ -551,6 +580,7 @@ private:
   double min_range_{};
   double max_range_{};
   bool self_filter_enabled_{};
+  std::vector<agt_pointcloud_core::BoxFilter> extra_self_boxes_;
   std::vector<double> self_center_;
   std::vector<double> self_size_;
   double self_padding_{};

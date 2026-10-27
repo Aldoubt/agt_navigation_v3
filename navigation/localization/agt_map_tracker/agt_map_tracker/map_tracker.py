@@ -63,6 +63,19 @@ def matrix_pose(m):
     return m[:3, 3], (qx, qy, qz, qw)
 
 
+def crop_query_to_local_map(points, rotation_map_base, radius, half_height):
+    """Use the target crop's map-aligned cylinder for source support as well.
+
+    Points are in the reference base frame. Translation cancels because the
+    target cylinder is centered on that same predicted base position. Preserve
+    input coordinates/order; only exclude points the target crop cannot cover.
+    """
+    offset_map = points @ rotation_map_base.T
+    keep = ((np.sum(offset_map[:, :2] ** 2, axis=1) <= radius ** 2)
+            & (np.abs(offset_map[:, 2]) <= half_height))
+    return points[keep]
+
+
 @dataclass
 class OdomSample:
     stamp_ns: int
@@ -315,6 +328,17 @@ class MapTracker(Node):
             return
         predicted = map_odom @ ref.odom_pose
         p, q = matrix_pose(predicted)
+        before_crop = len(query)
+        radius = float(self.get_parameter('local_map_radius_xy_m').value)
+        half_height = float(self.get_parameter('local_map_half_height_m').value)
+        query = crop_query_to_local_map(query, predicted[:3, :3], radius, half_height)
+        fields.update(query_points_before_map_crop=before_crop, query_points=len(query),
+                      query_crop_frame=self.get_parameter('map_frame').value,
+                      query_crop_radius_xy_m=radius, query_crop_half_height_m=half_height)
+        if len(query) < int(self.get_parameter('min_query_points').value):
+            self._record_reject('min_query_points_after_map_crop',
+                                reason_codes=['MIN_QUERY_POINTS'], **fields)
+            return
         try:
             cloud_tf = self._tf.lookup_transform(
                 self.get_parameter('map_frame').value, self.get_parameter('odom_frame').value,

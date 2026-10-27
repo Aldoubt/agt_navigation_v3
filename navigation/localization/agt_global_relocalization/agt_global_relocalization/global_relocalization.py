@@ -4,9 +4,12 @@ import json
 import math
 import os
 import shlex
+import signal
 import statistics
 import subprocess
 import tempfile
+import threading
+import time
 from collections import deque
 from pathlib import Path
 
@@ -57,6 +60,14 @@ class GlobalRelocalization(Node):
         p('tf_timeout_sec', 0.10)
         p('follow_map_manager', True)
         p('map_status_topic', '/agt/map/status')
+        p('global_backend', 'bbs')
+        p('sc_database', '')
+        if self.get_parameter('global_backend').value not in ('bbs','sc_kiss'):
+            raise ValueError('global_backend must be bbs or sc_kiss')
+        self._stopping=False
+        self._backend_process=None
+        self._sc_cancelled=False
+        self._sc_thread=None
         p('sdk_command', '')
         p('candidate_sdk_command', '')
         p('global_map', '')
@@ -141,6 +152,7 @@ class GlobalRelocalization(Node):
         )
 
     def on_cloud(self, msg):
+        if self.busy and self.get_parameter('global_backend').value=='sc_kiss':return
         self.clouds.append(msg)
         if self.pending_request and not self.busy:
             self._try_start_request()
@@ -252,13 +264,15 @@ class GlobalRelocalization(Node):
                 or filtered[1] > float(self.get_parameter('stationary_angular_threshold_rps').value)
             )
             if first_odom or hard_moving or moving:
+                if self.busy and self.get_parameter('global_backend').value=='sc_kiss':self._sc_cancelled=True
                 self.clouds.clear()
         if self.pending_request and not self.busy:
             self._try_start_request()
 
     def status(self, state, detail='', **extra):
+        if self._stopping:return
         m = String()
-        payload = {'state': state, 'detail': detail}
+        payload = {'state': state, 'detail': detail, 'global_backend':self.get_parameter('global_backend').value}
         payload.update(extra)
         m.data = json.dumps(payload, ensure_ascii=False)
         self.status_pub.publish(m)
@@ -316,21 +330,35 @@ class GlobalRelocalization(Node):
 
         self.pending_request = False
         self.busy = True
+        if self.get_parameter('global_backend').value=='sc_kiss':
+            self._sc_cancelled=False
+            self._sc_thread=threading.Thread(target=self._execute_request,daemon=True,name='sc-kiss-request')
+            self._sc_thread.start()
+            return True
+        return self._execute_request()
+
+    def _execute_request(self):
+        started=time.monotonic()
         succeeded = False
+        failure = None
         try:
             self.status('QUERY_READY', 'stationary query is ready')
             self.run_once()
             succeeded = True
         except Exception as exc:
-            self.status('REJECTED', str(exc))
+            failure = str(exc)
         finally:
-            self.busy = False
             if not succeeded:
                 # Never retry a failed registration against the same partial
                 # or weak query.  A subsequent request must collect fresh data.
                 self.clouds.clear()
             if bool(self.get_parameter('auto_request').value) and not succeeded:
                 self._rearm_auto_request(clear_clouds=True)
+            # Finish cleanup before advertising failure: a client may retry
+            # immediately after receiving REJECTED.
+            self.busy = False
+        if failure is not None:
+            self.status('REJECTED', failure, total_elapsed_sec=time.monotonic()-started)
         return True
 
     def on_request(self, _msg):
@@ -518,6 +546,10 @@ class GlobalRelocalization(Node):
         min_range_sq = min_range * min_range
         max_range_sq = max_range * max_range
         voxel_leaf = float(self.get_parameter('query_voxel_leaf_m').value)
+        if self.get_parameter('global_backend').value=='sc_kiss':
+            # The adapter applies one identical sensor-range/body-voxel contract
+            # to both keyframes and query, before gravity leveling.
+            min_range_sq=0.;max_range_sq=math.inf;voxel_leaf=0.
         mode, query_frame, fixed_transform = self.query_frame_contract()
         timeout = Duration(seconds=float(self.get_parameter('tf_timeout_sec').value))
 
@@ -674,7 +706,50 @@ class GlobalRelocalization(Node):
                 f'current={current.map_id}/{current.map_version}@{int(current.generation)})'
             )
 
+    def _stop_backend(self,proc):
+        if proc is None:return
+        # Each request owns its complete SDK process group, including ros2 run
+        # and GICP descendants. Timeout/stop must not leave a matcher orphaned.
+        try:os.killpg(proc.pid,signal.SIGTERM)
+        except ProcessLookupError:return
+        try:proc.wait(timeout=1.)
+        except subprocess.TimeoutExpired:
+            try:os.killpg(proc.pid,signal.SIGKILL)
+            except ProcessLookupError:pass
+            proc.wait(timeout=1.)
+
+    def _run_backend(self,command,timeout):
+        if self._stopping:raise RuntimeError('localization stopped')
+        proc=subprocess.Popen(shlex.split(command),stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+            text=True,start_new_session=True)
+        self._backend_process=proc
+        deadline=time.monotonic()+timeout
+        try:
+            while True:
+                if self._stopping or (self.get_parameter('global_backend').value=='sc_kiss' and self._sc_cancelled):
+                    raise RuntimeError('localization stopped or robot moved; backend cancelled')
+                remaining=deadline-time.monotonic()
+                if remaining<=0:raise TimeoutError('relocalization backend timeout')
+                try:
+                    stdout,stderr=proc.communicate(timeout=min(.1,remaining))
+                    return subprocess.CompletedProcess(proc.args,proc.returncode,stdout,stderr)
+                except subprocess.TimeoutExpired:pass
+        finally:
+            self._stop_backend(proc)
+            self._backend_process=None
+
+    def destroy_node(self):
+        self._stopping=True
+        self._sc_cancelled=True
+        self._stop_backend(self._backend_process)
+        return super().destroy_node()
+
     def run_once(self):
+        experiment=self.get_parameter('global_backend').value=='sc_kiss'
+        if experiment:
+            from agt_sc_kiss.runtime import configure_query
+            configure_query(self)
+        started=time.monotonic()
         mode, query_frame, _fixed_transform = self.query_frame_contract()
         bbs_mode, _alias = self.normalize_query_frame_mode(
             str(self.get_parameter('bbs_query_frame_mode').value).strip())
@@ -698,6 +773,11 @@ class GlobalRelocalization(Node):
         use_candidate_backend = bool(candidate_command and candidate_db and candidate_db.is_file())
         command_template = candidate_command if use_candidate_backend else fallback_command
         backend_name = 'polar_context_bbs_gicp' if use_candidate_backend else 'whole_map_bbs_gicp'
+        if experiment:
+            backend_name='scan_context_kiss_gicp'
+            command_template=('ros2 run agt_sc_kiss sc_kiss_localizer --map {global_map} --scan {scan_pcd} '
+                '--database {sc_database} --contract {sc_contract} --query-roll {sc_roll} --query-pitch {sc_pitch} '
+                '--timeout {timeout_sec} --radius {local_map_radius_xy} --half-height {local_map_half_height}')
         if not command_template:
             raise RuntimeError('relocalization backend command is empty')
         if not global_map or not Path(global_map).is_file():
@@ -717,9 +797,15 @@ class GlobalRelocalization(Node):
             # matching. In mapping_body mode it is harmless but keeping the same
             # derived value makes the CLI contract deterministic in both modes.
             base_from_body = self.inverse_pose(self.body_to_base_pose())
+            extra={}
+            if experiment:
+                from agt_sc_kiss.runtime import request_arguments
+                extra=request_arguments(self,stamp,base_from_body,td)
+                for key in ('sc_contract','sc_database'):extra[key]=shlex.quote(extra[key])
             cmd = command_template.format(
-                scan_pcd=str(scan_pcd),
-                global_map=global_map,
+                **extra,
+                scan_pcd=shlex.quote(str(scan_pcd)),
+                global_map=shlex.quote(global_map),
                 timeout_sec=timeout,
                 assets_arg=assets_arg,
                 local_map_radius_xy=float(self.get_parameter('backend_local_map_radius_xy').value),
@@ -735,7 +821,7 @@ class GlobalRelocalization(Node):
                 base_from_body_qw=base_from_body['qw'],
             )
             self.status(
-                'BBS_SEARCHING',
+                'SC_KISS_SEARCHING' if experiment else 'BBS_SEARCHING',
                 'calling 3D relocalization backend',
                 points=len(rows),
                 raw_points=self.last_query_raw_points,
@@ -750,7 +836,7 @@ class GlobalRelocalization(Node):
                 map_version=map_version,
                 map_generation=generation,
             )
-            proc = subprocess.run(shlex.split(cmd), capture_output=True, text=True, timeout=timeout, check=False)
+            proc = self._run_backend(cmd,timeout)
             if proc.returncode != 0:
                 detail = proc.stderr.strip() or proc.stdout.strip() or 'no backend diagnostics'
                 raise RuntimeError(f'backend returned {proc.returncode}: {detail}')
@@ -765,10 +851,12 @@ class GlobalRelocalization(Node):
 
         if not bool(result.get('success', False)):
             raise RuntimeError(str(result.get('message', 'backend reported failure')))
-        self.status('BBS_COARSE_FOUND', 'BBS coarse pose found')
+        self.status('SC_KISS_COARSE_FOUND' if experiment else 'BBS_COARSE_FOUND', 'coarse pose found',backend=backend_name)
         score = float(result.get('score', 0.0))
         fitness = float(result.get('fitness', math.inf))
         overlap = float(result.get('overlap', 0.0))
+        if not all(math.isfinite(float(result.get(k,float('nan')))) for k in ('score','fitness','overlap','x','y','z','qx','qy','qz','qw','coarse_x','coarse_y','coarse_z','coarse_qx','coarse_qy','coarse_qz','coarse_qw')):
+            raise RuntimeError('backend returned non-finite/incomplete pose or quality')
         if score < float(self.get_parameter('min_score').value):
             raise RuntimeError(f'score gate failed: {score:.3f}')
         if fitness > float(self.get_parameter('max_fitness').value):
@@ -817,7 +905,7 @@ class GlobalRelocalization(Node):
         self.verify_map_snapshot(map_id, map_version, generation)
 
         msg = PoseWithCovarianceStamped()
-        msg.header.stamp = self.clouds[-1].header.stamp
+        msg.header.stamp = stamp
         msg.header.frame_id = str(self.get_parameter('map_frame').value)
         msg.pose.pose.position.x = base_result['x']
         msg.pose.pose.position.y = base_result['y']
@@ -831,6 +919,9 @@ class GlobalRelocalization(Node):
         cov[21] = cov[28] = math.radians(10.0) ** 2
         cov[35] = yaw_std * yaw_std
         msg.pose.covariance = cov
+        if experiment:
+            from agt_sc_kiss.runtime import check_publication
+            check_publication(self)
         self.pose_pub.publish(msg)
         self.aligned_cloud_pub.publish(self.cloud_message(
             self.apply_pose(
@@ -855,6 +946,12 @@ class GlobalRelocalization(Node):
             published_pose_T_map_base=base_result,
             bbs_elapsed_ms=result.get('bbs_elapsed_ms'),
             backend=backend_name,
+            total_elapsed_sec=time.monotonic()-started,
+            sc_elapsed_sec=result.get('sc_elapsed_sec'),
+            kiss_elapsed_sec=result.get('kiss_elapsed_sec'),
+            gicp_elapsed_sec=result.get('gicp_elapsed_sec'),
+            kiss_final_inliers=result.get('kiss_final_inliers'),
+            sc_candidates=result.get('sc_candidates'),
             candidate_patch=result.get('candidate_patch'),
             descriptor_similarity=result.get('descriptor_similarity'),
             descriptor_yaw_seed_deg=result.get('descriptor_yaw_seed_deg'),
