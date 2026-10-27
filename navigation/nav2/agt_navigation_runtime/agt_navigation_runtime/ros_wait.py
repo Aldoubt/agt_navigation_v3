@@ -13,8 +13,19 @@ class RosWaiter:
         self.callback_group = callback_group
         self.clock = Clock(clock_type=ClockType.STEADY_TIME)
         self._lock = threading.RLock()
-        self._pending = set()
+        self._pending = {}
         self._closed = False
+        # Keep one timer alive for the node's lifetime. Creating/destroying a
+        # timer for each await races Humble's MultiThreadedExecutor wait set.
+        self._timer = node.create_timer(
+            0.01, self._wake_ready, callback_group=callback_group, clock=self.clock)
+
+    def _wake_ready(self):
+        now_ns = self.clock.now().nanoseconds
+        with self._lock:
+            for future, deadline_ns in tuple(self._pending.items()):
+                if not future.done() and now_ns >= deadline_ns:
+                    future.set_result(None)
 
     async def sleep(self, seconds):
         if seconds <= 0:
@@ -23,34 +34,18 @@ class RosWaiter:
         with self._lock:
             if self._closed:
                 raise RuntimeError('ROS wait helper is closed')
-            self._pending.add(future)
-
-        def wake():
-            with self._lock:
-                if not future.done():
-                    future.set_result(None)
-
-        timer = None
+            self._pending[future] = self.clock.now().nanoseconds + int(seconds * 1e9)
         try:
-            timer = self.node.create_timer(
-                max(0.001, float(seconds)), wake,
-                callback_group=self.callback_group, clock=self.clock)
             await future
         finally:
             with self._lock:
-                self._pending.discard(future)
-            if timer is not None:
-                try:
-                    timer.cancel()
-                    self.node.destroy_timer(timer)
-                except Exception:
-                    if not self._closed:
-                        raise
+                self._pending.pop(future, None)
 
     def close(self):
         """Release pending sleeps during teardown; caller supplies shutdown policy."""
         with self._lock:
             self._closed = True
+            self._timer.cancel()
             for future in tuple(self._pending):
                 if not future.done():
                     future.set_result(None)

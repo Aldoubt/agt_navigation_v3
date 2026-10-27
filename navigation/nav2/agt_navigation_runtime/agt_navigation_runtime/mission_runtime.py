@@ -4,12 +4,13 @@ import threading
 import time
 import json
 import math
+from pathlib import Path
 from collections import deque
 
 import rclpy
 from action_msgs.msg import GoalStatus
 from action_msgs.srv import CancelGoal
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, Twist
 from nav_msgs.msg import Odometry
 from nav2_msgs.action import NavigateToPose
 from rclpy.action import ActionClient, ActionServer, CancelResponse, GoalResponse
@@ -27,7 +28,9 @@ from tf2_ros import Buffer, TransformException, TransformListener
 from agt_robot_interfaces.action import ExecuteInspectionMission
 from agt_robot_interfaces.msg import MissionStatus
 from camera_gimbal_interfaces.action import AcquireView
+from pantilt_camera_serial.action import MovePantilt
 
+from .stop_gate import StopGate
 from .mission_schema import load_mission
 from .record_writer import RecordWriter
 from .ros_wait import RosWaiter
@@ -76,6 +79,15 @@ class MissionRuntime(Node):
             'goal_response_timeout_sec': 5.0, 'cancel_confirm_timeout_sec': 5.0,
             'runtime_poll_interval_sec': 0.05,
             'nav_action': '/navigate_to_pose',
+            'nav_behavior_tree': '',
+            'wait_for_bunker_control': False,
+            'wheel_stop_gate': False,
+            'stop_wheel_topic': '/wheel/odom',
+            'stop_command_topic': '/mux/cmd_vel',
+            'bunker_status_topic': '/bunker_status',
+            'recenter_after_capture': False,
+            'move_pantilt_action': '/pantilt_camera_serial0/move_pantilt',
+            'gimbal_action_timeout_sec': 12.0, 'gimbal_server_timeout_sec': 3.0,
             'acquire_view_action': '/camera_gimbal/acquire_view',
             'navsat_topic': '/ins/navsatfix',
             'local_odom_topic': '/agt/odometry/local',
@@ -97,7 +109,12 @@ class MissionRuntime(Node):
         for name, value in defaults.items():
             self.declare_parameter(name, value)
 
+        nav_tree = str(self.get_parameter('nav_behavior_tree').value)
+        if nav_tree and not Path(nav_tree).is_file():
+            raise ValueError(f'nav_behavior_tree does not exist: {nav_tree}')
+
         for name in ('nav_action_timeout_sec', 'camera_action_timeout_sec',
+                     'gimbal_action_timeout_sec', 'gimbal_server_timeout_sec',
                      'goal_response_timeout_sec', 'cancel_confirm_timeout_sec',
                      'runtime_poll_interval_sec', 'nav_server_timeout_sec',
                      'camera_server_timeout_sec', 'stationary_timeout_sec',
@@ -106,8 +123,15 @@ class MissionRuntime(Node):
             if not math.isfinite(value) or value <= 0:
                 raise ValueError(f'{name} must be finite and positive')
         self._control_group = ReentrantCallbackGroup()
+        self._bunker_status = None
+        self._bunker_rx_ns = 0
+        if self.get_parameter('wait_for_bunker_control').value:
+            from bunker_msgs.msg import BunkerStatus
+            self.create_subscription(BunkerStatus, self.get_parameter('bunker_status_topic').value,
+                                     self._on_bunker_status, 10, callback_group=self._control_group)
         self._admission_lock = threading.RLock()
         self._odom_lock = threading.RLock()
+        self._stop_gate = StopGate()
         self._mission_reserved = False
         self._terminal_committing = False
         self._shutdown_requested = False
@@ -145,6 +169,7 @@ class MissionRuntime(Node):
 
         self.nav_client = ActionClient(self, NavigateToPose, self.get_parameter('nav_action').value, callback_group=self._control_group)
         self.camera_client = ActionClient(self, AcquireView, self.get_parameter('acquire_view_action').value, callback_group=self._control_group)
+        self.gimbal_client = ActionClient(self, MovePantilt, self.get_parameter('move_pantilt_action').value, callback_group=self._control_group)
         self.loopback_client = ActionClient(self, ExecuteInspectionMission, self.mission_action, callback_group=self._control_group)
         self._parent_cancel_client = self.create_client(
             CancelGoal, self.mission_action + '/_action/cancel_goal', callback_group=self._control_group)
@@ -160,6 +185,8 @@ class MissionRuntime(Node):
         self.create_subscription(String, self.get_parameter('hmi_task_request_topic').value, self.on_hmi_task_request, 10)
         self.create_subscription(NavSatFix, self.get_parameter('navsat_topic').value, self.on_navsat, 20)
         self.create_subscription(Odometry, self.get_parameter('local_odom_topic').value, self.on_local_odom, 50)
+        self.create_subscription(Odometry, self.get_parameter('stop_wheel_topic').value, self.on_stop_wheel, 20)
+        self.create_subscription(Twist, self.get_parameter('stop_command_topic').value, self.on_stop_command, 20)
         self.create_service(Trigger, '/agt/task/start', self.on_hmi_start, callback_group=self._control_group)
         self.create_service(Trigger, '/agt/task/pause', self.on_hmi_pause, callback_group=self._control_group)
         self.create_service(Trigger, '/agt/task/cancel', self.on_hmi_cancel, callback_group=self._control_group)
@@ -170,6 +197,7 @@ class MissionRuntime(Node):
     def _validate_safety_parameters(self, parameters):
         positive = {
             'nav_action_timeout_sec', 'camera_action_timeout_sec',
+            'gimbal_action_timeout_sec', 'gimbal_server_timeout_sec',
             'goal_response_timeout_sec', 'cancel_confirm_timeout_sec',
             'runtime_poll_interval_sec', 'nav_server_timeout_sec', 'camera_server_timeout_sec',
             'stationary_timeout_sec', 'stationary_hold_sec', 'odom_freshness_sec',
@@ -188,7 +216,7 @@ class MissionRuntime(Node):
                     return SetParametersResult(successful=False, reason=f'{parameter.name} must be numeric')
                 if not math.isfinite(value) or value < 0 or (parameter.name in positive and value == 0):
                     return SetParametersResult(successful=False, reason=f'{parameter.name} has an invalid safety/timing value')
-            if self._mission_reserved and parameter.name in positive | nonnegative | {'use_sim_time'}:
+            if self._mission_reserved and parameter.name in positive | nonnegative | {'use_sim_time', 'recenter_after_capture', 'wait_for_bunker_control', 'bunker_status_topic', 'wheel_stop_gate', 'stop_wheel_topic', 'stop_command_topic'}:
                 return SetParametersResult(successful=False, reason='safety/timing parameters are frozen during an active mission')
         return SetParametersResult(successful=True)
 
@@ -265,9 +293,23 @@ class MissionRuntime(Node):
     def on_navsat(self, msg):
         self.rtk_samples.append((Time.from_msg(msg.header.stamp).nanoseconds, msg))
 
+    def on_stop_wheel(self, msg):
+        with self._odom_lock:
+            t = msg.twist.twist
+            self._stop_gate.wheel = (Time.from_msg(msg.header.stamp).nanoseconds / 1e9,
+                time.monotonic(), math.hypot(t.linear.x, t.linear.y), abs(t.angular.z))
+
+    def on_stop_command(self, msg):
+        with self._odom_lock:
+            self._stop_gate.command = (time.monotonic(), math.hypot(msg.linear.x, msg.linear.y), abs(msg.angular.z))
+
     def on_local_odom(self, msg):
         with self._odom_lock:
             now_ns = time.monotonic_ns()
+            p = msg.pose.pose.position
+            self._stop_gate.pose(Time.from_msg(msg.header.stamp).nanoseconds / 1e9,
+                now_ns / 1e9, p.x, p.y, quaternion_to_yaw(msg.pose.pose.orientation),
+                (msg.header.frame_id, msg.child_frame_id))
             if self.previous_motion_odom is not None:
                 rates = odom_planar_motion_rate(
                     self.previous_motion_odom,
@@ -373,6 +415,11 @@ class MissionRuntime(Node):
                     return await self.finish_canceled(goal_handle, mission)
                 self.publish_status(MissionStatus.NAVIGATING, mission.mission_id, point.id, index,
                                     len(mission.points), 'sending bounded Nav2 goal', goal_handle=goal_handle)
+                if not await self.wait_for_control(goal_handle, mission, point, index):
+                    return await self.finish_canceled(goal_handle, mission)
+                self.publish_status(MissionStatus.NAVIGATING, mission.mission_id, point.id, index,
+                                    len(mission.points), 'automatic control ready; submitting Nav2 goal',
+                                    goal_handle=goal_handle)
                 nav = await self.navigate(point)
                 if self._interrupted(goal_handle) or nav.state == 'canceled':
                     return await self.finish_canceled(goal_handle, mission)
@@ -427,6 +474,33 @@ class MissionRuntime(Node):
                         return await self._finish_with_stop(
                             goal_handle, mission, 'failed', int(capture['error_code']),
                             f'view {view.tag} failed: {capture.get("message", "")}')
+                if point.views and self.get_parameter('recenter_after_capture').value:
+                    self._current_view_tag = '__recenter__'
+                    if not await self.wait_while_paused(goal_handle, mission, point, index):
+                        return await self.finish_canceled(goal_handle, mission)
+                    self.publish_status(MissionStatus.STABILIZING, mission.mission_id, point.id, index,
+                                        len(mission.points), 'waiting for measured base stop before gimbal recenter',
+                                        goal_handle=goal_handle)
+                    stationary, detail = await self.wait_until_stationary()
+                    if self._interrupted(goal_handle):
+                        return await self.finish_canceled(goal_handle, mission)
+                    if not stationary:
+                        return await self._finish_with_stop(
+                            goal_handle, mission, 'failed', 1100, 'before gimbal recenter: ' + detail)
+                    self.publish_status(MissionStatus.CAPTURING, mission.mission_id, point.id, index,
+                                        len(mission.points), 'returning gimbal to center; waiting for feedback',
+                                        goal_handle=goal_handle)
+                    self._writer.event('gimbal_recenter_started', point_id=point.id)
+                    centered, outcome, angles = await self.recenter_gimbal()
+                    self._writer.event('gimbal_recenter_finished', point_id=point.id,
+                                       success=centered, state=outcome.state, angles=angles,
+                                       message=outcome.message)
+                    if self._interrupted(goal_handle) or outcome.state == 'canceled':
+                        return await self.finish_canceled(goal_handle, mission)
+                    if not centered:
+                        return await self._finish_with_stop(
+                            goal_handle, mission, 'failed', 203,
+                            'gimbal recenter not confirmed: ' + outcome.message)
                 self._completed_points += 1
             if self._interrupted(goal_handle):
                 return await self.finish_canceled(goal_handle, mission)
@@ -464,6 +538,30 @@ class MissionRuntime(Node):
                 'child cancellation requested, but parent Action cancel state was not confirmed')
         return await self._finish_with_stop(goal_handle, mission, 'canceled', 400, 'mission canceled')
 
+    def _on_bunker_status(self, msg):
+        self._bunker_status = msg
+        self._bunker_rx_ns = time.monotonic_ns()
+
+    def _bunker_control_ready(self):
+        msg = self._bunker_status
+        if msg is None or (time.monotonic_ns() - self._bunker_rx_ns) / 1e9 > .5:
+            return False
+        age = (self.get_clock().now().nanoseconds - Time.from_msg(msg.header.stamp).nanoseconds) / 1e9
+        return (-.05 <= age <= .5 and msg.vehicle_state == 0
+                and msg.control_mode == 1 and msg.error_code == 0)
+
+    async def wait_for_control(self, handle, mission, point, index):
+        if not self.get_parameter('wait_for_bunker_control').value:
+            return True
+        while not self._interrupted(handle):
+            if self._bunker_control_ready() and not self.paused:
+                return True
+            self.publish_status(MissionStatus.PAUSED, mission.mission_id, point.id, index,
+                                len(mission.points), '等待底盘自动控制权：请释放遥控器并切至 CAN 自动模式；可取消任务',
+                                goal_handle=handle)
+            await self._waiter.sleep(.1)
+        return False
+
     async def navigate(self, point):
         pose = PoseStamped()
         pose.header.stamp, pose.header.frame_id = self.get_clock().now().to_msg(), point.frame_id
@@ -473,7 +571,24 @@ class MissionRuntime(Node):
         pose.pose.orientation.z, pose.pose.orientation.w = qz, qw
         goal = NavigateToPose.Goal()
         goal.pose = pose
+        goal.behavior_tree = str(self.get_parameter('nav_behavior_tree').value)
         return await self._run_action(self.nav_client, goal, 'nav')
+
+    async def recenter_gimbal(self):
+        # Move only: no fourth image, and no base yaw goal. The driver confirms
+        # fresh encoder feedback and two stable samples before succeeding.
+        goal = MovePantilt.Goal()
+        goal.heading = goal.roll = goal.pitch = 0.0
+        goal.tolerance, goal.timeout, goal.stable_samples = 3.0, 8.0, 2
+        outcome = await self._run_action(self.gimbal_client, goal, 'gimbal')
+        result = outcome.wrapped_result.result if outcome.wrapped_result is not None else None
+        angles = ([float(result.final_heading), float(result.final_roll), float(result.final_pitch)]
+                  if result is not None else [])
+        centered = bool(outcome.success and result is not None and result.success
+                        and result.result_code == MovePantilt.Result.RESULT_OK
+                        and all(math.isfinite(a) and abs((a + 180.) % 360. - 180.) <= goal.tolerance
+                                for a in angles))
+        return centered, outcome, angles
 
     async def capture(self, view):
         goal = AcquireView.Goal()
@@ -533,6 +648,10 @@ class MissionRuntime(Node):
 
     def _motion_is_stationary(self, now_ns):
         with self._odom_lock:
+            if self.get_parameter('wheel_stop_gate').value:
+                return self._stop_gate.evaluate(now_ns / 1e9,
+                    self.get_clock().now().nanoseconds / 1e9,
+                    float(self.get_parameter('odom_freshness_sec').value))
             odom = self.latest_local_odom
             freshness = float(self.get_parameter('odom_freshness_sec').value)
             if (odom is None or not self.latest_local_odom_rx_ns
