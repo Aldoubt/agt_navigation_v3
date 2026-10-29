@@ -87,12 +87,15 @@ class CloudSample:
     stamp_ns: int
     points_base: np.ndarray
     odom_pose: np.ndarray
+    odom_stamp_ns: Optional[int] = None
+    source_frame: str = ''
 
 
 class MapTracker(Node):
     def __init__(self):
         super().__init__('agt_map_tracker')
         self.declare_parameter('scan_topic', '/agt/livox/points')
+        self.declare_parameter('scan_input_mode', 'sensor')
         self.declare_parameter('local_odom_topic', '/agt/odometry/local')
         self.declare_parameter('localization_status_topic', '/agt/localization/status')
         self.declare_parameter('output_pose_topic', '/agt/map_tracking/pose')
@@ -105,10 +108,13 @@ class MapTracker(Node):
             'tracking_rate_hz': 0.5, 'local_map_radius_xy_m': 20.0,
             'local_map_half_height_m': 5.0, 'query_accumulate_clouds': 3,
             'query_voxel_leaf_m': 0.25, 'max_points': 150000,
+            'query_max_span_sec': 0.30,
             'min_query_points': 1500, 'min_local_map_points': 1000,
             'max_fitness': 0.50, 'min_overlap': 0.40,
             'max_translation_innovation_m': 0.50,
             'max_yaw_innovation_deg': 5.0, 'odom_match_max_skew_sec': 0.10,
+            'cloud_pairing_max_lag_sec': 0.20,
+            'max_reference_cloud_age_sec': 0.20, 'max_future_cloud_sec': 0.05,
             'tf_timeout_sec': 0.10, 'native_timeout_sec': 8.0,
             'degraded_after_rejects': 2, 'recovery_after_rejects': 4,
             'reject_degenerate_hessian': False,
@@ -119,8 +125,22 @@ class MapTracker(Node):
             'max_debug_failure_samples': 20,
         }.items():
             self.declare_parameter(name, default)
+        if self.get_parameter('scan_input_mode').value not in ('sensor', 'odom_deskewed'):
+            raise ValueError('scan_input_mode must be sensor or odom_deskewed')
+        pairing_lag = float(self.get_parameter('cloud_pairing_max_lag_sec').value)
+        if not math.isfinite(pairing_lag) or pairing_lag <= 0.0:
+            raise ValueError('cloud_pairing_max_lag_sec must be finite and positive')
+        for name, allow_zero in (('max_reference_cloud_age_sec', False),
+                                 ('max_future_cloud_sec', True), ('query_max_span_sec', False)):
+            value = float(self.get_parameter(name).value)
+            if not math.isfinite(value) or value < 0.0 or (not allow_zero and value == 0.0):
+                raise ValueError(f'invalid {name}')
         self._odom = deque(maxlen=6000)
         self._clouds = deque(maxlen=20)
+        self._pending_clouds = deque(maxlen=20)
+        self._latest_input_stamp_ns = 0
+        self._last_cloud_stamp_ns = 0
+        self._last_attempted_stamp_ns = 0
         self._localized = False
         self._correction_valid = False
         self._last_run_ns = 0
@@ -155,6 +175,9 @@ class MapTracker(Node):
         m[:3, :3] = quat_matrix((q.x, q.y, q.z, q.w))
         m[:3, 3] = (p.x, p.y, p.z)
         self._odom.append(OdomSample(self._stamp(msg), m))
+        if self.get_parameter('scan_input_mode').value == 'odom_deskewed':
+            self._latest_input_stamp_ns = max(self._latest_input_stamp_ns, self._stamp(msg))
+            self._drain_pending_clouds()
 
     def _nearest_odom(self, stamp_ns: int) -> Optional[OdomSample]:
         if not self._odom:
@@ -170,29 +193,87 @@ class MapTracker(Node):
         self._correction_valid = bool(msg.global_correction_valid)
 
     def _on_cloud(self, msg):
+        if self.get_parameter('scan_input_mode').value == 'odom_deskewed':
+            if msg.header.frame_id != self.get_parameter('odom_frame').value:
+                self._cloud_tf_errors += 1
+                return
+            if self._stamp(msg) <= 0:
+                self._cloud_time_sync_errors += 1
+                return
+            self._latest_input_stamp_ns = max(self._latest_input_stamp_ns, self._stamp(msg))
+            if len(self._pending_clouds) == self._pending_clouds.maxlen:
+                self._pending_clouds.popleft()
+                self._cloud_time_sync_errors += 1
+            self._pending_clouds.append(msg)
+            self._drain_pending_clouds()
+            return
         odom = self._nearest_odom(self._stamp(msg))
         if odom is None:
             self._cloud_time_sync_errors += 1
             return
-        try:
-            tf = self._tf.lookup_transform(
-                self.get_parameter('base_frame').value, msg.header.frame_id,
-                rclpy.time.Time.from_msg(msg.header.stamp),
-                timeout=Duration(seconds=float(self.get_parameter('tf_timeout_sec').value)))
-        except TransformException:
-            self._cloud_tf_errors += 1
-            return
+        self._process_cloud(msg, odom)
+
+    def _drain_pending_clouds(self):
+        """Pair deskewed scans with the *same* canonical odometry sample.
+
+        DDS may deliver the cloud before the adapter's odometry. Bound pending
+        data by sensor-time progress and queue size, not wall time: the native
+        matcher currently blocks this executor while computing a result.
+        This waiting window never permits a nonzero cloud/odom timestamp skew.
+        """
+        waiting = deque(maxlen=self._pending_clouds.maxlen)
+        odom_by_stamp = {sample.stamp_ns: sample for sample in self._odom}
+        lag_ns = int(float(self.get_parameter('cloud_pairing_max_lag_sec').value) * 1e9)
+        for msg in sorted(self._pending_clouds, key=self._stamp):
+            stamp_ns = self._stamp(msg)
+            if stamp_ns <= self._last_cloud_stamp_ns:
+                self._cloud_time_sync_errors += 1
+                continue
+            odom = odom_by_stamp.get(stamp_ns)
+            if odom is not None:
+                self._process_cloud(msg, odom)
+            elif self._latest_input_stamp_ns - stamp_ns > lag_ns:
+                self._cloud_time_sync_errors += 1
+            else:
+                waiting.append(msg)
+        self._pending_clouds = waiting
+
+    def _process_cloud(self, msg, odom):
+        deskewed = self.get_parameter('scan_input_mode').value == 'odom_deskewed'
+        if deskewed:
+            # FAST-LIO world_cloud and canonical odom share the scan-end stamp.
+            # The canonical pose already includes body/LiDAR/base calibration.
+            # Inverting it removes world motion without applying extrinsics twice.
+            sensor_to_base = np.linalg.inv(odom.pose)
+        else:
+            try:
+                tf = self._tf.lookup_transform(
+                    self.get_parameter('base_frame').value, msg.header.frame_id,
+                    rclpy.time.Time.from_msg(msg.header.stamp),
+                    timeout=Duration(seconds=float(self.get_parameter('tf_timeout_sec').value)))
+            except TransformException:
+                self._cloud_tf_errors += 1
+                return
+            sensor_to_base = transform_matrix(tf.transform)
         rows = []
         for p in point_cloud2.read_points(msg, field_names=('x', 'y', 'z'), skip_nans=True):
             x, y, z = (float(p[0]), float(p[1]), float(p[2]))
-            if 0.5 <= math.sqrt(x*x + y*y + z*z) <= 30.0:
+            if all(math.isfinite(v) for v in (x, y, z)) and (
+                    deskewed or 0.5 <= math.sqrt(x*x + y*y + z*z) <= 30.0):
                 rows.append((x, y, z))
         if not rows:
             return
         points = np.asarray(rows, dtype=float)
-        sensor_to_base = transform_matrix(tf.transform)
         points = (sensor_to_base[:3, :3] @ points.T).T + sensor_to_base[:3, 3]
-        self._clouds.append(CloudSample(self._stamp(msg), points, odom.pose))
+        if deskewed:
+            # Range is relative to the robot, never the world/odom origin.
+            ranges = np.linalg.norm(points, axis=1)
+            points = points[(ranges >= 0.5) & (ranges <= 30.0)]
+        if len(points) == 0:
+            return
+        self._clouds.append(CloudSample(self._stamp(msg), points, odom.pose,
+                                       odom.stamp_ns, msg.header.frame_id))
+        self._last_cloud_stamp_ns = self._stamp(msg)
 
     def _write_pcd(self, points: np.ndarray, path: Path):
         points = points[:int(self.get_parameter('max_points').value)]
@@ -202,6 +283,18 @@ class MapTracker(Node):
             f.write(f'WIDTH {len(points)}\nHEIGHT 1\nVIEWPOINT 0 0 0 1 0 0 0\nPOINTS {len(points)}\nDATA ascii\n')
             for p in points:
                 f.write(f'{p[0]:.6f} {p[1]:.6f} {p[2]:.6f}\n')
+
+    def _record_input_insufficient(self, reason, **fields):
+        # No registration was attempted. Sparse geometric support is not a
+        # rejected pose, and must neither increment nor erase actual failures.
+        # The manager owns any bounded continuation using the last valid anchor.
+        self._publish_status(
+            'INPUT_INSUFFICIENT', reason=reason,
+            reason_codes=['MIN_QUERY_POINTS'], decision='NOT_ATTEMPTED',
+            consecutive_rejects=self._consecutive_rejects,
+            min_query_points=int(self.get_parameter('min_query_points').value),
+            **fields,
+        )
 
     def _record_reject(self, reason, *, reason_codes=None, **fields):
         self._consecutive_rejects += 1
@@ -238,7 +331,20 @@ class MapTracker(Node):
         return {
             'attempt_id': self._attempt_id,
             'cloud_frame': self.get_parameter('base_frame').value,
-            'cloud_source_frame_contract': 'sensor_cloud transformed to base_link',
+            'cloud_source_frame_contract': (
+                'deskewed odom cloud transformed by inverse same-stamp T_odom_base_link'
+                if self.get_parameter('scan_input_mode').value == 'odom_deskewed'
+                else 'sensor_cloud transformed to base_link'),
+            'scan_topic': self.get_parameter('scan_topic').value,
+            'scan_input_mode': self.get_parameter('scan_input_mode').value,
+            'source_cloud_frame': ref.source_frame,
+            'odom_pairing_policy': ('EXACT_STAMP'
+                if self.get_parameter('scan_input_mode').value == 'odom_deskewed'
+                else 'NEAREST_STAMP'),
+            'odom_pose_source_stamp_ns': ref.odom_stamp_ns,
+            'odom_cloud_skew_sec': (None if ref.odom_stamp_ns is None
+                                   else (ref.odom_stamp_ns - ref.stamp_ns) / 1e9),
+            'pending_cloud_count': len(self._pending_clouds),
             'map_crop_frame': self.get_parameter('map_frame').value,
             'seed_pose_frame': 'T_map_base_link',
             'odom_pose_frame': 'T_odom_base_link',
@@ -268,6 +374,11 @@ class MapTracker(Node):
         if not bool(self.get_parameter('save_debug_cloud').value):
             return None
         root = Path(os.path.expanduser(str(self.get_parameter('debug_directory').value)))
+        if not getattr(self, '_debug_run_directory', None):
+            root.mkdir(parents=True, exist_ok=True)
+            # A new process must not overwrite a prior field run's evidence.
+            self._debug_run_directory = Path(tempfile.mkdtemp(prefix='run_', dir=root))
+        root = self._debug_run_directory
         # This is a pending directory. It becomes a ring entry only after a
         # qualifying failure, so a later successful attempt cannot erase a
         # previously retained failure sample.
@@ -298,12 +409,35 @@ class MapTracker(Node):
             self._publish_status('WAIT_LOCALIZED', reason='manager_not_localized')
             return
         if not self._clouds:
-            self._publish_status('WAIT_QUERY', reason='no_cloud')
+            self._publish_status('WAIT_QUERY', reason='no_time_aligned_cloud',
+                                 pending_cloud_count=len(self._pending_clouds),
+                                 cloud_time_sync_error_count=self._cloud_time_sync_errors,
+                                 cloud_tf_error_count=self._cloud_tf_errors)
             return
         ref = self._clouds[-1]
+        if self.get_parameter('scan_input_mode').value == 'odom_deskewed':
+            age = (self.get_clock().now().nanoseconds - ref.stamp_ns) / 1e9
+            if ref.stamp_ns <= self._last_attempted_stamp_ns:
+                self._publish_status('WAIT_QUERY', reason='no_new_reference_cloud',
+                                     reference_cloud_stamp_ns=ref.stamp_ns,
+                                     reference_cloud_age_sec=age)
+                return
+            if (age > float(self.get_parameter('max_reference_cloud_age_sec').value)
+                    or age < -float(self.get_parameter('max_future_cloud_sec').value)):
+                self._publish_status('WAIT_QUERY', reason='reference_cloud_outside_time_window',
+                                     reference_cloud_stamp_ns=ref.stamp_ns,
+                                     reference_cloud_age_sec=age)
+                return
+            # A repeated scan is not independent evidence for acceptance or
+            # consecutive failure. Keep input loss separate from GICP decisions.
+            self._last_attempted_stamp_ns = ref.stamp_ns
         query = []
         inv_ref = np.linalg.inv(ref.odom_pose)
-        for item in list(self._clouds)[-int(self.get_parameter('query_accumulate_clouds').value):]:
+        clouds = list(self._clouds)[-int(self.get_parameter('query_accumulate_clouds').value):]
+        if self.get_parameter('scan_input_mode').value == 'odom_deskewed':
+            span_ns = int(float(self.get_parameter('query_max_span_sec').value) * 1e9)
+            clouds = [item for item in clouds if 0 <= ref.stamp_ns - item.stamp_ns <= span_ns]
+        for item in clouds:
             relative = inv_ref @ item.odom_pose
             pts = (relative[:3, :3] @ item.points_base.T).T + relative[:3, 3]
             query.append(pts)
@@ -311,8 +445,14 @@ class MapTracker(Node):
         query = self._voxel(query, float(self.get_parameter('query_voxel_leaf_m').value))
         self._attempt_id += 1
         fields = self._attempt_fields(ref, len(query))
+        fields['query_cloud_timing'] = [
+            {'cloud_stamp_ns': item.stamp_ns, 'odom_stamp_ns': item.odom_stamp_ns,
+             'odom_cloud_skew_sec': (None if item.odom_stamp_ns is None
+                                    else (item.odom_stamp_ns - item.stamp_ns) / 1e9)}
+            for item in clouds
+        ]
         if len(query) < int(self.get_parameter('min_query_points').value):
-            self._record_reject('min_query_points', reason_codes=['MIN_QUERY_POINTS'], **fields)
+            self._record_input_insufficient('min_query_points', **fields)
             return
         try:
             map_odom_tf = self._tf.lookup_transform(
@@ -336,8 +476,7 @@ class MapTracker(Node):
                       query_crop_frame=self.get_parameter('map_frame').value,
                       query_crop_radius_xy_m=radius, query_crop_half_height_m=half_height)
         if len(query) < int(self.get_parameter('min_query_points').value):
-            self._record_reject('min_query_points_after_map_crop',
-                                reason_codes=['MIN_QUERY_POINTS'], **fields)
+            self._record_input_insufficient('min_query_points_after_map_crop', **fields)
             return
         try:
             cloud_tf = self._tf.lookup_transform(
@@ -369,7 +508,6 @@ class MapTracker(Node):
             'tf_lookup_time_ns': 0,
             'tf_lookup_returned_stamp_ns': int(map_odom_tf.header.stamp.sec) * 1_000_000_000 + int(map_odom_tf.header.stamp.nanosec),
             'tf_lookup_age_vs_reference_cloud_sec': ((int(map_odom_tf.header.stamp.sec) * 1_000_000_000 + int(map_odom_tf.header.stamp.nanosec)) - ref.stamp_ns) / 1e9,
-            'odom_pose_source_stamp_ns': ref.stamp_ns,
             'odom_pose_frame_contract': 'T_odom_base_link',
             'local_map_crop_center_x_m': float(p[0]),
             'local_map_crop_center_y_m': float(p[1]),
@@ -389,6 +527,7 @@ class MapTracker(Node):
             self._write_pcd(query, scan_path)
             debug_dir = self._debug_attempt_dir()
             if debug_dir:
+                fields['debug_run_directory'] = str(debug_dir.parent)
                 shutil.copy2(scan_path, debug_dir / 'query_cloud.pcd')
                 self._write_debug_yaml(debug_dir / 'initial_pose.yaml', fields)
             cmd = ['ros2', 'run', 'agt_global_relocalization_native', 'map_gicp_tracker',
@@ -433,6 +572,10 @@ class MapTracker(Node):
                         'native_stdout_tail': backend.stdout[-512:],
                         'native_stderr_tail': backend.stderr[-512:],
                     })
+                if debug_dir:
+                    self._write_debug_yaml(debug_dir / 'registration_result.yaml',
+                                           {**fields, 'backend_error': str(exc)})
+                    self._retain_debug_artifact(debug_dir)
                 self._record_reject(f'native_tracker:{exc}',
                                     reason_codes=['BACKEND_PROTOCOL_ERROR'], **fields)
                 return
@@ -468,7 +611,8 @@ class MapTracker(Node):
                      or hessian_condition > float(
                          self.get_parameter('max_hessian_condition_number').value))):
             if debug_dir:
-                shutil.rmtree(debug_dir)
+                self._write_debug_yaml(debug_dir / 'registration_result.yaml', {**fields, 'backend': data})
+                self._retain_debug_artifact(debug_dir)
             self._record_reject(
                 'degenerate_geometry',
                 reason_codes=['HESSIAN_BAD'], **fields,
@@ -481,7 +625,8 @@ class MapTracker(Node):
             quality_codes.append('OVERLAP_LOW')
         if quality_codes:
             if debug_dir:
-                shutil.rmtree(debug_dir)
+                self._write_debug_yaml(debug_dir / 'registration_result.yaml', {**fields, 'backend': data})
+                self._retain_debug_artifact(debug_dir)
             self._record_reject('quality_gate', reason_codes=quality_codes, **fields)
             return
         measured = np.eye(4)
@@ -524,7 +669,7 @@ class MapTracker(Node):
         fields['correction_applied'] = bool(self.get_parameter('apply_correction').value)
         if fields['correction_applied']:
             self._pose_pub.publish(pose_msg)
-        elif debug_dir:
+        if debug_dir:
             # Successful attempts are not failure artifacts.
             shutil.rmtree(debug_dir)
         self._record_accept(**fields)

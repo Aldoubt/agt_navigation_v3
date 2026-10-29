@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import json
+import time
 from collections import deque
 from dataclasses import dataclass
 from enum import Enum
@@ -261,6 +262,67 @@ class _RecoveryStateMachine:
         self.requested = False
 
 
+class _TrackingInputBudget:
+    """Finite permission to use an existing anchor during sparse tracker input.
+
+    Only an accepted pose can start a budget. Odometry discontinuities latch;
+    receiving fresh odometry alone cannot make the budget valid again.
+    """
+
+    def __init__(self) -> None:
+        self.anchor_ns = None
+        self.steady_anchor_ns = None
+        self.last_stamp_ns = None
+        self.last_pose = None
+        self.distance_m = 0.0
+        self.blocked_reason = ''
+        self.blocked_at_ns = 0
+        self.last_ros_check_ns = None
+
+    def invalidate(self, reason, now_ns):
+        self.blocked_reason = self.blocked_reason or reason
+        self.blocked_at_ns = max(self.blocked_at_ns, now_ns)
+
+    def observe(self, stamp_ns, pose, limits):
+        if self.anchor_ns is None:
+            return
+        if not all(math.isfinite(v) for v in (*pose.p, *pose.q)):
+            self.invalidate('odom_nonfinite', stamp_ns)
+            return
+        dt = (stamp_ns - self.last_stamp_ns) / 1e9
+        step = _translation_delta(pose, self.last_pose)
+        yaw_step = abs(_angle_wrap(_yaw(pose.q) - _yaw(self.last_pose.q)))
+        if dt <= 0.0:
+            self.invalidate('odom_stamp_not_increasing', stamp_ns)
+        elif dt > limits['odom_gap']:
+            self.invalidate('odom_stamp_gap', stamp_ns)
+        elif (step > limits['step'] or step / dt > limits['speed']
+              or yaw_step > math.radians(limits['yaw_step'])):
+            self.invalidate('odom_jump', stamp_ns)
+        self.distance_m += step
+        self.last_stamp_ns, self.last_pose = stamp_ns, pose
+
+    def failure(self, now_ns, steady_ns, limits):
+        if not all(math.isfinite(v) and v > 0.0 for v in limits.values()):
+            self.invalidate('invalid_limits', now_ns)
+        if self.anchor_ns is None:
+            return 'no_accepted_anchor'
+        if (not math.isfinite(self.distance_m) or self.anchor_ns <= 0
+                or not all(math.isfinite(v) for v in (*self.last_pose.p, *self.last_pose.q))):
+            self.invalidate('odom_nonfinite', now_ns)
+        if now_ns < self.anchor_ns or (
+                self.last_ros_check_ns is not None and now_ns < self.last_ros_check_ns):
+            self.invalidate('clock_rollback', now_ns)
+        self.last_ros_check_ns = now_ns
+        if self.blocked_reason:
+            return self.blocked_reason
+        if max(now_ns - self.anchor_ns, steady_ns - self.steady_anchor_ns) >= limits['time'] * 1e9:
+            return 'time_limit'
+        if self.distance_m >= limits['distance'] - 1e-9:
+            return 'distance_limit'
+        return ''
+
+
 class LocalizationManager(Node):
     """Own map->odom and turn a validated global base pose into a global correction.
 
@@ -304,6 +366,12 @@ class LocalizationManager(Node):
         self.declare_parameter('tracking_consecutive_accepts', 2)
         self.declare_parameter('tracking_consistency_translation_m', 0.20)
         self.declare_parameter('tracking_consistency_yaw_deg', 2.0)
+        self.declare_parameter('tracking_input_hold_max_sec', 60.0)
+        self.declare_parameter('tracking_input_hold_max_distance_m', 70.0)
+        # Conservative candidate continuity guards, not odometry accuracy claims.
+        self.declare_parameter('tracking_input_hold_max_odom_step_m', 0.50)
+        self.declare_parameter('tracking_input_hold_max_odom_speed_mps', 3.0)
+        self.declare_parameter('tracking_input_hold_max_odom_yaw_step_deg', 30.0)
         self.declare_parameter('tracking_recovery_auto_request', True)
         self.declare_parameter('recovery_cooldown_sec', 5.0)
         self.declare_parameter('metrics_topic', '/agt/localization/metrics')
@@ -313,13 +381,19 @@ class LocalizationManager(Node):
 
         self._odom: Deque[Odometry] = deque()
         self._last_odom_rx_ns = 0
+        self._last_odom_steady_ns = 0
         self._correction_current: Optional[_Pose3] = None
         self._correction_target: Optional[_Pose3] = None
         self._last_tracking_measurement: Optional[_Pose3] = None
+        self._last_tracking_pose_stamp_ns = 0
+        self._tracking_failure_stamp_ns = 0
         self._tracking_consistent_count = 0
         self._tracking_health = 'UNKNOWN'
         self._tracking_innovation_bad = False
         self._tracking_recovery_requested = False
+        self._input_hold_active = False
+        self._input_hold_budget = _TrackingInputBudget()
+        self._steady_now_ns = time.monotonic_ns
         self._recovery_pending = False
         self._recovery = _RecoveryStateMachine(
             self.get_parameter('recovery_cooldown_sec').value)
@@ -394,12 +468,68 @@ class LocalizationManager(Node):
             )
             return
 
+        now_ns = self.get_clock().now().nanoseconds
+        steady_ns = self._steady_now_ns()
+        budget = self._input_hold_budget
+        limits = self._input_hold_limits()
+        if (budget.anchor_ns is not None and self._last_odom_rx_ns > 0
+                and max(now_ns - self._last_odom_rx_ns,
+                        steady_ns - self._last_odom_steady_ns) / 1e9 > limits['odom_gap']):
+            budget.invalidate('odom_receive_gap', now_ns)
+        if (budget.anchor_ns is not None
+                and abs(now_ns - _stamp_ns(msg.header.stamp)) / 1e9 > limits['odom_gap']):
+            budget.invalidate('odom_stamp_age', now_ns)
+        try:
+            budget.observe(_stamp_ns(msg.header.stamp), _odom_pose(msg), limits)
+        except ValueError:
+            budget.invalidate('odom_invalid_pose', now_ns)
         self._odom.append(msg)
-        self._last_odom_rx_ns = self.get_clock().now().nanoseconds
+        self._last_odom_rx_ns = now_ns
+        self._last_odom_steady_ns = steady_ns
         newest_ns = _stamp_ns(msg.header.stamp)
         keep_ns = int(float(self.get_parameter('odom_buffer_sec').value) * 1e9)
         while self._odom and newest_ns - _stamp_ns(self._odom[0].header.stamp) > keep_ns:
             self._odom.popleft()
+
+    def _input_hold_limits(self):
+        return {
+            'time': float(self.get_parameter('tracking_input_hold_max_sec').value),
+            'distance': float(self.get_parameter('tracking_input_hold_max_distance_m').value),
+            'step': float(self.get_parameter('tracking_input_hold_max_odom_step_m').value),
+            'speed': float(self.get_parameter('tracking_input_hold_max_odom_speed_mps').value),
+            'yaw_step': float(self.get_parameter('tracking_input_hold_max_odom_yaw_step_deg').value),
+            'odom_gap': float(self.get_parameter('local_odom_timeout_sec').value),
+        }
+
+    def _reset_input_hold_budget(self, local, *, global_anchor=False):
+        stamp_ns = _stamp_ns(local.header.stamp)
+        old = self._input_hold_budget
+        # A repeated pose or a delayed pre-discontinuity result is not new proof.
+        if not global_anchor and (stamp_ns <= (old.anchor_ns or 0)
+                                  or stamp_ns <= old.blocked_at_ns):
+            return False
+        now_ns = self.get_clock().now().nanoseconds
+        budget = _TrackingInputBudget()
+        budget.anchor_ns = budget.last_stamp_ns = stamp_ns
+        budget.last_pose = _odom_pose(local)
+        budget.steady_anchor_ns = self._steady_now_ns() - (now_ns - stamp_ns)
+        limits = self._input_hold_limits()
+        # Include motion and gaps during GICP/BBS computation, not just after receipt.
+        after_anchor = False
+        for sample in self._odom:
+            if sample is local:
+                after_anchor = True
+            elif after_anchor:
+                try:
+                    budget.observe(_stamp_ns(sample.header.stamp), _odom_pose(sample), limits)
+                except ValueError:
+                    budget.invalidate('odom_invalid_pose', now_ns)
+        failure = budget.failure(now_ns, self._steady_now_ns(), limits)
+        if global_anchor or not failure:
+            self._input_hold_budget = budget
+        elif budget.blocked_reason:
+            old.invalidate(budget.blocked_reason, budget.blocked_at_ns)
+        return not failure
 
     def _nearest_odom(self, target_ns: int) -> Optional[Odometry]:
         if not self._odom:
@@ -418,6 +548,8 @@ class LocalizationManager(Node):
             return False, math.inf, math.inf, 'global_pose_zero_stamp'
 
         cov = msg.pose.covariance
+        if not all(math.isfinite(float(v)) for v in cov):
+            return False, math.inf, math.inf, 'global_pose_nonfinite_covariance'
         pos_var = max(float(cov[0]), float(cov[7]), float(cov[14]), 0.0)
         yaw_var = max(float(cov[35]), 0.0)
         all_zero = all(abs(float(v)) < 1e-12 for v in cov)
@@ -451,6 +583,8 @@ class LocalizationManager(Node):
             map_base = _global_pose(msg)
             odom_base = _odom_pose(local)
             correction = _compose(map_base, _inverse(odom_base))
+            if not all(math.isfinite(v) for v in (*correction.p, *correction.q)):
+                raise ValueError('nonfinite pose')
         except ValueError as exc:
             self._reason = f'invalid_pose:{exc}'
             self.get_logger().error(self._reason)
@@ -463,8 +597,12 @@ class LocalizationManager(Node):
         self._tracking_recovery_requested = False
         self._tracking_health = 'UNKNOWN'
         self._last_tracking_measurement = None
+        self._last_tracking_pose_stamp_ns = 0
+        self._tracking_failure_stamp_ns = 0
         self._tracking_consistent_count = 0
         self._tracking_innovation_bad = False
+        self._reset_input_hold_budget(local, global_anchor=True)
+        self._input_hold_active = False
         self._recovery.global_pose_accepted()
         self._state = self._recovery.state
         self._reason = self._recovery.reason
@@ -475,15 +613,19 @@ class LocalizationManager(Node):
 
     def _on_tracking_pose(self, msg: PoseWithCovarianceStamped) -> None:
         """Accept a local-map measurement without taking ownership of TF."""
-        if self._correction_current is None:
-            self._reason = 'tracking_ignored_without_global_anchor'
-            return
         if self._state in {
             LocalizationState.LOST,
             LocalizationState.RECOVERY_REQUESTED,
             LocalizationState.RELOCALIZING,
         }:
-            self._reason = 'tracking_ignored_while_recovery_active'
+            # Keep the loss cause: transient local-odom recovery depends on it.
+            # A late tracker result must not replace the active recovery reason.
+            return
+        if self._correction_current is None:
+            self._reason = 'tracking_ignored_without_global_anchor'
+            return
+        target_ns = _stamp_ns(msg.header.stamp)
+        if target_ns <= max(self._last_tracking_pose_stamp_ns, self._tracking_failure_stamp_ns):
             return
         ok, pos_std, yaw_std, reason = self._validate_global(msg)
         if not ok:
@@ -504,10 +646,16 @@ class LocalizationManager(Node):
         except ValueError as exc:
             self._reason = f'tracking_rejected:invalid_pose:{exc}'
             return
+        if not all(math.isfinite(v) for v in (*measurement.p, *measurement.q,
+                                            translation, yaw_delta)):
+            self._reason = 'tracking_rejected:nonfinite_pose'
+            return
+        self._last_tracking_pose_stamp_ns = target_ns
 
         max_translation = float(self.get_parameter('max_tracking_translation_innovation_m').value)
         max_yaw = math.radians(float(self.get_parameter('max_tracking_yaw_innovation_deg').value))
         if _tracking_innovation_exceeds(translation, yaw_delta, max_translation, max_yaw):
+            self._tracking_failure_stamp_ns = max(self._tracking_failure_stamp_ns, target_ns)
             self._tracking_consistent_count = 0
             self._last_tracking_measurement = None
             self._tracking_health = 'DEGRADED'
@@ -535,7 +683,15 @@ class LocalizationManager(Node):
         if self._tracking_consistent_count < needed:
             self._reason = 'tracking_waiting_consistency'
             return
+        budget_reset = self._reset_input_hold_budget(local)
+        if not budget_reset:
+            # Keep the bounded hold stopped until a genuinely newer accepted
+            # measurement covers the discontinuity; status messages cannot heal it.
+            if self._input_hold_active:
+                self._update_state()
+            return
         self._correction_target = measurement
+        self._input_hold_active = False
         self._tracking_health = 'TRACKING_OK'
         self._tracking_innovation_bad = False
         self._reason = 'map_tracking_target_updated'
@@ -545,10 +701,52 @@ class LocalizationManager(Node):
         """Consume tracker health without giving the tracker TF ownership."""
         try:
             payload = json.loads(msg.data)
+            if not isinstance(payload, dict):
+                return
             state = str(payload.get('state', '')).strip()
         except (TypeError, ValueError, json.JSONDecodeError):
             return
         if not state:
+            return
+        if state == 'INPUT_INSUFFICIENT':
+            if payload.get('decision') != 'NOT_ATTEMPTED':
+                return
+            if (not self._input_hold_active and self._state not in {
+                    LocalizationState.LOCALIZED, LocalizationState.TRACKING}):
+                self._input_hold_budget.invalidate(
+                    'unhealthy_on_entry', self.get_clock().now().nanoseconds)
+            self._input_hold_active = True
+            # In particular, do not erase a real quality/innovation failure.
+            if self._tracking_health not in {'DEGRADED', 'RECOVERY_REQUIRED'}:
+                self._tracking_health = state
+            self._update_state()
+            return
+        if payload.get('decision') == 'REJECT' or state in {'DEGRADED', 'RECOVERY_REQUIRED'}:
+            reference_ns = payload.get('reference_cloud_stamp_ns')
+            valid_reference = (isinstance(reference_ns, int)
+                               and not isinstance(reference_ns, bool) and reference_ns > 0)
+            accepted_ns = self._input_hold_budget.anchor_ns
+            if valid_reference and accepted_ns is not None and reference_ns <= accepted_ns:
+                # A pose accepted from newer evidence has already superseded this
+                # failure. Pose/status topic delivery order must not undo it.
+                return
+            if not valid_reference:
+                reference_ns = self.get_clock().now().nanoseconds
+            self._tracking_failure_stamp_ns = max(self._tracking_failure_stamp_ns, reference_ns)
+            # Even the first real reject (HOLD) breaks consecutive acceptance;
+            # HOLD itself retains its existing non-DEGRADED policy.
+            self._tracking_consistent_count = 0
+            self._last_tracking_measurement = None
+        if state not in {'TRACKING_OK', 'DEGRADED', 'RECOVERY_REQUIRED', 'HOLD'}:
+            if self._input_hold_active or self._tracking_health in {'DEGRADED', 'RECOVERY_REQUIRED'}:
+                return
+        if state == 'TRACKING_OK' and (self._input_hold_active
+                or self._tracking_innovation_bad or self._tracking_health == 'DEGRADED'):
+            # Pose and status are separate topics: only a locally accepted pose
+            # can clear these gates, regardless of callback order.
+            return
+        if state == 'HOLD' and (self._tracking_innovation_bad
+                               or self._tracking_health in {'DEGRADED', 'RECOVERY_REQUIRED'}):
             return
         self._tracking_health = state
         if state == 'TRACKING_OK':
@@ -572,7 +770,11 @@ class LocalizationManager(Node):
             }:
                 self._state = LocalizationState.DEGRADED
                 self._reason = 'map_tracking_degraded'
-        elif state == 'HOLD':
+        elif state == 'HOLD' and self._state not in {
+            LocalizationState.LOST,
+            LocalizationState.RECOVERY_REQUESTED,
+            LocalizationState.RELOCALIZING,
+        }:
             self._reason = 'map_tracking_hold'
 
     def _on_backend_status(self, msg: String) -> None:
@@ -693,6 +895,10 @@ class LocalizationManager(Node):
         age = self._local_age()
         timeout = float(self.get_parameter('local_odom_timeout_sec').value)
         lost = float(self.get_parameter('local_odom_lost_sec').value)
+        now_ns = self.get_clock().now().nanoseconds
+        if (self._input_hold_budget.anchor_ns is not None and (
+                age > timeout or (self._steady_now_ns() - self._last_odom_steady_ns) / 1e9 > timeout)):
+            self._input_hold_budget.invalidate('odom_receive_gap', now_ns)
 
         if self._last_odom_rx_ns <= 0:
             self._state = LocalizationState.WAIT_GLOBAL
@@ -714,6 +920,12 @@ class LocalizationManager(Node):
                 self._reason = 'map_tracking_recovery_required'
             else:
                 self._reason = 'map_tracking_degraded'
+        elif self._input_hold_active:
+            failure = self._input_hold_budget.failure(
+                now_ns, self._steady_now_ns(), self._input_hold_limits())
+            self._state = LocalizationState.DEGRADED if failure else LocalizationState.LOCALIZED
+            self._reason = (f'map_tracking_input_hold_expired:{failure}' if failure
+                            else 'map_tracking_input_hold')
         else:
             self._state = (
                 LocalizationState.TRACKING
@@ -839,11 +1051,24 @@ class LocalizationManager(Node):
 
     def _debug_state(self) -> str:
         now_sec = self.get_clock().now().nanoseconds / 1e9
+        budget = self._input_hold_budget
+        limits = self._input_hold_limits()
+        hold_age = (None if budget.anchor_ns is None else max(
+            now_sec - budget.anchor_ns / 1e9,
+            (self._steady_now_ns() - budget.steady_anchor_ns) / 1e9))
         return json.dumps({
             'state': self._state.value,
             'wire_state': int(_wire_state(self._state)),
             'reason': self._reason,
             'tracking_health': self._tracking_health,
+            'tracking_failure_stamp_ns': self._tracking_failure_stamp_ns,
+            'input_hold_active': self._input_hold_active,
+            'input_hold_anchor_stamp_ns': self._input_hold_budget.anchor_ns,
+            'input_hold_distance_m': self._input_hold_budget.distance_m,
+            'input_hold_blocked_reason': self._input_hold_budget.blocked_reason,
+            'input_hold_age_sec': hold_age,
+            'input_hold_max_sec': limits['time'],
+            'input_hold_max_distance_m': limits['distance'],
             'backend_state': self._backend_debug_state,
             'recovery_pending': self._recovery.pending,
             'recovery_request_count': self._recovery.request_count,

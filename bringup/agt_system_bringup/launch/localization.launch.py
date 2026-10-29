@@ -75,8 +75,13 @@ def _localization_nodes(context):
         _include(
             'agt_map_tracker', 'map_tracker.launch.py', {
                 'global_map': global_map,
-            'output_pose_topic':value('global_pose_output'),
-                'scan_topic': '/agt/livox/points',
+                # world_cloud is already deskewed at the exact LIO odom stamp.
+                # The tracker uses canonical odom to remove world motion once.
+                'scan_topic': ('/fastlio2/world_cloud' if backend == 'fastlio2'
+                               else '/agt/livox/points'),
+                'scan_input_mode': ('odom_deskewed' if backend == 'fastlio2'
+                                    else 'sensor'),
+                'save_debug_cloud': 'true' if backend == 'fastlio2' else 'false',
                 'use_sim_time': use_sim_time,
             },
             condition=IfCondition(LaunchConfiguration('enable_map_tracking'))),

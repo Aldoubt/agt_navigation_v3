@@ -315,8 +315,10 @@ class ReplayMetrics:
     def _tracker_summary(self) -> tuple[str, dict, list[str]]:
         attempts = sum(self.tracker_states.get(state, 0) for state in (
             'TRACKING_OK', 'HOLD', 'DEGRADED', 'RECOVERY_REQUIRED'))
+        input_insufficient = self.tracker_states.get('INPUT_INSUFFICIENT', 0)
         summary = {
             'attempts': attempts, 'states': dict(sorted(self.tracker_states.items())),
+            'input_insufficient_samples': input_insufficient,
             'decisions': dict(sorted(self.tracker_decisions.items())),
             'failure_reason_histogram': dict(sorted(self.tracker_reason_codes.items())),
             'success_rate': (self.tracker_decisions.get('ACCEPT', 0) / attempts) if attempts else 0.0,
@@ -342,6 +344,9 @@ class ReplayMetrics:
             return FAIL, summary, ['map tracker entered RECOVERY_REQUIRED']
         if self.tracker_states.get('DEGRADED', 0) or self.tracker_states.get('HOLD', 0):
             return WARN, summary, ['map tracker had rejected/degraded samples; no recovery was requested']
+        if input_insufficient:
+            return WARN, summary, [
+                'map tracker had insufficient input; those samples were not registration attempts']
         return PASS, summary, []
 
     def _nav_summary(self, map_status: str) -> tuple[str, dict, list[str]]:

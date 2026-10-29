@@ -11,6 +11,8 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('global_map', default_value=''),
         DeclareLaunchArgument('scan_topic', default_value='/agt/livox/points'),
+        DeclareLaunchArgument('scan_input_mode', default_value='sensor',
+                              choices=['sensor', 'odom_deskewed']),
         DeclareLaunchArgument('use_sim_time', default_value='false'),
         DeclareLaunchArgument('apply_correction', default_value='true'),
         DeclareLaunchArgument('save_debug_cloud', default_value='false'),
@@ -20,6 +22,7 @@ def generate_launch_description():
             parameters=[str(share / 'config' / 'map_tracker.yaml'), {
                 'global_map': LaunchConfiguration('global_map'),
                 'scan_topic': LaunchConfiguration('scan_topic'),
+                'scan_input_mode': LaunchConfiguration('scan_input_mode'),
                 'use_sim_time': LaunchConfiguration('use_sim_time'),
                 'apply_correction': LaunchConfiguration('apply_correction'),
                 'save_debug_cloud': LaunchConfiguration('save_debug_cloud'),

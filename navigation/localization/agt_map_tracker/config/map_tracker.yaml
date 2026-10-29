@@ -1,6 +1,8 @@
 agt_map_tracker:
   ros__parameters:
     scan_topic: /agt/livox/points
+    # FAST-LIO2 system launch selects odom_deskewed + /fastlio2/world_cloud.
+    scan_input_mode: sensor
     local_odom_topic: /agt/odometry/local
     localization_status_topic: /agt/localization/status
     output_pose_topic: /agt/map_tracking/pose
@@ -13,6 +15,7 @@ agt_map_tracker:
     local_map_radius_xy_m: 20.0
     local_map_half_height_m: 5.0
     query_accumulate_clouds: 3
+    query_max_span_sec: 0.30
     query_voxel_leaf_m: 0.25
     max_points: 150000
     min_query_points: 1500
@@ -22,6 +25,12 @@ agt_map_tracker:
     max_translation_innovation_m: 0.50
     max_yaw_innovation_deg: 5.0
     odom_match_max_skew_sec: 0.10
+    # Pending exact pairs may lag this far behind sensor-time progress.
+    # This is a bounded waiting window, not an allowed timestamp mismatch.
+    cloud_pairing_max_lag_sec: 0.20
+    # Deskewed reference input must be as fresh as the canonical LIO adapter.
+    max_reference_cloud_age_sec: 0.20
+    max_future_cloud_sec: 0.05
     tf_timeout_sec: 0.10
     native_timeout_sec: 8.0
 

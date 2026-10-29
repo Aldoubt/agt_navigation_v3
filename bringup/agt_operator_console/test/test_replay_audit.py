@@ -83,6 +83,39 @@ def test_disabled_tracker_is_not_applicable_not_warning():
     assert ReplayMetrics(tracker_expected=False)._tracker_summary()[0] == DISABLED
 
 
+def test_input_shortage_prevents_pass_without_counting_as_registration_failure():
+    metrics = ReplayMetrics(tracker_expected=True)
+    metrics.observe_tracker({'state': 'TRACKING_OK', 'decision': 'ACCEPT'})
+    metrics.observe_tracker({
+        'state': 'INPUT_INSUFFICIENT', 'decision': 'NOT_ATTEMPTED',
+        'reason_codes': ['MIN_QUERY_POINTS']})
+    status, summary, reasons = metrics._tracker_summary()
+    assert status == WARN
+    assert summary['attempts'] == 1
+    assert summary['input_insufficient_samples'] == 1
+    assert summary['success_rate'] == 1.0
+    assert summary['decisions'] == {'ACCEPT': 1, 'NOT_ATTEMPTED': 1}
+    assert 'not registration attempts' in reasons[0]
+    metrics.observe_tracker({'state': 'RECOVERY_REQUIRED', 'decision': 'REJECT'})
+    assert metrics._tracker_summary()[0] == FAIL
+
+
+def test_only_input_shortage_still_fails_missing_registration_attempts():
+    metrics = ReplayMetrics(tracker_expected=True)
+    metrics.observe_tracker({'state': 'INPUT_INSUFFICIENT', 'decision': 'NOT_ATTEMPTED'})
+    status, summary, reasons = metrics._tracker_summary()
+    assert status == FAIL
+    assert summary['attempts'] == 0
+    assert summary['input_insufficient_samples'] == 1
+    assert 'no attempts' in reasons[0]
+
+
+def test_disabled_tracker_remains_disabled_when_input_shortage_is_observed():
+    metrics = ReplayMetrics(tracker_expected=False)
+    metrics.observe_tracker({'state': 'INPUT_INSUFFICIENT', 'decision': 'NOT_ATTEMPTED'})
+    assert metrics._tracker_summary()[0] == DISABLED
+
+
 def test_manual_seed_diagnostics_and_runtime_tf_are_deterministic():
     metrics = ReplayMetrics()
     metrics.observe_manual_status({'state': 'MANUAL_SEED_REJECTED', 'detail': 'no scan'})

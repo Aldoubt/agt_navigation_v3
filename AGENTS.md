@@ -36,7 +36,7 @@ Canonical physical constants are also stored in `config/field_hardware.env`.
 3. Mapping is `robotics-laboratory/fast-lio2 + PGO`, optional HBA afterward.
 4. Global relocalization is `3D-BBS coarse -> local-submap small_gicp fine`; no `/initialpose` and no RTK seed in V1.
 5. FAST-LIO2/Batch-LIO raw LiDAR path must preserve Livox point timing. Do not put generic voxel/self filters before the LIO front-end.
-6. Navigation/relocalization use a separate `CustomMsg -> PointCloud2 -> /agt/livox/points` branch.
+6. Global relocalization and obstacle processing use a separate `CustomMsg -> PointCloud2 -> /agt/livox/points` branch. In FAST-LIO2 mode, continuous map tracking uses frame-end deskewed `/fastlio2/world_cloud`, paired with the exact same timestamp of canonical `/agt/odometry/local` and transformed back to base. Never relabel raw clouds as deskewed or apply the LIO extrinsics twice.
 7. Nav2 success does not mean camera-ready. The mission runtime must pass the measured-stop gate first.
 8. C1 image timestamp is the association anchor for map pose / RTK metadata / actual gimbal angle.
 9. Nav2 controller, velocity smoother and Bunker command guard target a 50 Hz command chain.

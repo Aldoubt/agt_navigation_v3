@@ -8,6 +8,9 @@ AGT Navigation V3 是面向 Bunker 类履带底盘与 Livox MID360 的 ROS 2 Hum
 当前里程碑：**v0.3.0 定位合同冻结**。下一阶段为 P3 运行时验收、Nav2 现场验证与
 操作员工作流。
 
+2026-10-29 现场更新：操作员反馈长序列任务逻辑通过。去畸变点云跟踪、有限里程计续行、验证边界及后续工作见
+[本轮现场发布记录](docs/acceptance/FIELD_LONG_SEQUENCE_20261029.md)。
+
 > 本 README 是项目入口，不替代算法、TF 或验收标准。开始开发或现场运行前，请先阅读
 > [CODEX 上下文](docs/CODEX_CONTEXT.md)、[文档权威矩阵](docs/AUTHORITY_MATRIX.md)
 > 和 [P3 运行时验收审计](docs/acceptance/P3_RUNTIME_ACCEPTANCE_AUDIT.md)。

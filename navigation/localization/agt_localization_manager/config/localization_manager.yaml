@@ -34,6 +34,16 @@ agt_localization_manager:
     tracking_consecutive_accepts: 2
     tracking_consistency_translation_m: 0.20
     tracking_consistency_yaw_deg: 2.0
+    # Sparse input may use the existing anchor only within BOTH budgets, counted
+    # from the last actually accepted tracking/global pose, including match latency.
+    # Expiry stops motion but retains the anchor/TF for a subsequent local match.
+    tracking_input_hold_max_sec: 60.0
+    tracking_input_hold_max_distance_m: 70.0
+    # Candidate conservative hold-eligibility guards, not proof of odom accuracy.
+    # Any non-finite/non-positive hold threshold fails closed.
+    tracking_input_hold_max_odom_step_m: 0.50
+    tracking_input_hold_max_odom_speed_mps: 3.0
+    tracking_input_hold_max_odom_yaw_step_deg: 30.0
     # A RECOVERY_REQUIRED tracker status transitions LOST -> recovery request
     # -> RELOCALIZING. Disable only for a deliberately manual recovery bench.
     tracking_recovery_auto_request: true
